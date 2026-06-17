@@ -1,0 +1,166 @@
+# Add-On Rule: MVP to Published Web App Lifecycle Plan
+
+When I ask for a new web app idea, app evaluation, MVP plan, or Codex build prompt, do not stop at creating only the MVP.
+
+Always include a clear plan and action path that gets the project from:
+
+MVP → Complete Vertical Slices → Production Hardening → Deployment → Public Launch → Maintenance → Feature Updates
+
+The goal is not only to create a working MVP. The goal is to help me understand the full build path needed to turn the MVP into a published, usable, maintainable web app.
+
+---
+
+## Required Lifecycle Roadmap
+
+For every web app idea, include a section called:
+
+## MVP to Launch Roadmap
+
+This section must include:
+
+1. MVP Build
+   - What gets built first
+   - What user flow is included
+   - What is intentionally excluded
+   - What proves the app works
+
+2. Complete Vertical Slices
+   - List the next 2–5 vertical slices needed after MVP
+   - Each slice must include:
+     - User goal
+     - UI work
+     - API/backend work
+     - Database/data work
+     - Tests
+     - Acceptance criteria
+
+3. Production Hardening
+   - Authentication/security needs
+   - Error handling
+   - Form validation
+   - Environment variables
+   - Logging
+   - Accessibility checks
+   - SEO basics where relevant
+   - Performance checks
+   - Responsive/mobile checks
+   - Data backup/export needs if applicable
+
+4. Deployment Plan
+   - Recommended hosting path
+   - Frontend deployment steps
+   - Backend deployment steps
+   - Database setup steps
+   - Required environment variables
+   - Domain setup
+   - SSL/HTTPS
+   - Smoke test checklist after deployment
+
+5. Launch Checklist
+   - Pre-launch QA
+   - Content review
+   - Legal/disclaimer needs
+   - Analytics setup
+   - Contact/support path
+   - Payment/affiliate/vendor checks if applicable
+   - Final go-live checklist
+
+6. Maintenance Plan
+   - Weekly maintenance tasks
+   - Monthly maintenance tasks
+   - Security/update checks
+   - Backup checks
+   - Bug triage process
+   - Monitoring needs
+   - Cost review
+
+7. Feature Update Workflow
+   - How to add new features after launch
+   - How to keep features as separate vertical slices
+   - How to avoid breaking the live app
+   - How to use feature branches
+   - How to test before deployment
+   - How to update documentation
+
+---
+
+## Required Prompt Output
+
+When creating a Codex prompt, include more than one prompt if needed:
+
+1. Prompt 1: Build the walking skeleton and MVP vertical slice
+2. Prompt 2: Add the next complete vertical slice
+3. Prompt 3: Production hardening pass
+4. Prompt 4: Deployment and launch readiness
+5. Prompt 5: Maintenance and future feature update workflow
+
+Do not leave me to figure out the next prompts on my own.
+
+Each prompt should be copy/paste ready and clearly labeled.
+
+---
+
+## Required Response Format Update
+
+For every new web app idea, respond with:
+
+1. Clear recommendation
+2. App type classification
+3. Best approach and why
+4. One-page product brief
+5. Recommended starter/template
+6. Walking skeleton definition
+7. First MVP vertical slice
+8. MVP-to-launch roadmap
+9. Production hardening checklist
+10. Deployment plan
+11. Launch checklist
+12. Maintenance plan
+13. Feature update workflow
+14. Full Codex prompt for MVP
+15. Follow-up Codex prompts for post-MVP buildout
+16. Confidence level
+17. Key caveats
+
+---
+
+## Important Rule
+
+Always guide me toward the smallest useful working version first, but also show me the full path to a published web app.
+
+Do not overbuild the first MVP.
+
+Do not stop at the MVP.
+
+For every project, make clear:
+
+- What I should build now
+- What I should build next
+- What must happen before production
+- What must happen before public launch
+- What must be maintained after launch
+- How future features should be added safely
+
+---
+
+## Default Build Philosophy
+
+Use this progression by default:
+
+1. Walking skeleton
+2. First contract-first MVP vertical slice
+3. Second revenue/value vertical slice
+4. Admin or management slice only if needed
+5. Production hardening
+6. Deployment
+7. Public launch
+8. Maintenance rhythm
+9. Feature update cycle
+
+The app should grow through complete vertical slices, not random disconnected features.
+
+
+Key caveats
+This should be added to your existing rule, not replace it.
+It keeps the MVP controlled while forcing the project to give you the next steps toward a real live app.
+For tiny static sites, the roadmap can be shorter, but it should still include deployment, launch, maintenance, and update guidance.

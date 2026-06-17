@@ -1,0 +1,29 @@
+export interface ExternalLink {
+  label: string;
+  url: string;
+}
+
+export interface Channel {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  genre: string;
+  mood: string;
+  energy: string;
+  theme: string;
+  hostName: string;
+  coverImageUrl: string;
+  audioUrl: string;
+  vrchatPlaybackUrl: string;
+  externalLinks: ExternalLink[];
+  rightsStatus: string;
+  isPublished: boolean;
+}
+
+export interface ChannelFilters {
+  genre?: string;
+  mood?: string;
+  energy?: string;
+  theme?: string;
+}
