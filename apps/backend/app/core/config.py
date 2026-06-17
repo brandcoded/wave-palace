@@ -14,7 +14,7 @@ class Settings:
     service_name: str = "wavepalace-api"
     mongodb_uri: Optional[str] = os.getenv("MONGODB_URI") or None
     mongodb_database: str = os.getenv("MONGODB_DATABASE", "wavepalace")
-    frontend_origin: str = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
+    frontend_origin: str = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000,http://localhost:3001")
 
     @property
     def use_seed_mode(self) -> bool:
