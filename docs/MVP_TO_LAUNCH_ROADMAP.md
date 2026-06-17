@@ -33,7 +33,8 @@ Frontend → Vercel. Backend → Render. Database → MongoDB Atlas. See
 
 ## 5. Launch checklist
 
-- [ ] All MVP "Definition of Done" items pass (see README).
+- [x] All MVP "Definition of Done" items pass (see README).
+- [x] Playlist cycling implemented — tracks auto-advance, loop, track counter shown.
 - [ ] Seed media replaced with cleared/licensed media.
 - [ ] CORS locked to the production frontend origin.
 - [ ] Licensing notes + takedown policy published.

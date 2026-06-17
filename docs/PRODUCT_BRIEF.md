@@ -29,6 +29,8 @@ such as featured/sponsored channels is a future slice, not in the MVP.)
 - Channel detail/player page with push-play, non-stop persistent streaming
   (each channel behaves like a streaming radio station — always playing, no
   manual track selection required, similar to Music Choice)
+- Playlist cycling: tracks auto-advance on end, loop back to track 1 —
+  no manual interaction required; track counter displays current position
 - Copy Web Link and Copy VRChat Link
 - FastAPI backend with `/health`, `/api/channels`, `/api/channels/{slug}`
 - Seed data with seed-mode fallback (no database required to run)

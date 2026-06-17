@@ -14,6 +14,15 @@ _AUDIO_1 = "https://stream.wavepalace.live/tracks/channel_abc123/come-thru.mp3"
 _AUDIO_2 = "https://stream.wavepalace.live/tracks/channel_def456/cant-explain-no-words-160bpm-1.mp3"
 _AUDIO_3 = "https://stream.wavepalace.live/tracks/channel_ghi789/akira.mp3"
 
+_PLAYLIST_1 = [
+    "https://stream.wavepalace.live/tracks/channel_abc123/come-thru.mp3",
+    "https://stream.wavepalace.live/tracks/channel_abc123/Day-Trips-4-82bpm.mp3",
+    "https://stream.wavepalace.live/tracks/channel_abc123/happier-106bpm-mix-3-M1.mp3",
+    "https://stream.wavepalace.live/tracks/channel_abc123/projections-Stems-Mix-3.mp3",
+]
+_PLAYLIST_2 = [_AUDIO_2]
+_PLAYLIST_3 = [_AUDIO_3]
+
 # Pre-muxed MP4s not yet uploaded — falling back to audio MP3s until muxed files are on R2.
 _VRCHAT_1 = _AUDIO_1
 _VRCHAT_2 = _AUDIO_2
@@ -33,6 +42,7 @@ SEED_CHANNELS: list[dict] = [
         "hostName": "DJ Skyy",
         "coverImageUrl": _BG_1,
         "audioUrl": _AUDIO_1,
+        "playlist": _PLAYLIST_1,
         "vrchatPlaybackUrl": _VRCHAT_1,
         "externalLinks": [
             {"label": "Listen elsewhere", "url": "https://example.com/late-night-house"}
@@ -52,6 +62,7 @@ SEED_CHANNELS: list[dict] = [
         "hostName": "WavePalace Selects",
         "coverImageUrl": _BG_2,
         "audioUrl": _AUDIO_2,
+        "playlist": _PLAYLIST_2,
         "vrchatPlaybackUrl": _VRCHAT_2,
         "externalLinks": [
             {"label": "Listen elsewhere", "url": "https://example.com/afro-future-lounge"}
@@ -71,6 +82,7 @@ SEED_CHANNELS: list[dict] = [
         "hostName": "Guest Host",
         "coverImageUrl": _BG_3,
         "audioUrl": _AUDIO_3,
+        "playlist": _PLAYLIST_3,
         "vrchatPlaybackUrl": _VRCHAT_3,
         "externalLinks": [
             {"label": "Listen elsewhere", "url": "https://example.com/neon-afterhours"}
@@ -91,6 +103,7 @@ SEED_CHANNELS: list[dict] = [
         "hostName": "WavePalace Selects",
         "coverImageUrl": "https://picsum.photos/seed/hiddendraft/1200/800",
         "audioUrl": _AUDIO_1,
+        "playlist": _PLAYLIST_1,
         "vrchatPlaybackUrl": _VRCHAT_1,
         "externalLinks": [],
         "rightsStatus": "pending_review",

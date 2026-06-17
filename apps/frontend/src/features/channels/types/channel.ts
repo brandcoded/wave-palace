@@ -15,6 +15,7 @@ export interface Channel {
   hostName: string;
   coverImageUrl: string;
   audioUrl: string;
+  playlist: string[];
   vrchatPlaybackUrl: string;
   externalLinks: ExternalLink[];
   rightsStatus: string;

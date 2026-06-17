@@ -4,34 +4,47 @@ import { useEffect, useRef, useState } from "react";
 import { Play, Pause, Volume2, VolumeX, AlertTriangle } from "lucide-react";
 
 interface ChannelPlayerProps {
-  audioSrc: string;
+  playlist: string[];
   coverImage: string;
   title: string;
 }
 
-export function ChannelPlayer({ audioSrc, coverImage, title }: ChannelPlayerProps) {
+export function ChannelPlayer({ playlist, coverImage, title }: ChannelPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [errored, setErrored] = useState(false);
 
+  // When the playlist changes (channel swap), reset to track 0.
+  useEffect(() => {
+    setCurrentIndex(0);
+    setErrored(false);
+  }, [playlist]);
+
+  // When currentIndex advances, resume playback if we were already playing.
   useEffect(() => {
     const a = audioRef.current;
     if (!a) return;
     a.volume = volume;
-    a.muted = false;
-  }, [audioSrc]);
+    a.muted = muted;
+    if (playing) {
+      a.play().catch(() => {});
+    }
+  }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleEnded() {
+    setCurrentIndex((i) => (i + 1) % playlist.length);
+  }
 
   function togglePlay() {
     const a = audioRef.current;
     if (!a) return;
     if (a.paused) {
       a.play();
-      setPlaying(true);
     } else {
       a.pause();
-      setPlaying(false);
     }
   }
 
@@ -70,6 +83,8 @@ export function ChannelPlayer({ audioSrc, coverImage, title }: ChannelPlayerProp
     );
   }
 
+  const trackSrc = playlist[currentIndex] ?? "";
+
   return (
     <div className="group relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/50">
       {/* Cover art */}
@@ -82,11 +97,12 @@ export function ChannelPlayer({ audioSrc, coverImage, title }: ChannelPlayerProp
       {/* Hidden audio element */}
       <audio
         ref={audioRef}
-        src={audioSrc}
+        src={trackSrc}
         preload="auto"
         onError={() => setErrored(true)}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
+        onEnded={handleEnded}
       />
 
       {/* Controls overlay */}
@@ -128,6 +144,13 @@ export function ChannelPlayer({ audioSrc, coverImage, title }: ChannelPlayerProp
           aria-label="Volume"
           className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-white/20 accent-white"
         />
+
+        {/* Track counter */}
+        {playlist.length > 1 && (
+          <span className="ml-auto text-xs font-medium text-white/50">
+            Track {currentIndex + 1} of {playlist.length}
+          </span>
+        )}
       </div>
     </div>
   );

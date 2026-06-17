@@ -51,7 +51,11 @@ Returns a single published channel by slug.
   "theme": "Lounge",
   "hostName": "DJ Skyy",
   "coverImageUrl": "https://stream.wavepalace.live/covers/late-night-house.jpg",
-  "audioUrl": "https://stream.wavepalace.live/tracks/channel_abc123/track.mp3",
+  "audioUrl": "https://stream.wavepalace.live/tracks/channel_abc123/track-1.mp3",
+  "playlist": [
+    "https://stream.wavepalace.live/tracks/channel_abc123/track-1.mp3",
+    "https://stream.wavepalace.live/tracks/channel_abc123/track-2.mp3"
+  ],
   "vrchatPlaybackUrl": "https://stream.wavepalace.live/muxed/late-night-house.mp4",
   "externalLinks": [{ "label": "Listen elsewhere", "url": "https://example.com" }],
   "rightsStatus": "owned_or_cleared",
@@ -60,10 +64,10 @@ Returns a single published channel by slug.
 ```
 
 **Field notes:**
-- `audioUrl` — the audio stream used by the web player (MP3 on Cloudflare R2)
+- `playlist` — ordered list of MP3 URLs; the web player cycles through these automatically, looping back to index 0 after the last track
+- `audioUrl` — always equals `playlist[0]`; retained for backwards compatibility
 - `coverImageUrl` — static channel art displayed as the web player background
 - `vrchatPlaybackUrl` — pre-muxed static MP4 (cover image + audio combined), uploaded to R2, single direct URL for VRChat video players
-- `visualLoopUrl` and `webPlaybackUrl` removed in MVP — replaced by `audioUrl` + `coverImageUrl`
 - `externalLinks` are attribution only and are never playback sources
 
 ## Error states
