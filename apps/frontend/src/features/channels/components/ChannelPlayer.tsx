@@ -7,9 +7,10 @@ interface ChannelPlayerProps {
   playlist: string[];
   coverImage: string;
   title: string;
+  visualLoopUrl?: string | null;
 }
 
-export function ChannelPlayer({ playlist, coverImage, title }: ChannelPlayerProps) {
+export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl }: ChannelPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -89,12 +90,26 @@ export function ChannelPlayer({ playlist, coverImage, title }: ChannelPlayerProp
 
   return (
     <div className="group relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/50">
-      {/* Cover art */}
-      <img
-        src={coverImage}
-        alt={`${title} channel art`}
-        className="aspect-video w-full object-cover"
-      />
+      {/* Visual backdrop: looping muted video when available, else static cover.
+          Audio (incl. playlist cycling) is driven by the <audio> element below. */}
+      {visualLoopUrl ? (
+        <video
+          src={visualLoopUrl}
+          autoPlay
+          loop
+          muted
+          playsInline
+          poster={coverImage}
+          aria-label={`${title} animated backdrop`}
+          className="aspect-video w-full object-cover"
+        />
+      ) : (
+        <img
+          src={coverImage}
+          alt={`${title} channel art`}
+          className="aspect-video w-full object-cover"
+        />
+      )}
 
       {/* Hidden audio element */}
       <audio

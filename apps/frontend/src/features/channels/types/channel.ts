@@ -14,6 +14,7 @@ export interface Channel {
   theme: string;
   hostName: string;
   coverImageUrl: string;
+  visualLoopUrl?: string | null;
   audioUrl: string;
   playlist: string[];
   vrchatPlaybackUrl: string;

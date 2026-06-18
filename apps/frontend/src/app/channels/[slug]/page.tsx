@@ -66,6 +66,7 @@ export default async function ChannelDetailPage({
           <ChannelPlayer
             playlist={channel.playlist?.length ? channel.playlist : [channel.audioUrl]}
             coverImage={channel.coverImageUrl}
+            visualLoopUrl={channel.visualLoopUrl}
             title={channel.title}
           />
 
