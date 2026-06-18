@@ -21,19 +21,33 @@ from app.repositories.r2_repository import R2Repository
 logger = logging.getLogger("wavepalace.mux")
 
 # FFmpeg command template.
-# -loop 1         : loop the single input image as video
-# -shortest       : stop when the shorter stream (audio) ends
-# -movflags +faststart : move moov atom to the front for streaming
+# Source cover images vary in size (1024² up to 1536²+); encoding full-res
+# frames OOM-kills Render's free tier. We downscale to a fixed 720p canvas so
+# memory/CPU is bounded regardless of input, which is also the most
+# VRChat-compatible resolution.
+# -loop 1                : loop the single input image as video
+# -framerate/-r 1        : a still image needs only 1 fps (tiny, fast, valid H.264)
+# -vf scale...pad        : fit within 1280x720 preserving aspect, pad to exact even dims
+# -preset ultrafast      : minimal CPU/memory on the throttled free tier
+# -threads 1             : bound memory use
+# -shortest              : stop when the audio ends
+# -movflags +faststart   : move moov atom to the front for streaming
+_VIDEO_FILTER = (
+    "scale=1280:720:force_original_aspect_ratio=decrease,"
+    "pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1"
+)
 _FFMPEG_CMD = [
     "ffmpeg", "-y",
     "-loop", "1",
-    "-framerate", "2",          # still image only needs a low fps
+    "-framerate", "1",
     "-i", "{cover}",
     "-i", "{audio}",
+    "-vf", _VIDEO_FILTER,
     "-c:v", "libx264",
-    "-preset", "veryfast",      # fast encode so a single channel finishes in time
+    "-preset", "ultrafast",
     "-tune", "stillimage",
-    "-r", "2",                  # output 2 fps — tiny file, valid H.264 for VRChat
+    "-r", "1",
+    "-threads", "1",
     "-c:a", "aac",
     "-b:a", "256k",
     "-pix_fmt", "yuv420p",
@@ -41,6 +55,9 @@ _FFMPEG_CMD = [
     "-movflags", "+faststart",
     "{output}",
 ]
+
+# Hard cap so a runaway encode fails fast instead of hanging the worker.
+_FFMPEG_TIMEOUT_S = 90
 
 
 class MuxService:
@@ -137,6 +154,12 @@ async def _run_ffmpeg(cmd: list[str]) -> None:
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
-    _, stderr = await proc.communicate()
+    try:
+        _, stderr = await asyncio.wait_for(proc.communicate(), timeout=_FFMPEG_TIMEOUT_S)
+    except asyncio.TimeoutError as exc:
+        proc.kill()
+        await proc.wait()
+        raise RuntimeError(f"FFmpeg timed out after {_FFMPEG_TIMEOUT_S}s") from exc
     if proc.returncode != 0:
-        raise RuntimeError(f"FFmpeg failed (exit {proc.returncode}):\n{stderr.decode()}")
+        tail = stderr.decode(errors="replace")[-800:]
+        raise RuntimeError(f"FFmpeg failed (exit {proc.returncode}):\n{tail}")
