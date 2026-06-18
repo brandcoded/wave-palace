@@ -53,6 +53,7 @@ export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl }: Ch
     } else {
       playingRef.current = false;
       a.pause();
+      videoRef.current?.pause();
       setPlaying(false);
     }
   }
