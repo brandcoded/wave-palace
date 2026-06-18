@@ -86,7 +86,6 @@ export function ChannelPlayer({ playlist, coverImage, title }: ChannelPlayerProp
   }
 
   const trackSrc = playlist[currentIndex] ?? "";
-  const isLoop = playlist.length === 1;
 
   return (
     <div className="group relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/50">
@@ -102,12 +101,11 @@ export function ChannelPlayer({ playlist, coverImage, title }: ChannelPlayerProp
         ref={audioRef}
         src={trackSrc}
         preload="auto"
-        loop={isLoop}
         onCanPlay={handleCanPlay}
         onError={() => setErrored(true)}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
-        onEnded={isLoop ? undefined : handleEnded}
+        onEnded={handleEnded}
       />
 
       {/* Controls overlay */}
