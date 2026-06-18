@@ -35,6 +35,7 @@ _JOB: dict = {"running": False, "started_at": None, "finished_at": None, "channe
 async def mux_debug() -> dict:
     import os
     return {
+        "build": "mux-720p-v1",
         "R2_ACCOUNT_ID": (os.getenv("R2_ACCOUNT_ID") or "")[:6] + "...",
         "R2_ACCESS_KEY_ID": (os.getenv("R2_ACCESS_KEY_ID") or "")[:6] + "...",
         "R2_SECRET_ACCESS_KEY_set": bool(os.getenv("R2_SECRET_ACCESS_KEY")),
