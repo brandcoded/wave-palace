@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import shutil
 import tempfile
 import urllib.request
 from pathlib import Path
@@ -20,44 +19,64 @@ from app.repositories.r2_repository import R2Repository
 
 logger = logging.getLogger("wavepalace.mux")
 
-# FFmpeg command template.
+# The MP4 contains the channel's ENTIRE playlist concatenated back-to-back over
+# the cover image, so VRChat (which just plays one file) cycles through every
+# track like the web player does.
+#
 # Source cover images vary in size (1024² up to 1536²+); encoding full-res
 # frames OOM-kills Render's free tier. We downscale to a fixed 720p canvas so
 # memory/CPU is bounded regardless of input, which is also the most
 # VRChat-compatible resolution.
-# -loop 1                : loop the single input image as video
-# -framerate/-r 1        : a still image needs only 1 fps (tiny, fast, valid H.264)
-# -vf scale...pad        : fit within 1280x720 preserving aspect, pad to exact even dims
-# -preset ultrafast      : minimal CPU/memory on the throttled free tier
+# -loop 1 image, 1 fps   : a still image needs only 1 fps (tiny, fast, valid H.264)
+# concat filter          : join all playlist tracks (normalized to 44.1k stereo)
+# -preset ultrafast      : minimal CPU on the throttled free tier
 # -threads 1             : bound memory use
-# -shortest              : stop when the audio ends
+# -shortest              : stop the looped image when the (finite) audio ends
 # -movflags +faststart   : move moov atom to the front for streaming
 _VIDEO_FILTER = (
     "scale=1280:720:force_original_aspect_ratio=decrease,"
-    "pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1"
+    "pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p"
 )
-_FFMPEG_CMD = [
-    "ffmpeg", "-y",
-    "-loop", "1",
-    "-framerate", "1",
-    "-i", "{cover}",
-    "-i", "{audio}",
-    "-vf", _VIDEO_FILTER,
-    "-c:v", "libx264",
-    "-preset", "ultrafast",
-    "-tune", "stillimage",
-    "-r", "1",
-    "-threads", "1",
-    "-c:a", "aac",
-    "-b:a", "256k",
-    "-pix_fmt", "yuv420p",
-    "-shortest",
-    "-movflags", "+faststart",
-    "{output}",
-]
 
 # Hard cap so a runaway encode fails fast instead of hanging the worker.
-_FFMPEG_TIMEOUT_S = 90
+# Generous because a multi-track playlist can be 10+ minutes of audio.
+_FFMPEG_TIMEOUT_S = 300
+
+
+def _build_ffmpeg_cmd(cover: Path, audios: list[Path], output: Path) -> list[str]:
+    """Build an ffmpeg command that loops *cover* as video and concatenates
+    every track in *audios* into one continuous AAC stream."""
+    cmd: list[str] = ["ffmpeg", "-y", "-loop", "1", "-framerate", "1", "-i", str(cover)]
+    for a in audios:
+        cmd += ["-i", str(a)]
+
+    n = len(audios)
+    # Normalize each track so concat doesn't choke on differing sample rates,
+    # then concatenate. Audio inputs are indices 1..n (0 is the cover image).
+    norm = [
+        f"[{i + 1}:a]aformat=sample_rates=44100:channel_layouts=stereo[a{i}]"
+        for i in range(n)
+    ]
+    concat_in = "".join(f"[a{i}]" for i in range(n))
+    audio_chain = ";".join(norm + [f"{concat_in}concat=n={n}:v=0:a=1[aout]"])
+    filter_complex = f"[0:v]{_VIDEO_FILTER}[vout];{audio_chain}"
+
+    cmd += [
+        "-filter_complex", filter_complex,
+        "-map", "[vout]",
+        "-map", "[aout]",
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-tune", "stillimage",
+        "-r", "1",
+        "-threads", "1",
+        "-c:a", "aac",
+        "-b:a", "256k",
+        "-shortest",
+        "-movflags", "+faststart",
+        str(output),
+    ]
+    return cmd
 
 
 class MuxService:
@@ -77,35 +96,34 @@ class MuxService:
 
         channel_id = channel["id"]
         cover_url = str(channel["coverImageUrl"])
-        audio_url = str(channel["audioUrl"])
+        # Mux the whole playlist so VRChat cycles every track. Fall back to the
+        # single audioUrl for channels without a playlist.
+        playlist = [str(u) for u in (channel.get("playlist") or [])] or [str(channel["audioUrl"])]
         r2_key = f"muxed/{channel_id}/{slug}.mp4"
 
-        logger.info("Muxing channel '%s'  cover=%s  audio=%s", slug, cover_url, audio_url)
+        logger.info("Muxing channel '%s'  cover=%s  tracks=%d", slug, cover_url, len(playlist))
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             cover_ext = Path(cover_url.split("?")[0]).suffix or ".jpg"
             cover_path = tmp_path / f"cover{cover_ext}"
-            audio_path = tmp_path / "audio.mp3"
             output_path = tmp_path / "output.mp4"
 
             try:
                 await asyncio.to_thread(_download, cover_url, cover_path)
             except Exception as exc:
                 raise RuntimeError(f"Download failed for cover {cover_url}: {exc}") from exc
-            try:
-                await asyncio.to_thread(_download, audio_url, audio_path)
-            except Exception as exc:
-                raise RuntimeError(f"Download failed for audio {audio_url}: {exc}") from exc
 
-            cmd = [
-                part.format(
-                    cover=str(cover_path),
-                    audio=str(audio_path),
-                    output=str(output_path),
-                )
-                for part in _FFMPEG_CMD
-            ]
+            audio_paths: list[Path] = []
+            for idx, track_url in enumerate(playlist):
+                track_path = tmp_path / f"track{idx}.mp3"
+                try:
+                    await asyncio.to_thread(_download, track_url, track_path)
+                except Exception as exc:
+                    raise RuntimeError(f"Download failed for track {track_url}: {exc}") from exc
+                audio_paths.append(track_path)
+
+            cmd = _build_ffmpeg_cmd(cover_path, audio_paths, output_path)
             logger.info("Running: %s", " ".join(cmd))
             await _run_ffmpeg(cmd)
 

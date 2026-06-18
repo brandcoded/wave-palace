@@ -117,19 +117,14 @@ async def test_mux_service_mux_channel_happy_path():
     svc = MuxService(repository=repo, r2=r2)
 
     with (
-        patch("app.services.mux_service._download") as mock_dl,
+        patch("app.services.mux_service._download"),
         patch("app.services.mux_service._run_ffmpeg", new_callable=AsyncMock) as mock_ff,
         patch("app.services.mux_service.asyncio.to_thread") as mock_thread,
     ):
-        # to_thread calls: _download (cover), _download (audio), r2.upload_file
-        call_results = [None, None, _FAKE_URL]
-        call_index = 0
-
+        # Run each to_thread call inline; _download is mocked (returns a stub),
+        # r2.upload_file returns the final URL. Order-independent across N tracks.
         async def fake_to_thread(fn, *args, **kwargs):
-            nonlocal call_index
-            result = call_results[call_index]
-            call_index += 1
-            return result
+            return fn(*args, **kwargs)
 
         mock_thread.side_effect = fake_to_thread
         mock_ff.return_value = None
@@ -137,6 +132,22 @@ async def test_mux_service_mux_channel_happy_path():
         url = await svc.mux_channel("late-night-house")
 
     assert url == _FAKE_URL
+
+
+def test_build_ffmpeg_cmd_concats_full_playlist():
+    from pathlib import Path
+    from app.services.mux_service import _build_ffmpeg_cmd
+
+    cover = Path("/tmp/cover.jpg")
+    audios = [Path(f"/tmp/track{i}.mp3") for i in range(4)]
+    cmd = _build_ffmpeg_cmd(cover, audios, Path("/tmp/out.mp4"))
+
+    # One -i per track plus one for the cover image.
+    assert cmd.count("-i") == 5
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    # All four tracks concatenated into a single audio stream.
+    assert "concat=n=4:v=0:a=1[aout]" in fc
+    assert "-shortest" in cmd
 
 
 @pytest.mark.asyncio
