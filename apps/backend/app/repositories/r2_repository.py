@@ -36,13 +36,22 @@ class R2Repository:
         )
 
     def upload_file(self, local_path: Path, r2_key: str, content_type: str = "video/mp4") -> str:
-        """Upload *local_path* to *r2_key* and return the public URL."""
+        """Upload *local_path* to *r2_key* and return the public URL.
+
+        A short Cache-Control is set so that when a channel is re-muxed the
+        Cloudflare edge picks up the new file within minutes instead of serving
+        a stale copy indefinitely (objects with no Cache-Control got a long
+        default edge TTL, which served outdated single-track MP4s).
+        """
         logger.info("Uploading %s → s3://%s/%s", local_path, self._bucket, r2_key)
         self._client.upload_file(
             Filename=str(local_path),
             Bucket=self._bucket,
             Key=r2_key,
-            ExtraArgs={"ContentType": content_type},
+            ExtraArgs={
+                "ContentType": content_type,
+                "CacheControl": "public, max-age=300",
+            },
         )
         public_url = f"{self._public_base}/{r2_key}"
         logger.info("Upload complete: %s", public_url)

@@ -26,7 +26,7 @@ router = APIRouter(tags=["mux (internal)"])
 logger = logging.getLogger("wavepalace.mux.routes")
 
 # Bump when the mux pipeline changes; surfaced by GET /api/mux/status.
-MUX_BUILD = "playlist-v2-duration"
+MUX_BUILD = "playlist-v3-cachecontrol"
 
 # In-memory status of the most recent /api/mux/all run. Single Render instance
 # / single uvicorn worker, so a module-level dict is sufficient for this
