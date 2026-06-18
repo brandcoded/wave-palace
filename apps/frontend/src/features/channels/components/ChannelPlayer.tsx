@@ -12,6 +12,7 @@ interface ChannelPlayerProps {
 
 export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl }: ChannelPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const playingRef = useRef(false);
@@ -24,6 +25,11 @@ export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl }: Ch
     setCurrentIndex(0);
     setErrored(false);
   }, [playlist]);
+
+  // Primary sync: keep video in lockstep with audio playing state.
+  useEffect(() => {
+    playing ? videoRef.current?.play() : videoRef.current?.pause();
+  }, [playing]);
 
   // Called when the browser has buffered enough to play the current src.
   // Uses playingRef (not state) to avoid stale closure when advancing tracks.
@@ -94,13 +100,13 @@ export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl }: Ch
           Audio (incl. playlist cycling) is driven by the <audio> element below. */}
       {visualLoopUrl ? (
         <video
+          ref={videoRef}
           src={visualLoopUrl}
-          autoPlay
           loop
           muted
           playsInline
           poster={coverImage}
-          aria-label={`${title} animated backdrop`}
+          aria-hidden="true"
           className="aspect-video w-full object-cover"
         />
       ) : (
@@ -118,8 +124,8 @@ export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl }: Ch
         preload="auto"
         onCanPlay={handleCanPlay}
         onError={() => setErrored(true)}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
+        onPlay={() => { videoRef.current?.play(); setPlaying(true); }}
+        onPause={() => { videoRef.current?.pause(); setPlaying(false); }}
         onEnded={handleEnded}
       />
 
