@@ -69,8 +69,14 @@ class MuxService:
             audio_path = tmp_path / "audio.mp3"
             output_path = tmp_path / "output.mp4"
 
-            await asyncio.to_thread(_download, cover_url, cover_path)
-            await asyncio.to_thread(_download, audio_url, audio_path)
+            try:
+                await asyncio.to_thread(_download, cover_url, cover_path)
+            except Exception as exc:
+                raise RuntimeError(f"Download failed for cover {cover_url}: {exc}") from exc
+            try:
+                await asyncio.to_thread(_download, audio_url, audio_path)
+            except Exception as exc:
+                raise RuntimeError(f"Download failed for audio {audio_url}: {exc}") from exc
 
             cmd = [
                 part.format(
