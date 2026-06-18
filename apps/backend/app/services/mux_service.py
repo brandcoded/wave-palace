@@ -99,6 +99,11 @@ class MuxService:
         logger.info("Mux complete for '%s': %s", slug, public_url)
         return public_url
 
+    async def published_slugs(self) -> list[str]:
+        """Slugs of all published channels, in order."""
+        channels = await self._repository.list_channels()
+        return [c["slug"] for c in channels if c.get("isPublished")]
+
     async def mux_all_published(self) -> dict[str, str]:
         """Mux every published channel. Returns {slug: url} for successes and
         {slug: error_message} for failures."""

@@ -26,9 +26,10 @@ _FAKE_URL = "https://stream.wavepalace.live/muxed/channel_late_night_house/late-
 
 
 def _make_mux_service(mux_result: str = _FAKE_URL) -> MuxService:
-    """Return a MuxService whose mux_channel is mocked to return *mux_result*."""
+    """Return a MuxService whose mux methods are mocked."""
     svc = MagicMock(spec=MuxService)
     svc.mux_channel = AsyncMock(return_value=mux_result)
+    svc.published_slugs = AsyncMock(return_value=["late-night-house"])
     svc.mux_all_published = AsyncMock(
         return_value={"late-night-house": mux_result}
     )
@@ -37,6 +38,10 @@ def _make_mux_service(mux_result: str = _FAKE_URL) -> MuxService:
 
 @pytest.fixture()
 def mux_client() -> TestClient:
+    # Reset the module-level job store so tests don't leak state into each other.
+    from app.api.routes import mux as mux_routes
+    mux_routes._JOB.update(running=False, started_at=None, finished_at=None, channels={})
+
     svc = _make_mux_service()
     app.dependency_overrides[get_mux_service] = lambda: svc
     with TestClient(app) as c:
@@ -66,20 +71,36 @@ def test_mux_channel_404_on_missing_slug(mux_client):
     app.dependency_overrides.clear()
 
 
-def test_mux_all_accepts_and_runs_in_background(mux_client):
+def test_mux_all_accepts_and_points_to_status(mux_client):
     res = mux_client.post("/api/mux/all")
     assert res.status_code == 202
     assert res.json()["status"] == "accepted"
+    assert res.json()["poll"] == "/api/mux/status"
 
 
-def test_mux_all_triggers_service(mux_client):
-    # The background task should invoke mux_all_published exactly once.
-    svc = MagicMock(spec=MuxService)
-    svc.mux_all_published = AsyncMock(return_value={"late-night-house": _FAKE_URL})
-    app.dependency_overrides[get_mux_service] = lambda: svc
+def test_mux_all_runs_background_and_records_status(mux_client):
+    # TestClient runs background tasks synchronously after the response,
+    # so by the time we poll, the job has completed.
     res = mux_client.post("/api/mux/all")
     assert res.status_code == 202
-    svc.mux_all_published.assert_awaited_once()
+
+    status = mux_client.get("/api/mux/status").json()
+    assert status["running"] is False
+    assert status["channels"]["late-night-house"]["state"] == "done"
+    assert status["channels"]["late-night-house"]["url"] == _FAKE_URL
+
+
+def test_mux_status_records_per_channel_error(mux_client):
+    svc = MagicMock(spec=MuxService)
+    svc.published_slugs = AsyncMock(return_value=["broken"])
+    svc.mux_channel = AsyncMock(side_effect=RuntimeError("ffmpeg failed"))
+    app.dependency_overrides[get_mux_service] = lambda: svc
+
+    mux_client.post("/api/mux/all")
+    status = mux_client.get("/api/mux/status").json()
+    assert status["channels"]["broken"]["state"] == "error"
+    assert "ffmpeg failed" in status["channels"]["broken"]["error"]
+    app.dependency_overrides.clear()
     app.dependency_overrides.clear()
 
 

@@ -1,16 +1,21 @@
 """Mux API routes — internal/admin use only (no auth for MVP).
 
 POST /api/channels/{slug}/mux   — mux a single channel (synchronous, returns URL/error)
-POST /api/mux/all               — mux all published channels (background task)
+POST /api/mux/all               — start a background job muxing every published channel
+GET  /api/mux/status            — poll the status of the most recent /api/mux/all job
 
-The single-channel endpoint runs synchronously so the caller sees the final
-URL or the exact failure. /api/mux/all runs in the background (logs results)
-because doing every channel in one request can exceed Render's HTTP timeout.
+On Render's CPU-throttled free tier a single channel can take ~25s+ and a
+synchronous "mux everything" request exceeds the platform's HTTP timeout
+(observed as a 502). So /api/mux/all runs in the background and records
+per-channel progress in an in-memory store that GET /api/mux/status returns.
+Poll that endpoint until every channel reports "done" or "error".
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
@@ -19,6 +24,11 @@ from app.services.mux_service import MuxService
 
 router = APIRouter(tags=["mux (internal)"])
 logger = logging.getLogger("wavepalace.mux.routes")
+
+# In-memory status of the most recent /api/mux/all run. Single Render instance
+# / single uvicorn worker, so a module-level dict is sufficient for this
+# admin-only tool. Reset each time a new /api/mux/all job starts.
+_JOB: dict = {"running": False, "started_at": None, "finished_at": None, "channels": {}}
 
 
 @router.get("/api/mux/debug", summary="Debug R2 config (temporary)")
@@ -47,19 +57,34 @@ async def mux_channel(
     return {"slug": slug, "vrchatPlaybackUrl": url}
 
 
-async def _bg_mux_all(service: MuxService) -> None:
-    results = await service.mux_all_published()
-    for slug, result in results.items():
-        if result.startswith("ERROR:"):
-            logger.error("MUX FAILED [%s]: %s", slug, result)
-        else:
-            logger.info("MUX DONE [%s] -> %s", slug, result)
+async def _run_mux_all(service: MuxService) -> None:
+    slugs = await service.published_slugs()
+    _JOB["channels"] = {s: {"state": "pending", "url": None, "error": None} for s in slugs}
+    for slug in slugs:
+        _JOB["channels"][slug]["state"] = "running"
+        try:
+            url = await service.mux_channel(slug)
+            _JOB["channels"][slug].update(state="done", url=url)
+            logger.info("MUX DONE [%s] -> %s", slug, url)
+        except Exception as exc:  # noqa: BLE001
+            _JOB["channels"][slug].update(state="error", error=str(exc))
+            logger.error("MUX FAILED [%s]: %s", slug, exc)
+    _JOB["running"] = False
+    _JOB["finished_at"] = time.time()
 
 
-@router.post("/api/mux/all", status_code=202, summary="Mux all published channels to MP4")
+@router.post("/api/mux/all", status_code=202, summary="Start background mux of all channels")
 async def mux_all(
     background_tasks: BackgroundTasks,
     service: MuxService = Depends(get_mux_service),
 ) -> dict:
-    background_tasks.add_task(_bg_mux_all, service)
-    return {"status": "accepted", "message": "Mux all job started — check Render logs for results."}
+    if _JOB["running"]:
+        raise HTTPException(status_code=409, detail="A mux job is already running. Poll /api/mux/status.")
+    _JOB.update(running=True, started_at=time.time(), finished_at=None, channels={})
+    background_tasks.add_task(_run_mux_all, service)
+    return {"status": "accepted", "poll": "/api/mux/status"}
+
+
+@router.get("/api/mux/status", summary="Status of the most recent mux-all job")
+async def mux_status() -> dict:
+    return _JOB
