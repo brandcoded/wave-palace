@@ -66,20 +66,20 @@ def test_mux_channel_404_on_missing_slug(mux_client):
     app.dependency_overrides.clear()
 
 
-def test_mux_all_returns_results(mux_client):
+def test_mux_all_accepts_and_runs_in_background(mux_client):
     res = mux_client.post("/api/mux/all")
-    assert res.status_code == 200
-    body = res.json()
-    assert "results" in body
-    assert body["results"]["late-night-house"] == _FAKE_URL
+    assert res.status_code == 202
+    assert res.json()["status"] == "accepted"
 
 
-def test_mux_all_500_on_runtime_error(mux_client):
+def test_mux_all_triggers_service(mux_client):
+    # The background task should invoke mux_all_published exactly once.
     svc = MagicMock(spec=MuxService)
-    svc.mux_all_published = AsyncMock(side_effect=RuntimeError("ffmpeg missing"))
+    svc.mux_all_published = AsyncMock(return_value={"late-night-house": _FAKE_URL})
     app.dependency_overrides[get_mux_service] = lambda: svc
     res = mux_client.post("/api/mux/all")
-    assert res.status_code == 500
+    assert res.status_code == 202
+    svc.mux_all_published.assert_awaited_once()
     app.dependency_overrides.clear()
 
 

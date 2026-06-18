@@ -27,10 +27,13 @@ logger = logging.getLogger("wavepalace.mux")
 _FFMPEG_CMD = [
     "ffmpeg", "-y",
     "-loop", "1",
+    "-framerate", "2",          # still image only needs a low fps
     "-i", "{cover}",
     "-i", "{audio}",
     "-c:v", "libx264",
+    "-preset", "veryfast",      # fast encode so a single channel finishes in time
     "-tune", "stillimage",
+    "-r", "2",                  # output 2 fps — tiny file, valid H.264 for VRChat
     "-c:a", "aac",
     "-b:a", "256k",
     "-pix_fmt", "yuv420p",

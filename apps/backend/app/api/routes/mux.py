@@ -1,15 +1,15 @@
 """Mux API routes — internal/admin use only (no auth for MVP).
 
-POST /api/channels/{slug}/mux   — mux a single channel (background task)
+POST /api/channels/{slug}/mux   — mux a single channel (synchronous, returns URL/error)
 POST /api/mux/all               — mux all published channels (background task)
 
-Jobs run in the background and log results to stdout. The endpoint returns
-202 Accepted immediately so Render's request timeout is never hit.
+The single-channel endpoint runs synchronously so the caller sees the final
+URL or the exact failure. /api/mux/all runs in the background (logs results)
+because doing every channel in one request can exceed Render's HTTP timeout.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -33,12 +33,18 @@ async def mux_debug() -> dict:
     }
 
 
-async def _bg_mux_channel(slug: str, service: MuxService) -> None:
+@router.post("/api/channels/{slug}/mux", summary="Mux a single channel to MP4")
+async def mux_channel(
+    slug: str,
+    service: MuxService = Depends(get_mux_service),
+) -> dict:
     try:
         url = await service.mux_channel(slug)
-        logger.info("MUX DONE [%s] -> %s", slug, url)
-    except Exception as exc:
-        logger.error("MUX FAILED [%s]: %s", slug, exc)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return {"slug": slug, "vrchatPlaybackUrl": url}
 
 
 async def _bg_mux_all(service: MuxService) -> None:
@@ -48,16 +54,6 @@ async def _bg_mux_all(service: MuxService) -> None:
             logger.error("MUX FAILED [%s]: %s", slug, result)
         else:
             logger.info("MUX DONE [%s] -> %s", slug, result)
-
-
-@router.post("/api/channels/{slug}/mux", status_code=202, summary="Mux a single channel to MP4")
-async def mux_channel(
-    slug: str,
-    background_tasks: BackgroundTasks,
-    service: MuxService = Depends(get_mux_service),
-) -> dict:
-    background_tasks.add_task(_bg_mux_channel, slug, service)
-    return {"status": "accepted", "slug": slug, "message": "Mux job started — check Render logs for result."}
 
 
 @router.post("/api/mux/all", status_code=202, summary="Mux all published channels to MP4")
