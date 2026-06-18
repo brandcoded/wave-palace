@@ -115,7 +115,12 @@ class MuxService:
 
 
 def _download(url: str, dest: Path) -> None:
-    urllib.request.urlretrieve(url, dest)  # noqa: S310 — internal admin tool, URL is from trusted seed/DB
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "Mozilla/5.0 (compatible; WavePalace-Mux/1.0)"},
+    )
+    with urllib.request.urlopen(req) as resp, open(dest, "wb") as f:  # noqa: S310
+        f.write(resp.read())
 
 
 async def _run_ffmpeg(cmd: list[str]) -> None:
