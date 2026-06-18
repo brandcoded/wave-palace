@@ -36,13 +36,31 @@ Endpoints: `POST /api/channels/{slug}/mux` and `POST /api/mux/all`.
 Requires `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` env vars.
 FFmpeg is installed on Render via `render.yaml` build command.
 
-## Future slice 1: Animated / looping video backgrounds
+## Future slice 1: Animated / looping video backgrounds + admin visual type selector
 
 Replace the static cover image background on the web player with a looping MP4
-visual per channel. Requires resolving the audio+video mux architecture for
-VRChat (either pre-muxed upload or Cloudflare Worker on-the-fly mux service).
-Each channel supports either a static image or an animated loop (`visualType`:
-`"image"` or `"video"`).
+visual per channel. The schema already supports this via the `visualLoopUrl`
+field (optional, falls back to `coverImageUrl`) and the mux service already
+detects video vs image by file extension automatically.
+
+**Admin UX — Option B (explicit toggle):**
+The music director dashboard (Slice 3) will include a visual type selector per
+channel: `Visual type: ○ Image  ● Video Loop`. Each option has its own upload
+slot — `coverImageUrl` for the static image, `visualLoopUrl` for the looping
+MP4. The admin can switch between them without re-uploading either asset. The
+mux service uses `visualLoopUrl` when set, falls back to `coverImageUrl` when
+not — no code change needed at mux time.
+
+**Web player:** When `visualLoopUrl` is present, the `<img>` backdrop in
+`ChannelPlayer.tsx` is replaced with a muted, looping `<video>` element.
+When absent, the existing `<img>` renders as before.
+
+**VRChat mux:** No changes needed — `mux_service.py` already handles both
+image and video covers via `_VIDEO_EXTS` detection. Re-running
+`POST /api/mux/all` after uploading a loop video produces the correct output.
+
+Depends on: Slice 3 (music director dashboard + auth) for the admin UI.
+Can be partially activated now by manually setting `visualLoopUrl` in seed data.
 
 ## Future slice 2: DJ / Artist submission requests
 

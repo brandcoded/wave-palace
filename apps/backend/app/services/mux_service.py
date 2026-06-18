@@ -1,14 +1,18 @@
-"""Mux service: downloads cover image + audio from R2, runs FFmpeg to produce
-a single MP4, uploads it back to R2, and returns the public URL.
+"""Mux service: downloads cover (image or video loop) + audio from R2, runs
+FFmpeg to produce a single MP4, uploads it back to R2, and returns the public URL.
 
-The resulting MP4 is compatible with VRChat video players: H.264 video
-(static image looped), AAC audio, faststart flag for immediate playback.
+The resulting MP4 is compatible with VRChat video players: H.264 video,
+AAC audio, faststart flag for immediate playback.
+
+Cover can be a still image (.jpg/.png) or a short looping video (.mp4/.mov).
+When a video loop is supplied it repeats seamlessly for the full audio duration.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import tempfile
 import urllib.request
 from pathlib import Path
@@ -19,56 +23,49 @@ from app.repositories.r2_repository import R2Repository
 
 logger = logging.getLogger("wavepalace.mux")
 
-# The MP4 contains the channel's ENTIRE playlist concatenated back-to-back over
-# the cover image, so VRChat (which just plays one file) cycles through every
-# track like the web player does.
-#
-# Source cover images vary in size (1024² up to 1536²+); encoding full-res
-# frames OOM-kills Render's free tier. We downscale to a fixed 720p canvas so
-# memory/CPU is bounded regardless of input, which is also the most
-# VRChat-compatible resolution.
-# -loop 1 image, 1 fps   : a still image needs only 1 fps (tiny, fast, valid H.264)
-# concat filter          : join all playlist tracks (normalized to 44.1k stereo)
-# -preset ultrafast      : minimal CPU on the throttled free tier
-# -threads 1             : bound memory use
-# -shortest              : stop the looped image when the (finite) audio ends
-# -movflags +faststart   : move moov atom to the front for streaming
+# Downscale all visual inputs to a fixed 720p canvas — bounds memory/CPU on
+# Render and maximises VRChat compatibility regardless of source resolution.
 _VIDEO_FILTER = (
     "scale=1280:720:force_original_aspect_ratio=decrease,"
     "pad=1280:720:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p"
 )
 
+_VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv"}
+
+# Looping-video output framerate. A background loop doesn't need 30 fps; 15 fps
+# halves the file size and encode work.
+_LOOP_FPS = 15
+
 # Hard cap so a runaway encode fails fast instead of hanging the worker.
-# Generous because a multi-track playlist can be 10+ minutes of audio.
-_FFMPEG_TIMEOUT_S = 300
+# Generous because a multi-track playlist can be 10+ minutes of audio and the
+# video-loop path encodes a normalized segment plus a long AAC stream.
+_FFMPEG_TIMEOUT_S = 600
 
 
-def _build_ffmpeg_cmd(
+def _audio_concat_filter(n: int, first_input: int = 1) -> str:
+    """Filtergraph that normalizes and concatenates *n* audio inputs (starting
+    at input index *first_input*) into a single [aout] stream."""
+    norm = [
+        f"[{first_input + i}:a]aformat=sample_rates=44100:channel_layouts=stereo[a{i}]"
+        for i in range(n)
+    ]
+    concat_in = "".join(f"[a{i}]" for i in range(n))
+    return ";".join(norm + [f"{concat_in}concat=n={n}:v=0:a=1[aout]"])
+
+
+def _build_image_mux_cmd(
     cover: Path, audios: list[Path], output: Path, total_duration: float
 ) -> list[str]:
-    """Build an ffmpeg command that loops *cover* as video and concatenates
-    every track in *audios* into one continuous AAC stream.
+    """Loop a still image at 1 fps over the concatenated playlist audio.
 
-    Output length is bounded with ``-t total_duration`` rather than
-    ``-shortest``: with -filter_complex an infinitely-looped image never gets
-    the EOF that -shortest needs, so the encode would run forever. -t stops it
-    at the real end of the concatenated audio.
+    Output is bounded with -t so the looped image stops at the real end of the
+    audio (with -filter_complex, -shortest does not terminate a looped image).
     """
     cmd: list[str] = ["ffmpeg", "-y", "-loop", "1", "-framerate", "1", "-i", str(cover)]
     for a in audios:
         cmd += ["-i", str(a)]
 
-    n = len(audios)
-    # Normalize each track so concat doesn't choke on differing sample rates,
-    # then concatenate. Audio inputs are indices 1..n (0 is the cover image).
-    norm = [
-        f"[{i + 1}:a]aformat=sample_rates=44100:channel_layouts=stereo[a{i}]"
-        for i in range(n)
-    ]
-    concat_in = "".join(f"[a{i}]" for i in range(n))
-    audio_chain = ";".join(norm + [f"{concat_in}concat=n={n}:v=0:a=1[aout]"])
-    filter_complex = f"[0:v]{_VIDEO_FILTER}[vout];{audio_chain}"
-
+    filter_complex = f"[0:v]{_VIDEO_FILTER}[vout];{_audio_concat_filter(len(audios))}"
     cmd += [
         "-filter_complex", filter_complex,
         "-map", "[vout]",
@@ -78,6 +75,51 @@ def _build_ffmpeg_cmd(
         "-tune", "stillimage",
         "-r", "1",
         "-threads", "1",
+        "-c:a", "aac",
+        "-b:a", "256k",
+        "-t", f"{total_duration:.3f}",
+        "-movflags", "+faststart",
+        str(output),
+    ]
+    return cmd
+
+
+def _build_segment_cmd(cover_video: Path, seg_out: Path) -> list[str]:
+    """Re-encode the short loop clip ONCE to a normalized 720p H.264 segment.
+
+    This is the only video re-encode in the video-loop path; the segment is
+    then repeated via stream-copy (no re-encode), which keeps total CPU low
+    enough to run on Render's free tier even for 10+ minute playlists.
+    """
+    return [
+        "ffmpeg", "-y",
+        "-i", str(cover_video),
+        "-an",
+        "-vf", _VIDEO_FILTER,
+        "-r", str(_LOOP_FPS),
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "28",
+        "-g", str(_LOOP_FPS * 2),
+        "-threads", "1",
+        str(seg_out),
+    ]
+
+
+def _build_video_mux_cmd(
+    segment: Path, repeats: int, audios: list[Path], output: Path, total_duration: float
+) -> list[str]:
+    """Stream-loop the pre-encoded *segment* (video copy, no re-encode) over the
+    concatenated playlist audio (AAC), bounded to *total_duration* with -t."""
+    cmd: list[str] = ["ffmpeg", "-y", "-stream_loop", str(repeats), "-i", str(segment)]
+    for a in audios:
+        cmd += ["-i", str(a)]
+
+    cmd += [
+        "-filter_complex", _audio_concat_filter(len(audios)),
+        "-map", "0:v",
+        "-map", "[aout]",
+        "-c:v", "copy",
         "-c:a", "aac",
         "-b:a", "256k",
         "-t", f"{total_duration:.3f}",
@@ -103,7 +145,8 @@ class MuxService:
             raise ValueError(f"Channel not found: {slug}")
 
         channel_id = channel["id"]
-        cover_url = str(channel["coverImageUrl"])
+        # Use the dedicated video loop when available; fall back to cover image.
+        cover_url = str(channel.get("visualLoopUrl") or channel["coverImageUrl"])
         # Mux the whole playlist so VRChat cycles every track. Fall back to the
         # single audioUrl for channels without a playlist.
         playlist = [str(u) for u in (channel.get("playlist") or [])] or [str(channel["audioUrl"])]
@@ -137,7 +180,22 @@ class MuxService:
             if total_duration <= 0:
                 raise RuntimeError(f"Could not determine audio duration for '{slug}'")
 
-            cmd = _build_ffmpeg_cmd(cover_path, audio_paths, output_path, total_duration)
+            if cover_path.suffix.lower() in _VIDEO_EXTS:
+                # Video loop: encode the clip once, then repeat it via stream-copy
+                # so a long playlist stays within the free tier's CPU budget.
+                seg_path = tmp_path / "seg.mp4"
+                await _run_ffmpeg(_build_segment_cmd(cover_path, seg_path))
+                seg_duration = await _probe_duration(seg_path)
+                if seg_duration <= 0:
+                    raise RuntimeError(f"Could not determine loop duration for '{slug}'")
+                repeats = math.ceil(total_duration / seg_duration) + 1
+                cmd = _build_video_mux_cmd(
+                    seg_path, repeats, audio_paths, output_path, total_duration
+                )
+            else:
+                cmd = _build_image_mux_cmd(
+                    cover_path, audio_paths, output_path, total_duration
+                )
             logger.info("Running: %s", " ".join(cmd))
             await _run_ffmpeg(cmd)
 

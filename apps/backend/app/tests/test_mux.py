@@ -136,13 +136,13 @@ async def test_mux_service_mux_channel_happy_path():
     assert url == _FAKE_URL
 
 
-def test_build_ffmpeg_cmd_concats_full_playlist():
+def test_build_image_mux_cmd_concats_full_playlist():
     from pathlib import Path
-    from app.services.mux_service import _build_ffmpeg_cmd
+    from app.services.mux_service import _build_image_mux_cmd
 
     cover = Path("/tmp/cover.jpg")
     audios = [Path(f"/tmp/track{i}.mp3") for i in range(4)]
-    cmd = _build_ffmpeg_cmd(cover, audios, Path("/tmp/out.mp4"), total_duration=512.5)
+    cmd = _build_image_mux_cmd(cover, audios, Path("/tmp/out.mp4"), total_duration=512.5)
 
     # One -i per track plus one for the cover image.
     assert cmd.count("-i") == 5
@@ -153,6 +153,25 @@ def test_build_ffmpeg_cmd_concats_full_playlist():
     assert "-t" in cmd
     assert cmd[cmd.index("-t") + 1] == "512.500"
     assert "-shortest" not in cmd
+    # Still image is looped at 1 fps.
+    assert "-loop" in cmd
+
+
+def test_build_video_mux_cmd_streamloops_segment_copy():
+    from pathlib import Path
+    from app.services.mux_service import _build_video_mux_cmd
+
+    seg = Path("/tmp/seg.mp4")
+    audios = [Path(f"/tmp/track{i}.mp3") for i in range(4)]
+    cmd = _build_video_mux_cmd(seg, repeats=31, audios=audios, output=Path("/tmp/out.mp4"), total_duration=889.6)
+
+    # Pre-encoded segment is stream-looped and copied (no video re-encode).
+    assert cmd[cmd.index("-stream_loop") + 1] == "31"
+    assert cmd[cmd.index("-c:v") + 1] == "copy"
+    # Audio still concatenated across the whole playlist and bounded by -t.
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    assert "concat=n=4:v=0:a=1[aout]" in fc
+    assert cmd[cmd.index("-t") + 1] == "889.600"
 
 
 @pytest.mark.asyncio

@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here.
 
+## [0.4.0] — Looping Video Backdrops in VRChat MP4
+
+### Added
+- `visualLoopUrl` on each channel — a short looping MP4 used as the visual
+  layer in the muxed VRChat file (falls back to `coverImageUrl` when unset).
+- Mux service detects video vs image covers by extension and handles each:
+  still images loop at 1 fps; video loops are encoded **once** to a normalized
+  720p/15fps segment, then repeated via `-stream_loop` with `-c:v copy` (no
+  re-encode) over the concatenated playlist audio.
+
+### Why the encode-once + stream-copy approach
+- A naive full-length re-encode of a 15-minute 720p video produced a 478 MB
+  file and ~200s of CPU — far beyond Render's free tier (would time out) and
+  too large to stream. Encoding only the 30s loop once (~450 frames) and
+  stream-copying it keeps total CPU within budget; output is ~94 MB for a
+  15-minute channel.
+- `_FFMPEG_TIMEOUT_S` raised 300 → 600 for long multi-track video channels.
+
 ## [0.3.0] — Automatic VRChat MP4 Mux Service
 
 ### Added

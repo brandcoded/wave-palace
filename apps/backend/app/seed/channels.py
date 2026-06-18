@@ -10,6 +10,12 @@ _BG_1 = "https://stream.wavepalace.live/channels/channel_abc123/purple-sky.jpg"
 _BG_2 = "https://stream.wavepalace.live/channels/channel_def456/view_apartment.jpg"
 _BG_3 = "https://stream.wavepalace.live/channels/channel_ghi789/moon_waves.jpeg"
 
+# Short looping video backdrops used as the visual layer in the muxed VRChat MP4.
+# Upload each loop.mp4 to channels/{id}/loop.mp4 in R2, then replace None with the URL.
+_LOOP_1: str = "https://stream.wavepalace.live/channels/channel_abc123/animated-115136.mp4"
+_LOOP_2: str = "https://stream.wavepalace.live/channels/channel_def456/cloud-45959.mp4"
+_LOOP_3: str = "https://stream.wavepalace.live/channels/channel_ghi789/cube-27033.mp4"
+
 _AUDIO_1 = "https://stream.wavepalace.live/tracks/channel_abc123/come-thru.mp3"
 _AUDIO_2 = "https://stream.wavepalace.live/tracks/channel_def456/cant-explain-no-words-160bpm-1.mp3"
 _AUDIO_3 = "https://stream.wavepalace.live/tracks/channel_ghi789/akira.mp3"
@@ -43,6 +49,7 @@ SEED_CHANNELS: list[dict] = [
         "theme": "Lounge",
         "hostName": "DJ Skyy",
         "coverImageUrl": _BG_1,
+        "visualLoopUrl": _LOOP_1,
         "audioUrl": _AUDIO_1,
         "playlist": _PLAYLIST_1,
         "vrchatPlaybackUrl": _VRCHAT_1,
@@ -63,6 +70,7 @@ SEED_CHANNELS: list[dict] = [
         "theme": "Futuristic Lounge",
         "hostName": "WavePalace Selects",
         "coverImageUrl": _BG_2,
+        "visualLoopUrl": _LOOP_2,
         "audioUrl": _AUDIO_2,
         "playlist": _PLAYLIST_2,
         "vrchatPlaybackUrl": _VRCHAT_2,
@@ -83,6 +91,7 @@ SEED_CHANNELS: list[dict] = [
         "theme": "VR Party",
         "hostName": "Guest Host",
         "coverImageUrl": _BG_3,
+        "visualLoopUrl": _LOOP_3,
         "audioUrl": _AUDIO_3,
         "playlist": _PLAYLIST_3,
         "vrchatPlaybackUrl": _VRCHAT_3,
