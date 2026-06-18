@@ -13,6 +13,7 @@ export function ChannelPlayer({ playlist, coverImage, title }: ChannelPlayerProp
   const audioRef = useRef<HTMLAudioElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
+  const playingRef = useRef(false);
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [errored, setErrored] = useState(false);
@@ -24,11 +25,11 @@ export function ChannelPlayer({ playlist, coverImage, title }: ChannelPlayerProp
   }, [playlist]);
 
   // Called when the browser has buffered enough to play the current src.
-  // Resumes playback only if the user had already started playing.
+  // Uses playingRef (not state) to avoid stale closure when advancing tracks.
   function handleCanPlay() {
     const a = audioRef.current;
-    if (!a || !playing) return;
-    a.play().catch(() => setPlaying(false));
+    if (!a || !playingRef.current) return;
+    a.play().catch(() => { setPlaying(false); playingRef.current = false; });
   }
 
   function handleEnded() {
@@ -39,9 +40,11 @@ export function ChannelPlayer({ playlist, coverImage, title }: ChannelPlayerProp
     const a = audioRef.current;
     if (!a) return;
     if (a.paused) {
+      playingRef.current = true;
       setPlaying(true);
-      a.play().catch(() => setPlaying(false));
+      a.play().catch(() => { setPlaying(false); playingRef.current = false; });
     } else {
+      playingRef.current = false;
       a.pause();
       setPlaying(false);
     }
