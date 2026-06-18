@@ -77,11 +77,18 @@ These endpoints require R2 credentials to be set on the server
 They are not exposed in the public frontend. Call them via the Render shell
 or a direct API call when you need to produce muxed MP4s.
 
+FFmpeg downloads the source files with a browser `User-Agent` (Cloudflare
+blocks default Python/library agents), downscales the cover to a fixed
+1280×720 canvas, and encodes a still-image H.264 video at 1 fps with AAC
+audio and `+faststart`. The 720p downscale keeps memory/CPU bounded on
+Render's free tier (a larger source cover previously OOM-killed the worker)
+and is the most VRChat-compatible resolution.
+
 ### POST /api/channels/{slug}/mux
 
-Downloads the channel's `coverImageUrl` and `audioUrl`, runs FFmpeg to mux
-them into a single MP4, uploads the result to R2 at
-`muxed/{channel_id}/{slug}.mp4`, and returns the public URL.
+Muxes a single channel synchronously, uploads the result to R2 at
+`muxed/{channel_id}/{slug}.mp4`, and returns the public URL. Suitable for
+one-off re-muxing; a single channel completes in ~20s.
 
 Response `200`:
 ```json
@@ -96,19 +103,38 @@ Response `200`:
 
 ### POST /api/mux/all
 
-Runs the mux job for every published channel. Failures per channel are
-recorded but do not abort the run.
+Starts a **background** job muxing every published channel and returns
+immediately with `202 Accepted` — muxing the whole batch in one synchronous
+request exceeds Render's HTTP timeout. Poll `GET /api/mux/status` for
+progress.
+
+Response `202`:
+```json
+{ "status": "accepted", "poll": "/api/mux/status" }
+```
+
+- `409` — a mux job is already running.
+
+### GET /api/mux/status
+
+Returns the state of the most recent `/api/mux/all` job (in-memory; reset on
+each new run and on server restart).
 
 Response `200`:
 ```json
 {
-  "results": {
-    "late-night-house": "https://stream.wavepalace.live/muxed/channel_late_night_house/late-night-house.mp4",
-    "afro-future-lounge": "https://stream.wavepalace.live/muxed/channel_afro_future_lounge/afro-future-lounge.mp4",
-    "neon-afterhours": "ERROR: FFmpeg failed ..."
+  "running": false,
+  "started_at": 1781761771.6,
+  "finished_at": 1781761815.3,
+  "channels": {
+    "late-night-house": { "state": "done", "url": "https://stream.wavepalace.live/muxed/channel_late_night_house/late-night-house.mp4", "error": null },
+    "afro-future-lounge": { "state": "done", "url": "https://stream.wavepalace.live/muxed/channel_afro_future_lounge/afro-future-lounge.mp4", "error": null },
+    "neon-afterhours": { "state": "error", "url": null, "error": "FFmpeg timed out after 90s" }
   }
 }
 ```
+
+Per-channel `state` is one of `pending`, `running`, `done`, `error`.
 
 ## Error states
 

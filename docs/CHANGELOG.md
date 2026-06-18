@@ -17,7 +17,20 @@ All notable changes to this project are documented here.
   `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_BASE_URL`.
 - `boto3` added to `requirements.txt`.
 - FFmpeg installed on Render via `render.yaml` `apt-get install -y ffmpeg`.
-- 8 new tests in `app/tests/test_mux.py` (all mocked, no real I/O).
+- 9 tests in `app/tests/test_mux.py` (all mocked, no real I/O).
+
+### Production notes (lessons from the first live run)
+- Downloads send a browser `User-Agent` — Cloudflare returns 403 to default
+  Python/library agents on `stream.wavepalace.live`.
+- Cover is downscaled to a fixed 1280×720 before encoding: a 1536² source
+  cover OOM-killed Render's free-tier worker mid-job. 720p bounds memory/CPU
+  and is the most VRChat-compatible resolution. Encode is 1 fps, `ultrafast`,
+  single-thread, with a 90s timeout.
+- `/api/mux/all` runs as a background job with a pollable `GET /api/mux/status`
+  endpoint — a synchronous full-batch request exceeded Render's HTTP timeout
+  (502). All three seed channels now mux in ~44s total.
+- `vrchatPlaybackUrl` in seed data now points to the muxed MP4s (was falling
+  back to the raw MP3s).
 
 ## [0.2.0] — Playlist Cycling
 

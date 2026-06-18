@@ -37,7 +37,8 @@ Frontend → Vercel. Backend → Render. Database → MongoDB Atlas. See
 - [x] All MVP "Definition of Done" items pass (see README).
 - [x] Playlist cycling implemented — tracks auto-advance, loop, track counter shown.
 - [x] Mux service deployed — `POST /api/mux/all` produces VRChat-compatible MP4s on R2.
-- [ ] Run `POST /api/mux/all` in production and verify MP4s play in VRChat.
+- [x] Ran `POST /api/mux/all` in production — all 3 channels muxed to 720p MP4s on R2; `vrchatPlaybackUrl` now points to them.
+- [ ] Verify muxed MP4s actually play in VRChat (image visible + audio).
 - [ ] Seed media replaced with cleared/licensed media.
 - [ ] CORS locked to the production frontend origin.
 - [ ] Licensing notes + takedown policy published.

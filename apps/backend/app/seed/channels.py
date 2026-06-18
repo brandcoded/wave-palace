@@ -23,10 +23,12 @@ _PLAYLIST_1 = [
 _PLAYLIST_2 = [_AUDIO_2]
 _PLAYLIST_3 = [_AUDIO_3]
 
-# Pre-muxed MP4s not yet uploaded — falling back to audio MP3s until muxed files are on R2.
-_VRCHAT_1 = _AUDIO_1
-_VRCHAT_2 = _AUDIO_2
-_VRCHAT_3 = _AUDIO_3
+# Pre-muxed MP4s produced by the mux service (POST /api/mux/all) and uploaded
+# to R2 at muxed/{channel_id}/{slug}.mp4 — cover image + audio in a single
+# VRChat-compatible H.264/AAC file.
+_VRCHAT_1 = "https://stream.wavepalace.live/muxed/channel_late_night_house/late-night-house.mp4"
+_VRCHAT_2 = "https://stream.wavepalace.live/muxed/channel_afro_future_lounge/afro-future-lounge.mp4"
+_VRCHAT_3 = "https://stream.wavepalace.live/muxed/channel_neon_afterhours/neon-afterhours.mp4"
 
 
 SEED_CHANNELS: list[dict] = [

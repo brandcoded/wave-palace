@@ -31,19 +31,6 @@ logger = logging.getLogger("wavepalace.mux.routes")
 _JOB: dict = {"running": False, "started_at": None, "finished_at": None, "channels": {}}
 
 
-@router.get("/api/mux/debug", summary="Debug R2 config (temporary)")
-async def mux_debug() -> dict:
-    import os
-    return {
-        "build": "mux-720p-v1",
-        "R2_ACCOUNT_ID": (os.getenv("R2_ACCOUNT_ID") or "")[:6] + "...",
-        "R2_ACCESS_KEY_ID": (os.getenv("R2_ACCESS_KEY_ID") or "")[:6] + "...",
-        "R2_SECRET_ACCESS_KEY_set": bool(os.getenv("R2_SECRET_ACCESS_KEY")),
-        "R2_BUCKET_NAME": os.getenv("R2_BUCKET_NAME"),
-        "R2_PUBLIC_BASE_URL": os.getenv("R2_PUBLIC_BASE_URL"),
-    }
-
-
 @router.post("/api/channels/{slug}/mux", summary="Mux a single channel to MP4")
 async def mux_channel(
     slug: str,
