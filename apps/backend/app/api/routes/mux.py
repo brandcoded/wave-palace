@@ -25,6 +25,9 @@ from app.services.mux_service import MuxService
 router = APIRouter(tags=["mux (internal)"])
 logger = logging.getLogger("wavepalace.mux.routes")
 
+# Bump when the mux pipeline changes; surfaced by GET /api/mux/status.
+MUX_BUILD = "playlist-v1"
+
 # In-memory status of the most recent /api/mux/all run. Single Render instance
 # / single uvicorn worker, so a module-level dict is sufficient for this
 # admin-only tool. Reset each time a new /api/mux/all job starts.
@@ -75,4 +78,4 @@ async def mux_all(
 
 @router.get("/api/mux/status", summary="Status of the most recent mux-all job")
 async def mux_status() -> dict:
-    return _JOB
+    return {"build": MUX_BUILD, **_JOB}
