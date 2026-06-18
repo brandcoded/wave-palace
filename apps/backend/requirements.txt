@@ -5,3 +5,5 @@ httpx==0.28.1
 pytest==8.3.4
 # Optional: only needed when running against MongoDB Atlas (set MONGODB_URI).
 pymongo==4.10.1
+# R2 upload for mux service (set R2_* env vars to enable).
+boto3==1.35.99

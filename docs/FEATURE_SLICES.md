@@ -1,6 +1,6 @@
 # Feature Slices — WavePalace
 
-Build one slice at a time. Only the MVP slice is implemented.
+Build one slice at a time. The MVP slice and mux service are implemented.
 
 ## MVP slice (COMPLETE): Public Visual Channel Playback
 
@@ -24,6 +24,17 @@ direct file, most VRChat-compatible format.
 Includes: home hero + directory grid, filter chips, channel detail/player page
 with push-play persistent streaming + playlist cycling + track counter, Copy Web
 Link, Copy VRChat Link, seed data + API, friendly error states, tests.
+
+## MVP add-on (COMPLETE): Automatic VRChat MP4 Mux Service
+
+An internal admin endpoint that downloads `coverImageUrl` + `audioUrl` for
+each channel, runs FFmpeg to mux them into a single H.264/AAC MP4 with
+`-movflags +faststart`, uploads the result to R2 at
+`muxed/{channel_id}/{slug}.mp4`, and returns the public `vrchatPlaybackUrl`.
+
+Endpoints: `POST /api/channels/{slug}/mux` and `POST /api/mux/all`.
+Requires `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` env vars.
+FFmpeg is installed on Render via `render.yaml` build command.
 
 ## Future slice 1: Animated / looping video backgrounds
 

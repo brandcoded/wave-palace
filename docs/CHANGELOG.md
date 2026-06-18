@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here.
 
+## [0.3.0] — Automatic VRChat MP4 Mux Service
+
+### Added
+- `POST /api/channels/{slug}/mux` — muxes a single channel's cover image +
+  audio MP3 into a VRChat-compatible MP4 via FFmpeg (`-loop 1`, H.264/AAC,
+  `-movflags +faststart`) and uploads to R2 at
+  `muxed/{channel_id}/{slug}.mp4`.
+- `POST /api/mux/all` — runs the mux job for every published channel in one
+  call; per-channel errors are recorded without aborting the run.
+- `app/services/mux_service.py` — orchestrates download → ffmpeg → upload.
+- `app/repositories/r2_repository.py` — boto3 S3-compatible R2 client.
+- R2 config in `app/core/config.py`: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`,
+  `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_BASE_URL`.
+- `boto3` added to `requirements.txt`.
+- FFmpeg installed on Render via `render.yaml` `apt-get install -y ffmpeg`.
+- 8 new tests in `app/tests/test_mux.py` (all mocked, no real I/O).
+
 ## [0.2.0] — Playlist Cycling
 
 ### Added

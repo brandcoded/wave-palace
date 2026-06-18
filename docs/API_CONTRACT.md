@@ -70,6 +70,46 @@ Returns a single published channel by slug.
 - `vrchatPlaybackUrl` — pre-muxed static MP4 (cover image + audio combined), uploaded to R2, single direct URL for VRChat video players
 - `externalLinks` are attribution only and are never playback sources
 
+## Mux endpoints (internal/admin — no auth for MVP)
+
+These endpoints require R2 credentials to be set on the server
+(`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`).
+They are not exposed in the public frontend. Call them via the Render shell
+or a direct API call when you need to produce muxed MP4s.
+
+### POST /api/channels/{slug}/mux
+
+Downloads the channel's `coverImageUrl` and `audioUrl`, runs FFmpeg to mux
+them into a single MP4, uploads the result to R2 at
+`muxed/{channel_id}/{slug}.mp4`, and returns the public URL.
+
+Response `200`:
+```json
+{
+  "slug": "late-night-house",
+  "vrchatPlaybackUrl": "https://stream.wavepalace.live/muxed/channel_late_night_house/late-night-house.mp4"
+}
+```
+
+- `404` — channel slug not found.
+- `500` — FFmpeg failure or R2 upload error (detail includes the error message).
+
+### POST /api/mux/all
+
+Runs the mux job for every published channel. Failures per channel are
+recorded but do not abort the run.
+
+Response `200`:
+```json
+{
+  "results": {
+    "late-night-house": "https://stream.wavepalace.live/muxed/channel_late_night_house/late-night-house.mp4",
+    "afro-future-lounge": "https://stream.wavepalace.live/muxed/channel_afro_future_lounge/afro-future-lounge.mp4",
+    "neon-afterhours": "ERROR: FFmpeg failed ..."
+  }
+}
+```
+
 ## Error states
 
 - Missing channel → `404`.

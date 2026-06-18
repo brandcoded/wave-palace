@@ -22,8 +22,9 @@ ships with UI, API, tests, and docs.
 
 - Switch from seed mode to MongoDB Atlas (`MONGODB_URI`).
 - Add request logging, error monitoring, and rate limiting.
-- Introduce auth before any dashboard/submission write paths.
+- Introduce auth before any dashboard/submission write paths (mux endpoints first).
 - Validate and sanitize all media URLs (HTTPS-only).
+- Add `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` to Render env vars.
 - Add a takedown/removal policy and rights attestation.
 
 ## 4. Deployment plan
@@ -35,6 +36,8 @@ Frontend → Vercel. Backend → Render. Database → MongoDB Atlas. See
 
 - [x] All MVP "Definition of Done" items pass (see README).
 - [x] Playlist cycling implemented — tracks auto-advance, loop, track counter shown.
+- [x] Mux service deployed — `POST /api/mux/all` produces VRChat-compatible MP4s on R2.
+- [ ] Run `POST /api/mux/all` in production and verify MP4s play in VRChat.
 - [ ] Seed media replaced with cleared/licensed media.
 - [ ] CORS locked to the production frontend origin.
 - [ ] Licensing notes + takedown policy published.
