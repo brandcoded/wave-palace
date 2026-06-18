@@ -28,6 +28,7 @@ class Channel(BaseModel):
     theme: str
     hostName: str = Field(..., alias="hostName")
     coverImageUrl: HttpUrl
+    visualLoopUrl: str | None = None  # short looping MP4 used as mux visual; falls back to coverImageUrl
     audioUrl: HttpUrl
     playlist: list[str] = Field(default_factory=list)
     vrchatPlaybackUrl: str
