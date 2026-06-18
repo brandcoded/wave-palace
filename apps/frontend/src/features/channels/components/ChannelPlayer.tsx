@@ -23,16 +23,13 @@ export function ChannelPlayer({ playlist, coverImage, title }: ChannelPlayerProp
     setErrored(false);
   }, [playlist]);
 
-  // When currentIndex advances, resume playback if we were already playing.
-  useEffect(() => {
+  // Called when the browser has buffered enough to play the current src.
+  // Resumes playback only if the user had already started playing.
+  function handleCanPlay() {
     const a = audioRef.current;
-    if (!a) return;
-    a.volume = volume;
-    a.muted = muted;
-    if (playing) {
-      a.play().catch(() => {});
-    }
-  }, [currentIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!a || !playing) return;
+    a.play().catch(() => setPlaying(false));
+  }
 
   function handleEnded() {
     setCurrentIndex((i) => (i + 1) % playlist.length);
@@ -42,9 +39,11 @@ export function ChannelPlayer({ playlist, coverImage, title }: ChannelPlayerProp
     const a = audioRef.current;
     if (!a) return;
     if (a.paused) {
-      a.play();
+      setPlaying(true);
+      a.play().catch(() => setPlaying(false));
     } else {
       a.pause();
+      setPlaying(false);
     }
   }
 
@@ -84,6 +83,7 @@ export function ChannelPlayer({ playlist, coverImage, title }: ChannelPlayerProp
   }
 
   const trackSrc = playlist[currentIndex] ?? "";
+  const isLoop = playlist.length === 1;
 
   return (
     <div className="group relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/50">
@@ -99,10 +99,12 @@ export function ChannelPlayer({ playlist, coverImage, title }: ChannelPlayerProp
         ref={audioRef}
         src={trackSrc}
         preload="auto"
+        loop={isLoop}
+        onCanPlay={handleCanPlay}
         onError={() => setErrored(true)}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
-        onEnded={handleEnded}
+        onEnded={isLoop ? undefined : handleEnded}
       />
 
       {/* Controls overlay */}
