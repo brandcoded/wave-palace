@@ -119,8 +119,10 @@ async def test_mux_service_mux_channel_happy_path():
     with (
         patch("app.services.mux_service._download"),
         patch("app.services.mux_service._run_ffmpeg", new_callable=AsyncMock) as mock_ff,
+        patch("app.services.mux_service._probe_duration", new_callable=AsyncMock) as mock_probe,
         patch("app.services.mux_service.asyncio.to_thread") as mock_thread,
     ):
+        mock_probe.return_value = 128.0
         # Run each to_thread call inline; _download is mocked (returns a stub),
         # r2.upload_file returns the final URL. Order-independent across N tracks.
         async def fake_to_thread(fn, *args, **kwargs):
@@ -140,14 +142,17 @@ def test_build_ffmpeg_cmd_concats_full_playlist():
 
     cover = Path("/tmp/cover.jpg")
     audios = [Path(f"/tmp/track{i}.mp3") for i in range(4)]
-    cmd = _build_ffmpeg_cmd(cover, audios, Path("/tmp/out.mp4"))
+    cmd = _build_ffmpeg_cmd(cover, audios, Path("/tmp/out.mp4"), total_duration=512.5)
 
     # One -i per track plus one for the cover image.
     assert cmd.count("-i") == 5
     fc = cmd[cmd.index("-filter_complex") + 1]
     # All four tracks concatenated into a single audio stream.
     assert "concat=n=4:v=0:a=1[aout]" in fc
-    assert "-shortest" in cmd
+    # Output bounded by total duration, not -shortest (which hangs filter_complex).
+    assert "-t" in cmd
+    assert cmd[cmd.index("-t") + 1] == "512.500"
+    assert "-shortest" not in cmd
 
 
 @pytest.mark.asyncio

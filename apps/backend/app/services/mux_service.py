@@ -43,9 +43,17 @@ _VIDEO_FILTER = (
 _FFMPEG_TIMEOUT_S = 300
 
 
-def _build_ffmpeg_cmd(cover: Path, audios: list[Path], output: Path) -> list[str]:
+def _build_ffmpeg_cmd(
+    cover: Path, audios: list[Path], output: Path, total_duration: float
+) -> list[str]:
     """Build an ffmpeg command that loops *cover* as video and concatenates
-    every track in *audios* into one continuous AAC stream."""
+    every track in *audios* into one continuous AAC stream.
+
+    Output length is bounded with ``-t total_duration`` rather than
+    ``-shortest``: with -filter_complex an infinitely-looped image never gets
+    the EOF that -shortest needs, so the encode would run forever. -t stops it
+    at the real end of the concatenated audio.
+    """
     cmd: list[str] = ["ffmpeg", "-y", "-loop", "1", "-framerate", "1", "-i", str(cover)]
     for a in audios:
         cmd += ["-i", str(a)]
@@ -72,7 +80,7 @@ def _build_ffmpeg_cmd(cover: Path, audios: list[Path], output: Path) -> list[str
         "-threads", "1",
         "-c:a", "aac",
         "-b:a", "256k",
-        "-shortest",
+        "-t", f"{total_duration:.3f}",
         "-movflags", "+faststart",
         str(output),
     ]
@@ -123,7 +131,13 @@ class MuxService:
                     raise RuntimeError(f"Download failed for track {track_url}: {exc}") from exc
                 audio_paths.append(track_path)
 
-            cmd = _build_ffmpeg_cmd(cover_path, audio_paths, output_path)
+            total_duration = 0.0
+            for p in audio_paths:
+                total_duration += await _probe_duration(p)
+            if total_duration <= 0:
+                raise RuntimeError(f"Could not determine audio duration for '{slug}'")
+
+            cmd = _build_ffmpeg_cmd(cover_path, audio_paths, output_path, total_duration)
             logger.info("Running: %s", " ".join(cmd))
             await _run_ffmpeg(cmd)
 
@@ -164,6 +178,24 @@ def _download(url: str, dest: Path) -> None:
     )
     with urllib.request.urlopen(req) as resp, open(dest, "wb") as f:  # noqa: S310
         f.write(resp.read())
+
+
+async def _probe_duration(path: Path) -> float:
+    """Return the media duration in seconds via ffprobe (0.0 if unknown)."""
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=nokey=1:noprint_wrappers=1",
+        str(path),
+    ]
+    proc = await asyncio.create_subprocess_exec(
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
+    out, _ = await proc.communicate()
+    try:
+        return float(out.decode().strip())
+    except (ValueError, AttributeError):
+        return 0.0
 
 
 async def _run_ffmpeg(cmd: list[str]) -> None:
