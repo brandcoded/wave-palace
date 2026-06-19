@@ -346,7 +346,7 @@ export default function ChannelEditPage() {
         {/* Visual loop */}
         <section className="flex flex-col gap-3">
           <h2 className="text-xs font-bold uppercase tracking-widest text-white/30">Visual loop</h2>
-          <Field label="Visual loop URL (MP4)" name="visualLoopUrl" />
+          <Field label="Visual loop URL (MP4)" name="visualLoopUrl" form={form} setField={setField} />
           <UploadButton
             label="Upload video loop"
             accept="video/mp4"
