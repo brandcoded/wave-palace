@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Play, Pause, Volume2, VolumeX, AlertTriangle, User } from "lucide-react";
+import type { TrackItem } from "@/features/channels/types/channel";
 
 interface ChannelPlayerProps {
-  playlist: string[];
+  tracks: TrackItem[];
   coverImage: string;
   title: string;
   visualLoopUrl?: string | null;
@@ -13,7 +14,7 @@ interface ChannelPlayerProps {
   mood: string;
 }
 
-export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl, hostName, genre, mood }: ChannelPlayerProps) {
+export function ChannelPlayer({ tracks, coverImage, title, visualLoopUrl, hostName, genre, mood }: ChannelPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -23,11 +24,11 @@ export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl, host
   const [volume, setVolume] = useState(0.8);
   const [errored, setErrored] = useState(false);
 
-  // When the playlist changes (channel swap), reset to track 0.
+  // When the track list changes (channel swap), reset to track 0.
   useEffect(() => {
     setCurrentIndex(0);
     setErrored(false);
-  }, [playlist]);
+  }, [tracks]);
 
   // Primary sync: keep video in lockstep with audio playing state.
   useEffect(() => {
@@ -43,7 +44,7 @@ export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl, host
   }
 
   function handleEnded() {
-    setCurrentIndex((i) => (i + 1) % playlist.length);
+    setCurrentIndex((i) => (i + 1) % tracks.length);
   }
 
   function togglePlay() {
@@ -96,7 +97,8 @@ export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl, host
     );
   }
 
-  const trackSrc = playlist[currentIndex] ?? "";
+  const currentTrack = tracks[currentIndex];
+  const trackSrc = currentTrack?.url ?? "";
 
   return (
     <div className="group relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/50">
@@ -133,7 +135,7 @@ export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl, host
         onEnded={handleEnded}
       />
 
-      {/* Overlay — channel info (top) + controls (bottom) */}
+      {/* Overlay — channel info (top) + now-playing + controls (bottom) */}
       <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-black/80 to-transparent px-4 pt-8 pb-4">
         {/* Row 1: title + host */}
         <div>
@@ -143,7 +145,17 @@ export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl, host
           </p>
         </div>
 
-        {/* Row 2: controls + tags + track counter */}
+        {/* Row 2: now-playing — only shown when track has metadata */}
+        {currentTrack?.title && (
+          <p className="truncate text-xs text-white/90">
+            {currentTrack.artist && (
+              <span className="text-white/60">{currentTrack.artist} — </span>
+            )}
+            {currentTrack.title}
+          </p>
+        )}
+
+        {/* Row 3: controls + tags + track counter */}
         <div className="flex items-center gap-3">
           {/* Play / Pause */}
           <button
@@ -189,9 +201,9 @@ export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl, host
               <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">{genre}</span>
               <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">{mood}</span>
             </div>
-            {playlist.length > 1 && (
+            {tracks.length > 1 && (
               <span className="text-xs font-medium text-white/50">
-                Track {currentIndex + 1} of {playlist.length}
+                Track {currentIndex + 1} of {tracks.length}
               </span>
             )}
           </div>

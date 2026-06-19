@@ -3,6 +3,12 @@ export interface ExternalLink {
   url: string;
 }
 
+export interface TrackItem {
+  url: string;
+  title: string;
+  artist: string;
+}
+
 export interface Channel {
   id: string;
   slug: string;
@@ -16,7 +22,7 @@ export interface Channel {
   coverImageUrl: string;
   visualLoopUrl?: string | null;
   audioUrl: string;
-  playlist: string[];
+  playlist: TrackItem[];
   vrchatPlaybackUrl: string;
   externalLinks: ExternalLink[];
   rightsStatus: string;

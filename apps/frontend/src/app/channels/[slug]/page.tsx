@@ -62,7 +62,7 @@ export default async function ChannelDetailPage({
           </div>
 
           <ChannelPlayer
-            playlist={channel.playlist?.length ? channel.playlist : [channel.audioUrl]}
+            tracks={channel.playlist?.length ? channel.playlist : [{ url: channel.audioUrl, title: "", artist: "" }]}
             coverImage={channel.coverImageUrl}
             visualLoopUrl={channel.visualLoopUrl}
             title={channel.title}
