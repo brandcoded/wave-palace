@@ -35,7 +35,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
           router.replace("/admin/login");
         }
       });
-  }, []);
+  }, [pathname, router]);
 
   async function logout() {
     await apiLogout();

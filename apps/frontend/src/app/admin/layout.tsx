@@ -75,7 +75,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Mobile top bar — visible below lg */}
-      <div className="fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-white/10 bg-black/80 px-4 py-3 backdrop-blur-sm lg:hidden">
+      <div className="fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-white/10 bg-black/80 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-sm lg:hidden">
         <p className="text-xs font-bold uppercase tracking-widest text-white/40">
           WavePalace Admin
         </p>
@@ -97,7 +97,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
             onClick={() => setDrawerOpen(false)}
           />
           {/* Drawer panel */}
-          <aside className="absolute inset-y-0 left-0 flex w-64 flex-col border-r border-white/10 bg-black/95 px-3 py-6 backdrop-blur-xl">
+          <aside className="absolute inset-y-0 left-0 flex w-64 flex-col border-r border-white/10 bg-black/95 px-3 pb-6 pt-[calc(1.5rem+env(safe-area-inset-top))] backdrop-blur-xl">
             <div className="mb-6 flex items-center justify-between px-3">
               <p className="text-xs font-bold uppercase tracking-widest text-white/30">
                 WavePalace Admin
@@ -123,7 +123,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Main content — offset top on mobile to clear the sticky top bar */}
-      <main className="flex-1 overflow-auto p-4 pt-16 lg:p-8">
+      <main className="flex-1 overflow-auto p-4 pt-[calc(4rem+env(safe-area-inset-top))] lg:p-8">
         {children}
       </main>
     </div>
