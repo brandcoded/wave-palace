@@ -50,11 +50,14 @@ function Drawer({
     <div className="fixed inset-0 z-50 flex">
       {/* backdrop */}
       <div className="flex-1 bg-black/60" onClick={onClose} />
-      {/* panel */}
-      <div className="w-full max-w-md overflow-y-auto border-l border-white/10 bg-black/90 p-8 backdrop-blur-xl">
+      {/* panel — full-width on mobile, max-md at sm+ */}
+      <div className="w-full sm:max-w-md overflow-y-auto border-l border-white/10 bg-black/90 p-6 sm:p-8 backdrop-blur-xl">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-base font-semibold text-white">{sub.channel_title}</h2>
-          <button onClick={onClose} className="text-white/40 hover:text-white">
+          <button
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-white/40 hover:text-white transition"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -158,7 +161,6 @@ export default function SubmissionsPage() {
 
   useEffect(() => {
     load(tab);
-    // also refresh pending count for badge
     if (tab !== "pending") listSubmissions("pending").then((d) => setPendingCount(d.length));
   }, [tab]);
 
@@ -201,38 +203,62 @@ export default function SubmissionsPage() {
       ) : subs.length === 0 ? (
         <p className="text-sm text-white/40">No {tab} submissions.</p>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-white/10 text-left text-xs text-white/40">
-              <th className="pb-2 pr-4">Date</th>
-              <th className="pb-2 pr-4">Name</th>
-              <th className="pb-2 pr-4">Channel</th>
-              <th className="pb-2 pr-4">Genre</th>
-              <th className="pb-2">Status</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
+        <>
+          {/* Desktop table */}
+          <table className="hidden lg:table w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/10 text-left text-xs text-white/40">
+                <th className="pb-2 pr-4">Date</th>
+                <th className="pb-2 pr-4">Name</th>
+                <th className="pb-2 pr-4">Channel</th>
+                <th className="pb-2 pr-4">Genre</th>
+                <th className="pb-2">Status</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {subs.map((s) => (
+                <tr
+                  key={s.id}
+                  onClick={() => setSelected(s)}
+                  className="cursor-pointer border-b border-white/5 transition hover:bg-white/5"
+                >
+                  <td className="py-3 pr-4 text-white/60">{formatDate(s.submitted_at)}</td>
+                  <td className="py-3 pr-4 text-white/90">{s.submitter_name}</td>
+                  <td className="py-3 pr-4 text-white/90">{s.channel_title}</td>
+                  <td className="py-3 pr-4 text-white/60">{s.genre.join(", ")}</td>
+                  <td className="py-3">
+                    <StatusBadge status={s.status} />
+                  </td>
+                  <td className="py-3 pl-2">
+                    <ChevronRight className="h-4 w-4 text-white/30" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* Mobile card list */}
+          <div className="flex flex-col gap-3 lg:hidden">
             {subs.map((s) => (
-              <tr
+              <button
                 key={s.id}
                 onClick={() => setSelected(s)}
-                className="cursor-pointer border-b border-white/5 transition hover:bg-white/5"
+                className="w-full rounded-xl border border-white/10 bg-white/5 p-4 text-left transition hover:bg-white/10"
               >
-                <td className="py-3 pr-4 text-white/60">{formatDate(s.submitted_at)}</td>
-                <td className="py-3 pr-4 text-white/90">{s.submitter_name}</td>
-                <td className="py-3 pr-4 text-white/90">{s.channel_title}</td>
-                <td className="py-3 pr-4 text-white/60">{s.genre.join(", ")}</td>
-                <td className="py-3">
+                <div className="mb-2 flex items-start justify-between gap-2">
+                  <span className="font-medium text-white leading-snug">{s.channel_title}</span>
                   <StatusBadge status={s.status} />
-                </td>
-                <td className="py-3 pl-2">
-                  <ChevronRight className="h-4 w-4 text-white/30" />
-                </td>
-              </tr>
+                </div>
+                <div className="flex flex-col gap-1 text-xs text-white/50">
+                  <span>{s.submitter_name}</span>
+                  <span>{s.genre.join(", ")}</span>
+                  <span>{formatDate(s.submitted_at)}</span>
+                </div>
+              </button>
             ))}
-          </tbody>
-        </table>
+          </div>
+        </>
       )}
 
       {selected && (

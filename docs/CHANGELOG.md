@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [0.7.1] — Admin UI Mobile Responsive
+
+- Hamburger nav drawer replaces sidebar below `lg` breakpoint
+- Submissions and channels pages use card layout on mobile (table hidden below `lg`)
+- Channel edit and new channel forms use single-column grid on mobile (`grid-cols-1 sm:grid-cols-2`)
+- All tap targets ≥ 40px; main content clears sticky top bar via `pt-16`
+
 ## [0.7.0] — Music Director Admin Dashboard
 
 ### Added

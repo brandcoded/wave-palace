@@ -139,6 +139,43 @@ function UploadButton({
   );
 }
 
+function Field({
+  label,
+  name,
+  form,
+  setField,
+  type = "text",
+  rows,
+}: {
+  label: string;
+  name: keyof AdminChannel;
+  form: Partial<AdminChannel>;
+  setField: <K extends keyof AdminChannel>(key: K, value: AdminChannel[K]) => void;
+  type?: string;
+  rows?: number;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-medium text-white/50">{label}</label>
+      {rows ? (
+        <textarea
+          value={(form[name] as string) ?? ""}
+          onChange={(e) => setField(name, e.target.value as AdminChannel[typeof name])}
+          rows={rows}
+          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30 resize-none"
+        />
+      ) : (
+        <input
+          type={type}
+          value={(form[name] as string) ?? ""}
+          onChange={(e) => setField(name, e.target.value as AdminChannel[typeof name])}
+          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30"
+        />
+      )}
+    </div>
+  );
+}
+
 export default function ChannelEditPage() {
   const { slug } = useParams<{ slug: string }>();
   const router = useRouter();
@@ -228,40 +265,9 @@ export default function ChannelEditPage() {
 
   if (!channel) return <p className="text-sm text-white/40">Loading…</p>;
 
-  const Field = ({
-    label,
-    name,
-    type = "text",
-    rows,
-  }: {
-    label: string;
-    name: keyof AdminChannel;
-    type?: string;
-    rows?: number;
-  }) => (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs font-medium text-white/50">{label}</label>
-      {rows ? (
-        <textarea
-          value={(form[name] as string) ?? ""}
-          onChange={(e) => setField(name, e.target.value as AdminChannel[typeof name])}
-          rows={rows}
-          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30 resize-none"
-        />
-      ) : (
-        <input
-          type={type}
-          value={(form[name] as string) ?? ""}
-          onChange={(e) => setField(name, e.target.value as AdminChannel[typeof name])}
-          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30"
-        />
-      )}
-    </div>
-  );
-
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Link href="/admin/channels" className="text-xs text-white/40 hover:text-white/70">
             ← Channels
@@ -281,7 +287,7 @@ export default function ChannelEditPage() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20 disabled:opacity-50"
+            className="flex-1 sm:flex-none rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20 disabled:opacity-50"
           >
             {saving ? "Saving…" : "Save"}
           </button>
@@ -292,15 +298,15 @@ export default function ChannelEditPage() {
         {/* Channel info */}
         <section className="flex flex-col gap-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-white/30">Channel info</h2>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Title" name="title" />
-            <Field label="Host name" name="hostName" />
-            <Field label="Genre" name="genre" />
-            <Field label="Mood" name="mood" />
-            <Field label="Energy" name="energy" />
-            <Field label="Theme" name="theme" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Title" name="title" form={form} setField={setField} />
+            <Field label="Host name" name="hostName" form={form} setField={setField} />
+            <Field label="Genre" name="genre" form={form} setField={setField} />
+            <Field label="Mood" name="mood" form={form} setField={setField} />
+            <Field label="Energy" name="energy" form={form} setField={setField} />
+            <Field label="Theme" name="theme" form={form} setField={setField} />
           </div>
-          <Field label="Description" name="description" rows={3} />
+          <Field label="Description" name="description" rows={3} form={form} setField={setField} />
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-white/50">Rights status</label>
             <select
@@ -325,7 +331,7 @@ export default function ChannelEditPage() {
               className="h-24 w-40 rounded-lg object-cover ring-1 ring-white/10"
             />
           )}
-          <Field label="Cover image URL" name="coverImageUrl" />
+          <Field label="Cover image URL" name="coverImageUrl" form={form} setField={setField} />
           <UploadButton
             label="Upload image"
             accept="image/jpeg,image/png,image/webp"
