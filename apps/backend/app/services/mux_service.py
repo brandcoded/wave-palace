@@ -6,6 +6,9 @@ AAC audio, faststart flag for immediate playback.
 
 Cover can be a still image (.jpg/.png) or a short looping video (.mp4/.mov).
 When a video loop is supplied it repeats seamlessly for the full audio duration.
+
+Channel info (title, host, genre, mood) is burned into the lower portion of
+the frame via FFmpeg drawtext so VRChat viewers see it without any overlay UI.
 """
 
 from __future__ import annotations
@@ -13,11 +16,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import os
 import tempfile
 import urllib.request
 from pathlib import Path
 
-from app.core.config import Settings
+from app.core.config import get_settings
 from app.repositories.channel_repository import ChannelRepository
 from app.repositories.r2_repository import R2Repository
 
@@ -37,10 +41,70 @@ _VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv"}
 _LOOP_FPS = 15
 
 # Hard cap so a runaway encode fails fast instead of hanging the worker.
-# Generous because a multi-track playlist can be 10+ minutes of audio and the
-# video-loop path encodes a normalized segment plus a long AAC stream.
 _FFMPEG_TIMEOUT_S = 600
 
+
+# ---------------------------------------------------------------------------
+# Text overlay helpers
+# ---------------------------------------------------------------------------
+
+def _escape_drawtext(text: str) -> str:
+    """Escape special characters for use as an FFmpeg drawtext text= value.
+
+    Order matters: backslash must be escaped first so later replacements
+    don't double-escape it.
+    """
+    text = text.replace("\\", "\\\\")
+    text = text.replace("'", "\\'")
+    text = text.replace(":", "\\:")
+    text = text.replace("%", "%%")
+    return text
+
+
+def _drawtext_overlay(
+    title: str, host_name: str, genre: str, mood: str, font_path: str
+) -> str:
+    """Return a comma-joined FFmpeg filter chain that burns channel info into
+    the bottom 144 px of a 1280×720 frame.
+
+    Layout mirrors the web player overlay: title (bold, large) → host credit →
+    genre · mood pill (right-aligned).  A semi-transparent dark band sits
+    behind all text for legibility over any backdrop.
+
+    Returns an empty string when the font file is not present so the mux still
+    succeeds — it just won't have burned-in text.
+    """
+    regular = Path(font_path)
+    if not regular.exists():
+        logger.warning("Drawtext font not found at %s — overlay skipped", font_path)
+        return ""
+
+    # Use Bold variant for the title when available; fall back to regular.
+    bold_candidate = regular.parent / "DejaVuSans-Bold.ttf"
+    bold = str(bold_candidate) if bold_candidate.exists() else str(regular)
+    fp = str(regular)
+
+    t = _escape_drawtext(title)
+    h = _escape_drawtext(f"Hosted by {host_name}")
+    gm = _escape_drawtext(f"{genre} · {mood}")  # · middle dot
+
+    shadow = "shadowx=1:shadowy=1:shadowcolor=black@0.80"
+
+    return ",".join([
+        # Semi-transparent band covering bottom 144 px.
+        "drawbox=x=0:y=576:w=1280:h=144:color=black@0.50:t=fill",
+        # Channel title — bold weight, 40 px.
+        f"drawtext=fontfile={bold}:text={t}:x=24:y=586:fontsize=40:fontcolor=white:{shadow}",
+        # Host credit — regular weight, 26 px.
+        f"drawtext=fontfile={fp}:text={h}:x=24:y=643:fontsize=26:fontcolor=white@0.80:{shadow}",
+        # Genre · mood — right-aligned, 22 px.
+        f"drawtext=fontfile={fp}:text={gm}:x=w-tw-24:y=683:fontsize=22:fontcolor=white@0.70:{shadow}",
+    ])
+
+
+# ---------------------------------------------------------------------------
+# FFmpeg command builders
+# ---------------------------------------------------------------------------
 
 def _audio_concat_filter(n: int, first_input: int = 1) -> str:
     """Filtergraph that normalizes and concatenates *n* audio inputs (starting
@@ -54,18 +118,23 @@ def _audio_concat_filter(n: int, first_input: int = 1) -> str:
 
 
 def _build_image_mux_cmd(
-    cover: Path, audios: list[Path], output: Path, total_duration: float
+    cover: Path,
+    audios: list[Path],
+    output: Path,
+    total_duration: float,
+    overlay: str = "",
 ) -> list[str]:
     """Loop a still image at 1 fps over the concatenated playlist audio.
 
-    Output is bounded with -t so the looped image stops at the real end of the
-    audio (with -filter_complex, -shortest does not terminate a looped image).
+    *overlay* is a comma-joined drawtext filter chain appended after the
+    scale/pad chain so text is burned into every frame.
     """
     cmd: list[str] = ["ffmpeg", "-y", "-loop", "1", "-framerate", "1", "-i", str(cover)]
     for a in audios:
         cmd += ["-i", str(a)]
 
-    filter_complex = f"[0:v]{_VIDEO_FILTER}[vout];{_audio_concat_filter(len(audios))}"
+    vf_chain = f"{_VIDEO_FILTER},{overlay}" if overlay else _VIDEO_FILTER
+    filter_complex = f"[0:v]{vf_chain}[vout];{_audio_concat_filter(len(audios))}"
     cmd += [
         "-filter_complex", filter_complex,
         "-map", "[vout]",
@@ -84,18 +153,22 @@ def _build_image_mux_cmd(
     return cmd
 
 
-def _build_segment_cmd(cover_video: Path, seg_out: Path) -> list[str]:
+def _build_segment_cmd(
+    cover_video: Path,
+    seg_out: Path,
+    overlay: str = "",
+) -> list[str]:
     """Re-encode the short loop clip ONCE to a normalized 720p H.264 segment.
 
-    This is the only video re-encode in the video-loop path; the segment is
-    then repeated via stream-copy (no re-encode), which keeps total CPU low
-    enough to run on Render's free tier even for 10+ minute playlists.
+    *overlay* is burned in here — the final _build_video_mux_cmd uses
+    -c:v copy, so text baked into this segment repeats for free.
     """
+    vf_chain = f"{_VIDEO_FILTER},{overlay}" if overlay else _VIDEO_FILTER
     return [
         "ffmpeg", "-y",
         "-i", str(cover_video),
         "-an",
-        "-vf", _VIDEO_FILTER,
+        "-vf", vf_chain,
         "-r", str(_LOOP_FPS),
         "-c:v", "libx264",
         "-preset", "veryfast",
@@ -107,10 +180,17 @@ def _build_segment_cmd(cover_video: Path, seg_out: Path) -> list[str]:
 
 
 def _build_video_mux_cmd(
-    segment: Path, repeats: int, audios: list[Path], output: Path, total_duration: float
+    segment: Path,
+    repeats: int,
+    audios: list[Path],
+    output: Path,
+    total_duration: float,
 ) -> list[str]:
-    """Stream-loop the pre-encoded *segment* (video copy, no re-encode) over the
-    concatenated playlist audio (AAC), bounded to *total_duration* with -t."""
+    """Stream-loop the pre-encoded *segment* (video copy, no re-encode) over
+    the concatenated playlist audio (AAC), bounded to *total_duration*.
+
+    Overlay is already burned into *segment* — no drawtext here.
+    """
     cmd: list[str] = ["ffmpeg", "-y", "-stream_loop", str(repeats), "-i", str(segment)]
     for a in audios:
         cmd += ["-i", str(a)]
@@ -129,6 +209,10 @@ def _build_video_mux_cmd(
     return cmd
 
 
+# ---------------------------------------------------------------------------
+# Service
+# ---------------------------------------------------------------------------
+
 class MuxService:
     def __init__(
         self,
@@ -145,14 +229,21 @@ class MuxService:
             raise ValueError(f"Channel not found: {slug}")
 
         channel_id = channel["id"]
-        # Use the dedicated video loop when available; fall back to cover image.
         cover_url = str(channel.get("visualLoopUrl") or channel["coverImageUrl"])
-        # Mux the whole playlist so VRChat cycles every track. Fall back to the
-        # single audioUrl for channels without a playlist.
         playlist = [str(u) for u in (channel.get("playlist") or [])] or [str(channel["audioUrl"])]
         r2_key = f"muxed/{channel_id}/{slug}.mp4"
 
         logger.info("Muxing channel '%s'  cover=%s  tracks=%d", slug, cover_url, len(playlist))
+
+        # Build text overlay from channel metadata.
+        settings = get_settings()
+        overlay = _drawtext_overlay(
+            title=str(channel.get("title", "")),
+            host_name=str(channel.get("hostName", "")),
+            genre=str(channel.get("genre", "")),
+            mood=str(channel.get("mood", "")),
+            font_path=settings.font_path,
+        )
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -181,10 +272,10 @@ class MuxService:
                 raise RuntimeError(f"Could not determine audio duration for '{slug}'")
 
             if cover_path.suffix.lower() in _VIDEO_EXTS:
-                # Video loop: encode the clip once, then repeat it via stream-copy
-                # so a long playlist stays within the free tier's CPU budget.
+                # Video loop: encode the clip once (with overlay burned in), then
+                # repeat via stream-copy — overlay comes along for free.
                 seg_path = tmp_path / "seg.mp4"
-                await _run_ffmpeg(_build_segment_cmd(cover_path, seg_path))
+                await _run_ffmpeg(_build_segment_cmd(cover_path, seg_path, overlay=overlay))
                 seg_duration = await _probe_duration(seg_path)
                 if seg_duration <= 0:
                     raise RuntimeError(f"Could not determine loop duration for '{slug}'")
@@ -194,7 +285,7 @@ class MuxService:
                 )
             else:
                 cmd = _build_image_mux_cmd(
-                    cover_path, audio_paths, output_path, total_duration
+                    cover_path, audio_paths, output_path, total_duration, overlay=overlay
                 )
             logger.info("Running: %s", " ".join(cmd))
             await _run_ffmpeg(cmd)
@@ -228,6 +319,10 @@ class MuxService:
                 results[slug] = f"ERROR: {exc}"
         return results
 
+
+# ---------------------------------------------------------------------------
+# Low-level I/O helpers
+# ---------------------------------------------------------------------------
 
 def _download(url: str, dest: Path) -> None:
     req = urllib.request.Request(

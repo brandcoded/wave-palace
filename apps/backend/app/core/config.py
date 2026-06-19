@@ -23,6 +23,14 @@ class Settings:
     r2_bucket_name: str = os.getenv("R2_BUCKET_NAME", "wavepalace-media")
     r2_public_base_url: str = os.getenv("R2_PUBLIC_BASE_URL", "https://stream.wavepalace.live")
 
+    # Path to a TrueType font used by the mux service to burn text overlays
+    # into VRChat MP4s. Defaults to DejaVu Sans on Ubuntu (installed via apt
+    # in render.yaml). Override with FONT_PATH env var for other environments.
+    font_path: str = os.getenv(
+        "FONT_PATH",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    )
+
     @property
     def use_seed_mode(self) -> bool:
         """True when no live database is configured."""

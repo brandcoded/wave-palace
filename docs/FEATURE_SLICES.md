@@ -232,21 +232,21 @@ image and video covers via `_VIDEO_EXTS` detection. Re-running
 Depends on: Slice 3 (music director dashboard + auth) for the admin UI.
 Can be partially activated now by manually setting `visualLoopUrl` in seed data.
 
-## Future slice 1B: Channel & Host Info Display on Player
+## Slice 1B: Channel & Host Info Display on Player (COMPLETE)
 
-Display channel and host context in the player overlay so listeners know what
-they're tuned into without leaving the player. All data is already in the
-`Channel` schema — this is a pure frontend change.
+Channel title, "Hosted by {host}", genre, and mood are displayed inside the
+`ChannelPlayer` gradient overlay. Redundant title/host/tags block removed from
+below the player; description kept as standalone paragraph.
 
-**What to show in the player overlay:**
-- Channel title (already shown as page title — move into the overlay)
-- Host name (`hostName` field)
-- Genre + mood tags
+## Planned: VRChat MP4 Overlay Parity (COMPLETE)
 
-**Scope:** Frontend only — `ChannelPlayer.tsx`. Pass additional props from the
-channel page. No backend changes required.
-
-**Dependencies:** None. Can be built immediately.
+Burn the same channel info (title, host, genre · mood) into the muxed VRChat
+MP4 via FFmpeg `drawtext` so VRChat viewers see it without any UI layer.
+Text sits over a semi-transparent dark band at the bottom of the 1280×720
+frame — mirroring the web player gradient. Video-loop path burns text into the
+30-second segment encode only; the final mux stays `-c:v copy` (no extra CPU).
+Depends on: `fonts-dejavu-core` installed on Render.
+Re-mux required after deploy (`POST /api/mux/all` + Cloudflare cache purge).
 
 ## Future slice 2: DJ / Artist submission requests
 

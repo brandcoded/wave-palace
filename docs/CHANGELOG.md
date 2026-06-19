@@ -2,6 +2,37 @@
 
 All notable changes to this project are documented here.
 
+## [0.5.0] — VRChat MP4 Text Overlay + Web Player Info in Overlay
+
+### Added
+- Channel title, "Hosted by {host}", and genre · mood are now **burned into
+  the lower portion of every muxed VRChat MP4** via FFmpeg `drawtext`. A
+  semi-transparent dark band (matching the web player's gradient) sits behind
+  the text for legibility over any backdrop or video loop.
+- `_drawtext_overlay()` helper in `mux_service.py` builds the filter chain.
+  Returns an empty string when the font is absent so the mux still succeeds.
+- `_escape_drawtext()` safely escapes `:`, `'`, `%`, `\` in channel strings so
+  titles with apostrophes or colons don't break the FFmpeg filtergraph.
+- **Still-image path:** overlay appended to the `[0:v]…[vout]` chain in
+  `_build_image_mux_cmd` — text is burned into every frame.
+- **Video-loop path:** overlay burned into the 30-second segment encode
+  (`_build_segment_cmd`). The final `_build_video_mux_cmd` keeps `-c:v copy`
+  — overlay repeats for free across all loops, no re-encode cost.
+- `fonts-dejavu-core` added to `render.yaml` apt install; `FONT_PATH` env var
+  (default `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf`) wired through
+  `Settings.font_path` in `app/core/config.py`.
+- 8 new unit tests covering escape logic, overlay filter construction, and
+  the guarantee that `_build_video_mux_cmd` never adds drawtext.
+- **Web player overlay (Slice 1B):** channel title, "Hosted by {host}", and
+  genre + mood chips moved into the `ChannelPlayer` gradient bar. The
+  redundant title/host/tags block below the player was removed; description
+  remains as a standalone paragraph. Player now accepts `hostName`, `genre`,
+  `mood` props. Tags hidden on mobile (`hidden sm:flex`).
+
+### Upgrade note
+Re-run `POST /api/mux/all` after deploying to regenerate all three MP4s with
+burned-in overlays. Purge Cloudflare cache after the job completes.
+
 ## [0.4.0] — Looping Video Backdrops in VRChat MP4
 
 ### Added
