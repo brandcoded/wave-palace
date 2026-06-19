@@ -28,6 +28,10 @@ All notable changes to this project are documented here.
   redundant title/host/tags block below the player was removed; description
   remains as a standalone paragraph. Player now accepts `hostName`, `genre`,
   `mood` props. Tags hidden on mobile (`hidden sm:flex`).
+- **Now-playing metadata add-on:** playlist entries now use `TrackItem`
+  objects (`url`, `title`, `artist`) instead of bare URL strings. The web player
+  shows the current track metadata in the overlay, and the VRChat mux burns
+  timed per-track now-playing text into the MP4 output.
 
 ### Upgrade note
 Re-run `POST /api/mux/all` after deploying to regenerate all three MP4s with
