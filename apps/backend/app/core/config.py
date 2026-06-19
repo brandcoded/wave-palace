@@ -23,6 +23,10 @@ class Settings:
     r2_bucket_name: str = os.getenv("R2_BUCKET_NAME", "wavepalace-media")
     r2_public_base_url: str = os.getenv("R2_PUBLIC_BASE_URL", "https://stream.wavepalace.live")
 
+    # Admin dashboard — single-secret auth with JWT sessions.
+    admin_secret: str = os.getenv("ADMIN_SECRET", "changeme")
+    jwt_secret: str = os.getenv("JWT_SECRET", "dev-jwt-secret-change-me")
+
     # Path to a TrueType font used by the mux service to burn text overlays
     # into VRChat MP4s. Defaults to DejaVu Sans on Ubuntu (installed via apt
     # in render.yaml). Override with FONT_PATH env var for other environments.

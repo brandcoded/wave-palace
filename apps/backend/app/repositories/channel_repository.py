@@ -3,13 +3,11 @@
 Two implementations share one interface:
 - SeedChannelRepository: in-memory seed data (default, no DB required).
 - MongoChannelRepository: PyMongo Async-backed (used when MONGODB_URI is set).
-
-The service layer depends only on the abstract interface, so swapping the
-data source requires no business-logic changes.
 """
 
 from __future__ import annotations
 
+import copy
 import logging
 from abc import ABC, abstractmethod
 
@@ -22,33 +20,74 @@ logger = logging.getLogger("wavepalace.repository")
 class ChannelRepository(ABC):
     @abstractmethod
     async def list_channels(self) -> list[dict]:
-        """Return all channels (published and unpublished). Filtering is the
-        responsibility of the service layer."""
+        """Return all channels (published and unpublished)."""
 
     @abstractmethod
     async def get_by_slug(self, slug: str) -> dict | None:
         """Return a single channel by slug, or None if not found."""
 
+    @abstractmethod
+    async def create(self, data: dict) -> dict:
+        """Insert a new channel document and return it."""
+
+    @abstractmethod
+    async def update(self, slug: str, data: dict) -> dict | None:
+        """Merge *data* into the channel with *slug*. Returns updated doc or None."""
+
+    @abstractmethod
+    async def delete(self, slug: str) -> bool:
+        """Soft-delete: mark deleted=True and unpublish. Returns True if found."""
+
+    @abstractmethod
+    async def increment_play_count(self, slug: str) -> bool:
+        """Atomically increment playCount. Returns True if channel exists."""
+
 
 class SeedChannelRepository(ChannelRepository):
-    """In-memory repository backed by static seed data."""
+    """In-memory repository backed by static seed data (mutable copy)."""
 
     def __init__(self, channels: list[dict] | None = None) -> None:
-        self._channels = channels if channels is not None else SEED_CHANNELS
+        self._channels: list[dict] = copy.deepcopy(
+            channels if channels is not None else SEED_CHANNELS
+        )
 
     async def list_channels(self) -> list[dict]:
-        return list(self._channels)
+        return [c for c in self._channels if not c.get("deleted")]
 
     async def get_by_slug(self, slug: str) -> dict | None:
-        return next((c for c in self._channels if c["slug"] == slug), None)
+        return next(
+            (c for c in self._channels if c["slug"] == slug and not c.get("deleted")),
+            None,
+        )
+
+    async def create(self, data: dict) -> dict:
+        self._channels.append(data)
+        return data
+
+    async def update(self, slug: str, data: dict) -> dict | None:
+        for i, c in enumerate(self._channels):
+            if c["slug"] == slug:
+                self._channels[i] = {**c, **data}
+                return self._channels[i]
+        return None
+
+    async def delete(self, slug: str) -> bool:
+        for i, c in enumerate(self._channels):
+            if c["slug"] == slug:
+                self._channels[i] = {**c, "isPublished": False, "deleted": True}
+                return True
+        return False
+
+    async def increment_play_count(self, slug: str) -> bool:
+        for i, c in enumerate(self._channels):
+            if c["slug"] == slug:
+                self._channels[i] = {**c, "playCount": c.get("playCount", 0) + 1}
+                return True
+        return False
 
 
 class MongoChannelRepository(ChannelRepository):
-    """MongoDB-backed repository using PyMongo Async.
-
-    Kept import-light: the driver is only imported when this class is used,
-    so seed mode never requires pymongo to be installed.
-    """
+    """MongoDB-backed repository using PyMongo Async."""
 
     def __init__(self, uri: str, database: str) -> None:
         from pymongo import AsyncMongoClient  # type: ignore
@@ -57,11 +96,40 @@ class MongoChannelRepository(ChannelRepository):
         self._collection = self._client[database]["channels"]
 
     async def list_channels(self) -> list[dict]:
-        cursor = self._collection.find({}, {"_id": 0})
+        cursor = self._collection.find({"deleted": {"$ne": True}}, {"_id": 0})
         return [doc async for doc in cursor]
 
     async def get_by_slug(self, slug: str) -> dict | None:
-        return await self._collection.find_one({"slug": slug}, {"_id": 0})
+        return await self._collection.find_one(
+            {"slug": slug, "deleted": {"$ne": True}}, {"_id": 0}
+        )
+
+    async def create(self, data: dict) -> dict:
+        await self._collection.insert_one({**data, "_id": data["id"]})
+        return data
+
+    async def update(self, slug: str, data: dict) -> dict | None:
+        result = await self._collection.find_one_and_update(
+            {"slug": slug},
+            {"$set": data},
+            return_document=True,
+            projection={"_id": 0},
+        )
+        return result
+
+    async def delete(self, slug: str) -> bool:
+        result = await self._collection.update_one(
+            {"slug": slug},
+            {"$set": {"isPublished": False, "deleted": True}},
+        )
+        return result.matched_count > 0
+
+    async def increment_play_count(self, slug: str) -> bool:
+        result = await self._collection.update_one(
+            {"slug": slug},
+            {"$inc": {"playCount": 1}},
+        )
+        return result.matched_count > 0
 
 
 def build_channel_repository(settings: Settings) -> ChannelRepository:

@@ -27,6 +27,7 @@ export interface Channel {
   externalLinks: ExternalLink[];
   rightsStatus: string;
   isPublished: boolean;
+  playCount: number;
 }
 
 export interface ChannelFilters {

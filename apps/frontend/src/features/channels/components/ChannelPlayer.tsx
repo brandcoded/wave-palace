@@ -3,18 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import { Play, Pause, Volume2, VolumeX, AlertTriangle, User } from "lucide-react";
 import type { TrackItem } from "@/features/channels/types/channel";
+import { recordPlay } from "@/features/channels/lib/channelApi";
 
 interface ChannelPlayerProps {
   tracks: TrackItem[];
   coverImage: string;
   title: string;
+  slug: string;
   visualLoopUrl?: string | null;
   hostName: string;
   genre: string;
   mood: string;
 }
 
-export function ChannelPlayer({ tracks, coverImage, title, visualLoopUrl, hostName, genre, mood }: ChannelPlayerProps) {
+export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, hostName, genre, mood }: ChannelPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -54,6 +56,14 @@ export function ChannelPlayer({ tracks, coverImage, title, visualLoopUrl, hostNa
       playingRef.current = true;
       setPlaying(true);
       a.play().catch(() => { setPlaying(false); playingRef.current = false; });
+      // Fire-and-forget play count — once per slug per session.
+      if (typeof window !== "undefined") {
+        const key = `wp_played_${slug}`;
+        if (!sessionStorage.getItem(key)) {
+          sessionStorage.setItem(key, "1");
+          recordPlay(slug);
+        }
+      }
     } else {
       playingRef.current = false;
       a.pause();

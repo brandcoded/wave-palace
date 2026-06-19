@@ -21,11 +21,21 @@ class SubmissionRepository(ABC):
 
     @abstractmethod
     async def list_pending(self) -> list[SubmissionDocument]:
-        """Return pending submissions for the future admin dashboard."""
+        """Return pending submissions (admin convenience; prefer list_by_status)."""
+
+    @abstractmethod
+    async def list_by_status(self, status: str) -> list[SubmissionDocument]:
+        """Return submissions filtered by status, newest first."""
 
     @abstractmethod
     async def get_by_id(self, id: str) -> SubmissionDocument | None:
         """Return one submission by id, or None."""
+
+    @abstractmethod
+    async def update_review(
+        self, id: str, status: str, reviewer_notes: str | None
+    ) -> SubmissionDocument | None:
+        """Set status + reviewed_at + reviewer_notes. Returns updated doc or None."""
 
 
 class SeedSubmissionRepository(SubmissionRepository):
@@ -43,10 +53,33 @@ class SeedSubmissionRepository(SubmissionRepository):
         return document
 
     async def list_pending(self) -> list[SubmissionDocument]:
-        return [submission for submission in self._submissions if submission.status == "pending"]
+        return await self.list_by_status("pending")
+
+    async def list_by_status(self, status: str) -> list[SubmissionDocument]:
+        return sorted(
+            [s for s in self._submissions if s.status == status],
+            key=lambda s: s.submitted_at,
+            reverse=True,
+        )
 
     async def get_by_id(self, id: str) -> SubmissionDocument | None:
-        return next((submission for submission in self._submissions if submission.id == id), None)
+        return next((s for s in self._submissions if s.id == id), None)
+
+    async def update_review(
+        self, id: str, status: str, reviewer_notes: str | None
+    ) -> SubmissionDocument | None:
+        for i, s in enumerate(self._submissions):
+            if s.id == id:
+                updated = s.model_copy(
+                    update={
+                        "status": status,
+                        "reviewed_at": datetime.utcnow(),
+                        "reviewer_notes": reviewer_notes,
+                    }
+                )
+                self._submissions[i] = updated
+                return updated
+        return None
 
 
 class MongoSubmissionRepository(SubmissionRepository):
@@ -67,11 +100,29 @@ class MongoSubmissionRepository(SubmissionRepository):
         return document
 
     async def list_pending(self) -> list[SubmissionDocument]:
-        cursor = self._collection.find({"status": "pending"}, {"_id": 0}).sort("submitted_at", -1)
+        return await self.list_by_status("pending")
+
+    async def list_by_status(self, status: str) -> list[SubmissionDocument]:
+        cursor = self._collection.find({"status": status}, {"_id": 0}).sort("submitted_at", -1)
         return [SubmissionDocument.model_validate(doc) async for doc in cursor]
 
     async def get_by_id(self, id: str) -> SubmissionDocument | None:
         doc = await self._collection.find_one({"id": id}, {"_id": 0})
+        return SubmissionDocument.model_validate(doc) if doc else None
+
+    async def update_review(
+        self, id: str, status: str, reviewer_notes: str | None
+    ) -> SubmissionDocument | None:
+        doc = await self._collection.find_one_and_update(
+            {"id": id},
+            {"$set": {
+                "status": status,
+                "reviewed_at": datetime.utcnow(),
+                "reviewer_notes": reviewer_notes,
+            }},
+            return_document=True,
+            projection={"_id": 0},
+        )
         return SubmissionDocument.model_validate(doc) if doc else None
 
 

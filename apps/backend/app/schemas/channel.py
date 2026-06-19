@@ -41,6 +41,7 @@ class Channel(BaseModel):
     externalLinks: list[ExternalLink] = Field(default_factory=list)
     rightsStatus: str = "owned_or_cleared"
     isPublished: bool = True
+    playCount: int = 0
 
     model_config = {"populate_by_name": True}
 

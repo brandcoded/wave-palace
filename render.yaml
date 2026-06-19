@@ -26,3 +26,7 @@ services:
         value: https://stream.wavepalace.live
       - key: FONT_PATH
         value: /usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
+      - key: ADMIN_SECRET
+        sync: false
+      - key: JWT_SECRET
+        sync: false

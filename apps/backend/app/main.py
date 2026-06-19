@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import channels, health, mux, submissions
+from app.api.routes import admin_auth, admin_channels, admin_submissions, admin_uploads, admin_options
 from app.core.config import get_settings
 
 logging.basicConfig(level=logging.INFO)
@@ -26,10 +27,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Public routes
 app.include_router(health.router)
 app.include_router(channels.router)
 app.include_router(mux.router)
 app.include_router(submissions.router)
+
+# Admin routes
+app.include_router(admin_auth.router)
+app.include_router(admin_channels.router)
+app.include_router(admin_submissions.router)
+app.include_router(admin_uploads.router)
+app.include_router(admin_options.router)
 
 
 @app.get("/", tags=["system"])

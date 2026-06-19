@@ -1,24 +1,27 @@
-"""Business/service layer for channels.
-
-Holds the rules that are NOT data access and NOT presentation:
-- only published channels are exposed publicly
-- optional filtering by genre / mood / energy / theme (case-insensitive)
-- validation that required playback URLs exist
-"""
+"""Business/service layer for channels."""
 
 from __future__ import annotations
 
+import time
+
 from app.repositories.channel_repository import ChannelRepository
 from app.schemas.channel import Channel
+
+# In-memory TTL cache for play-count rate limiting: {slug:ip -> timestamp}
+_PLAY_CACHE: dict[str, float] = {}
+_PLAY_TTL = 1800  # 30 minutes
 
 
 class ChannelService:
     def __init__(self, repository: ChannelRepository) -> None:
         self._repository = repository
 
+    # ------------------------------------------------------------------
+    # Public read
+    # ------------------------------------------------------------------
+
     @staticmethod
     def _is_valid(channel: dict) -> bool:
-        """Audio URL and VRChat URL must be present for a channel to be served."""
         return bool(channel.get("audioUrl")) and bool(channel.get("vrchatPlaybackUrl"))
 
     @staticmethod
@@ -57,3 +60,46 @@ class ChannelService:
         if not channel or not channel.get("isPublished") or not self._is_valid(channel):
             return None
         return Channel.model_validate(channel)
+
+    # ------------------------------------------------------------------
+    # Admin write
+    # ------------------------------------------------------------------
+
+    async def list_all(self) -> list[dict]:
+        return await self._repository.list_channels()
+
+    async def create(self, data: dict) -> dict:
+        return await self._repository.create(data)
+
+    async def update(self, slug: str, data: dict) -> dict | None:
+        return await self._repository.update(slug, data)
+
+    async def delete(self, slug: str) -> bool:
+        return await self._repository.delete(slug)
+
+    # ------------------------------------------------------------------
+    # Play count
+    # ------------------------------------------------------------------
+
+    async def record_play(self, slug: str, ip: str) -> bool:
+        """Increment play count unless this IP already played this channel recently."""
+        channel = await self._repository.get_by_slug(slug)
+        if channel is None:
+            return False
+
+        key = f"{slug}:{ip}"
+        now = time.time()
+        last = _PLAY_CACHE.get(key, 0.0)
+        if now - last < _PLAY_TTL:
+            return True  # already counted recently — no-op but not an error
+
+        _PLAY_CACHE[key] = now
+        # Evict stale entries occasionally to bound memory usage.
+        if len(_PLAY_CACHE) > 10_000:
+            cutoff = now - _PLAY_TTL
+            stale = [k for k, v in _PLAY_CACHE.items() if v < cutoff]
+            for k in stale:
+                _PLAY_CACHE.pop(k, None)
+
+        await self._repository.increment_play_count(slug)
+        return True

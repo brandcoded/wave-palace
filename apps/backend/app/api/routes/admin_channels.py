@@ -1,0 +1,108 @@
+"""Admin channel management routes."""
+
+from __future__ import annotations
+
+import re
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+from app.api.dependencies import get_channel_service
+from app.core.auth import get_current_admin
+from app.schemas.channel import Channel
+from app.services.channel_service import ChannelService
+
+router = APIRouter(prefix="/api/admin/channels", tags=["admin-channels"])
+
+
+def _slugify(title: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+
+
+class ChannelCreateRequest(BaseModel):
+    title: str
+    description: str = ""
+    genre: str = ""
+    mood: str = ""
+    energy: str = ""
+    theme: str = ""
+    hostName: str = ""
+    coverImageUrl: str = ""
+    visualLoopUrl: str | None = None
+    audioUrl: str = ""
+    playlist: list[dict] = []
+    externalLinks: list[dict] = []
+    rightsStatus: str = "owned_or_cleared"
+    isPublished: bool = False
+
+
+class ChannelPatchRequest(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    genre: str | None = None
+    mood: str | None = None
+    energy: str | None = None
+    theme: str | None = None
+    hostName: str | None = None
+    coverImageUrl: str | None = None
+    visualLoopUrl: str | None = None
+    audioUrl: str | None = None
+    playlist: list[dict] | None = None
+    externalLinks: list[dict] | None = None
+    rightsStatus: str | None = None
+    isPublished: bool | None = None
+
+
+@router.get("", response_model=list[dict])
+async def list_all_channels(
+    _: dict = Depends(get_current_admin),
+    service: ChannelService = Depends(get_channel_service),
+) -> list[dict]:
+    return await service.list_all()
+
+
+@router.post("", response_model=dict, status_code=201)
+async def create_channel(
+    body: ChannelCreateRequest,
+    _: dict = Depends(get_current_admin),
+    service: ChannelService = Depends(get_channel_service),
+) -> dict:
+    import uuid
+
+    slug = _slugify(body.title)
+    channel_id = f"channel_{slug.replace('-', '_')}"
+    data: dict[str, Any] = {
+        "id": channel_id,
+        "slug": slug,
+        "vrchatPlaybackUrl": "",
+        "playCount": 0,
+        **body.model_dump(exclude_none=False),
+    }
+    return await service.create(data)
+
+
+@router.patch("/{slug}", response_model=dict)
+async def update_channel(
+    slug: str,
+    body: ChannelPatchRequest,
+    _: dict = Depends(get_current_admin),
+    service: ChannelService = Depends(get_channel_service),
+) -> dict:
+    patch = {k: v for k, v in body.model_dump().items() if v is not None}
+    updated = await service.update(slug, patch)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    return updated
+
+
+@router.delete("/{slug}")
+async def delete_channel(
+    slug: str,
+    _: dict = Depends(get_current_admin),
+    service: ChannelService = Depends(get_channel_service),
+) -> dict:
+    deleted = await service.delete(slug)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    return {"ok": True}

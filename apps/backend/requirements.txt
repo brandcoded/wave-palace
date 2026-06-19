@@ -5,6 +5,9 @@ email-validator==2.2.0
 python-multipart==0.0.20
 httpx==0.28.1
 pytest==8.3.4
+pytest-asyncio==0.24.0
+# JWT auth for admin dashboard
+PyJWT==2.9.0
 # Optional: only needed when running against MongoDB Atlas (set MONGODB_URI).
 pymongo==4.10.1
 # R2 upload for mux service (set R2_* env vars to enable).

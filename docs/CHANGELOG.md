@@ -2,6 +2,29 @@
 
 All notable changes to this project are documented here.
 
+## [0.7.0] — Music Director Admin Dashboard
+
+### Added
+- Password-protected admin UI at `/admin` — single ADMIN_SECRET, JWT (HS256,
+  24h) stored in httpOnly cookie. Login, logout, and session-check endpoints.
+- **Submission review queue** at `/admin/submissions` — pending/approved/rejected
+  tabs with count badge, detail drawer, approve/reject with optional notes.
+- **Channel management** at `/admin/channels` — list all channels (including
+  unpublished), create, edit, publish-toggle, soft-delete.
+- **Channel edit form** — inline track management with drag-to-reorder
+  (`@dnd-kit/sortable`), per-track title/artist editing, MP3 upload → R2,
+  cover image / visual loop upload, one-click VRChat re-mux.
+- **Media upload endpoints** — `POST /api/admin/upload/{image,video,audio}`
+  with MIME type + size validation; streamed to R2.
+- **Submission options management** at `/admin/options` — edit genre/mood/
+  energy/theme lists in place; changes immediately reflected on public form.
+- **Play count add-on** — `POST /api/channels/{slug}/play` increments
+  `playCount` in MongoDB; in-memory rate limit (1/IP/slug/30 min); web player
+  fires once per slug per session via `sessionStorage`.
+- `ADMIN_SECRET` and `JWT_SECRET` env vars added to `render.yaml`.
+- 24 new pytest tests covering all admin routes (auth, submissions, channels,
+  uploads, options, play count).
+
 ## [0.6.0] — DJ / Artist Submission Form
 
 ### Added

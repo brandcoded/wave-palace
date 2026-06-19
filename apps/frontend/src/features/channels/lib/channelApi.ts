@@ -49,6 +49,14 @@ export async function getChannels(
   return channels.map(normalizeChannel);
 }
 
+export async function recordPlay(slug: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/channels/${slug}/play`, { method: "POST" });
+  } catch {
+    // fire-and-forget — never block playback
+  }
+}
+
 export async function getChannelBySlug(
   slug: string,
   signal?: AbortSignal

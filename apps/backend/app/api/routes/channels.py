@@ -6,7 +6,7 @@ the ChannelService.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.api.dependencies import get_channel_service
 from app.schemas.channel import Channel
@@ -37,3 +37,22 @@ async def get_channel(
     if channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
     return channel
+
+
+@router.post("/{slug}/play")
+async def record_play(
+    slug: str,
+    request: Request,
+    service: ChannelService = Depends(get_channel_service),
+) -> dict:
+    """Increment play count for a channel (fire-and-forget from the web player).
+
+    Rate-limited to one increment per IP+slug per 30 minutes in-process.
+    Silently no-ops when the channel doesn't exist in seed mode to avoid 404
+    noise from misconfigured players.
+    """
+    ip = request.headers.get("x-forwarded-for", "unknown")
+    ok = await service.record_play(slug, ip)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    return {"ok": True}
