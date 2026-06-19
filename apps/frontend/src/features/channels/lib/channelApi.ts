@@ -1,4 +1,16 @@
-import type { Channel, ChannelFilters } from "@/features/channels/types/channel";
+import type { Channel, ChannelFilters, TrackItem } from "@/features/channels/types/channel";
+
+function normalizePlaylist(raw: unknown[]): TrackItem[] {
+  return raw.map((item) =>
+    typeof item === "string"
+      ? { url: item, title: "", artist: "" }
+      : (item as TrackItem)
+  );
+}
+
+function normalizeChannel(ch: Channel): Channel {
+  return { ...ch, playlist: normalizePlaylist((ch.playlist as unknown[]) ?? []) };
+}
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
@@ -33,7 +45,8 @@ export async function getChannels(
   if (!res.ok) {
     throw new ApiError("Failed to load channels", res.status);
   }
-  return (await res.json()) as Channel[];
+  const channels = (await res.json()) as Channel[];
+  return channels.map(normalizeChannel);
 }
 
 export async function getChannelBySlug(
@@ -50,5 +63,5 @@ export async function getChannelBySlug(
   if (!res.ok) {
     throw new ApiError("Failed to load channel", res.status);
   }
-  return (await res.json()) as Channel;
+  return normalizeChannel((await res.json()) as Channel);
 }
