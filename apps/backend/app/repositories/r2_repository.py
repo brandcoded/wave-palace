@@ -56,3 +56,17 @@ class R2Repository:
         public_url = f"{self._public_base}/{r2_key}"
         logger.info("Upload complete: %s", public_url)
         return public_url
+
+    def upload_bytes(self, data: bytes, r2_key: str, content_type: str) -> str:
+        """Upload in-memory bytes to *r2_key* and return the public URL."""
+        logger.info("Uploading bytes → s3://%s/%s", self._bucket, r2_key)
+        self._client.put_object(
+            Bucket=self._bucket,
+            Key=r2_key,
+            Body=data,
+            ContentType=content_type,
+            CacheControl="public, max-age=300",
+        )
+        public_url = f"{self._public_base}/{r2_key}"
+        logger.info("Upload complete: %s", public_url)
+        return public_url

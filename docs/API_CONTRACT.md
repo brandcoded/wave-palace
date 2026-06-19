@@ -53,8 +53,16 @@ Returns a single published channel by slug.
   "coverImageUrl": "https://stream.wavepalace.live/covers/late-night-house.jpg",
   "audioUrl": "https://stream.wavepalace.live/tracks/channel_abc123/track-1.mp3",
   "playlist": [
-    "https://stream.wavepalace.live/tracks/channel_abc123/track-1.mp3",
-    "https://stream.wavepalace.live/tracks/channel_abc123/track-2.mp3"
+    {
+      "url": "https://stream.wavepalace.live/tracks/channel_abc123/track-1.mp3",
+      "title": "Midnight Atrium",
+      "artist": "DJ Skyy"
+    },
+    {
+      "url": "https://stream.wavepalace.live/tracks/channel_abc123/track-2.mp3",
+      "title": "Glass Elevator",
+      "artist": "DJ Skyy"
+    }
   ],
   "vrchatPlaybackUrl": "https://stream.wavepalace.live/muxed/late-night-house.mp4",
   "externalLinks": [{ "label": "Listen elsewhere", "url": "https://example.com" }],
@@ -64,11 +72,97 @@ Returns a single published channel by slug.
 ```
 
 **Field notes:**
-- `playlist` — ordered list of MP3 URLs; the web player cycles through these automatically, looping back to index 0 after the last track
-- `audioUrl` — always equals `playlist[0]`; retained for backwards compatibility
+- `playlist` — ordered list of track objects (`url`, `title`, `artist`); the web player cycles through these automatically, looping back to index 0 after the last track
+- `audioUrl` — always equals `playlist[0].url`; retained for backwards compatibility
 - `coverImageUrl` — static channel art displayed as the web player background
 - `vrchatPlaybackUrl` — pre-muxed static MP4 (cover image + audio combined), uploaded to R2, single direct URL for VRChat video players
 - `externalLinks` are attribution only and are never playback sources
+
+## Submission endpoints
+
+Public endpoints for Slice 2 DJ / artist channel proposals. Submissions are
+stored as pending review items; nothing is auto-published.
+
+### GET /api/submission-options
+
+Returns admin-managed option lists for the public submit form. Falls back to
+seed values when MongoDB is unavailable or the collection is empty.
+
+Response `200`:
+```json
+{
+  "genre": ["House", "Afro House", "Electronic"],
+  "mood": ["Late Night", "Warm", "Dark"],
+  "energy": ["Low", "Medium", "High"],
+  "theme": ["Lounge", "Futuristic Lounge", "VR Party"]
+}
+```
+
+Response header: `Cache-Control: public, max-age=300`.
+
+### POST /api/submissions/upload-image
+
+Uploads an optional profile image or logo before the submission is posted.
+
+- Body: `multipart/form-data`, field name `file`
+- Accepted types: JPEG, PNG, WebP
+- Max size: 5 MB
+- Rate limit: 10 uploads per IP per hour
+
+Response `200`:
+```json
+{
+  "url": "https://stream.wavepalace.live/submissions/images/{uuid}.jpg"
+}
+```
+
+- `400` — unsupported file type.
+- `413` — file too large.
+- `429` — rate limit exceeded.
+
+### POST /api/submissions
+
+Creates a pending channel proposal.
+
+Request:
+```json
+{
+  "submitter_name": "DJ Skyy",
+  "contact_email": "skyy@example.com",
+  "channel_title": "Afterhours Atrium",
+  "profile_image_url": "https://stream.wavepalace.live/submissions/images/profile.jpg",
+  "genre": ["House"],
+  "mood": ["Late Night"],
+  "energy": ["Medium"],
+  "theme": ["Lounge"],
+  "description": "A late-night channel proposal with cleared house music.",
+  "sample_links": ["https://example.com/mix"],
+  "rights_attestation": true,
+  "notes": "Optional context for review."
+}
+```
+
+Validation:
+- `genre`, `mood`, `energy`, and `theme` require at least one value and every
+  value must exist in `GET /api/submission-options`.
+- `description` must be 20–500 characters.
+- `sample_links` requires 1–5 URLs. These are attribution/review links only,
+  never playback sources.
+- `rights_attestation` must be `true`.
+
+Response `201`:
+```json
+{
+  "id": "78ec95c4-9e1d-4f57-95f9-e578c1d41035",
+  "status": "pending",
+  "submitted_at": "2026-06-19T18:00:00.000000",
+  "message": "Thanks DJ Skyy — your submission is in review. We'll be in touch at skyy@example.com."
+}
+```
+
+- `422` — invalid field, unknown option value, missing rights attestation, or
+  malformed email/URL.
+- `429` — rate limit exceeded.
 
 ## Mux endpoints (internal/admin — no auth for MVP)
 

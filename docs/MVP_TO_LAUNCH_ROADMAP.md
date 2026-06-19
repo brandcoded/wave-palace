@@ -19,20 +19,20 @@ seed-mode fallback. Backend tests green.
 
 Add slices one at a time per `FEATURE_SLICES.md`. Slice order:
 
-| Slice | Name | Depends on |
-|---|---|---|
-| 1 | Animated / looping video backgrounds | Slice 3 for admin UI |
-| 1B | Channel & Host Info Display on Player | None — frontend only, can build now |
-| 2 | DJ / Artist submission requests | None |
-| 3 | Music director dashboard (Admin UI) | Auth |
-| 3 add-on | Track metadata schema + now-playing display | Slice 3 |
-| 3 add-on | Play count event tracking | Slice 3 |
-| 4 | Live event streaming — Link-In and Ingest Keys | Slice 3 + VPS (AzuraCast + SRS provisioned) |
-| 5 | Media URL validation & compatibility checker | None |
-| 6 | Featured / sponsored channels | None |
-| 7 | Production analytics dashboard | Slice 3 add-ons (play count + track metadata) |
-| 8 | Play Metrics + Artist Reporting | Slice 3 add-ons + Code Capture (Slice 9) for follow/contact data |
-| 9 | Code Capture + Follow Intent | Slice 3 (code management in admin UI) + Slice 8 Phase 1–2 (event tracking) |
+| Slice | Name | Status | Depends on |
+|---|---|---|---|
+| 1 | Animated / looping video backgrounds | ✅ COMPLETE (v0.4.0) — admin UI toggle pending Slice 3 | Slice 3 for admin UI toggle |
+| 1B | Channel & Host Info Display on Player | ✅ COMPLETE — title, host, genre/mood in overlay; VRChat MP4 overlay parity also complete | None |
+| 2 | DJ / Artist submission requests | ✅ COMPLETE — public proposal form, API-backed options, R2 profile image upload, pending submission storage | None |
+| 3 | Music director dashboard (Admin UI) | 🔲 NOT STARTED | Auth |
+| 3 add-on | Track metadata schema + now-playing display | ✅ COMPLETE — `TrackItem` playlist contract, web overlay, and VRChat MP4 timed now-playing text shipped | None |
+| 3 add-on | Play count event tracking | 🔲 NOT STARTED | Slice 3 |
+| 4 | Live event streaming — Link-In and Ingest Keys | 🔲 NOT STARTED | Slice 3 + VPS (AzuraCast + SRS provisioned) |
+| 5 | Media URL validation & compatibility checker | 🔲 NOT STARTED | None |
+| 6 | Featured / sponsored channels | 🔲 NOT STARTED | None |
+| 7 | Production analytics dashboard | 🔲 NOT STARTED | Slice 3 add-ons (play count + track metadata) |
+| 8 | Play Metrics + Artist Reporting | 🔲 NOT STARTED | Slice 3 add-ons + Code Capture (Slice 9) for follow/contact data |
+| 9 | Code Capture + Follow Intent | 🔲 NOT STARTED | Slice 3 (code management in admin UI) + Slice 8 Phase 1–2 (event tracking) |
 
 Each slice ships with UI, API, tests, and docs.
 
@@ -77,7 +77,11 @@ Summary of what changes at Slice 3:
 - [x] Playlist cycling implemented — tracks auto-advance, loop, track counter shown.
 - [x] Mux service deployed — `POST /api/mux/all` produces VRChat-compatible MP4s on R2.
 - [x] Ran `POST /api/mux/all` in production — all 3 channels muxed to 720p MP4s on R2; `vrchatPlaybackUrl` now points to them.
-- [ ] Verify muxed MP4s actually play in VRChat (image visible + audio).
+- [x] Animated video loop backgrounds live — `visualLoopUrl` active on all 3 seed channels (v0.4.0).
+- [x] Channel & host info in player overlay — title, host name, genre/mood tags in gradient controls bar (Slice 1B).
+- [x] VRChat MP4 overlay parity — channel info burned into muxed MP4 via FFmpeg `drawtext`.
+- [x] TrackItem now-playing metadata shipped — playlist entries include `url`, `title`, `artist`; web overlay and muxed MP4 output show the current track.
+- [ ] Verify muxed MP4s actually play in VRChat (image/video visible + audio + overlay text).
 - [ ] Seed media replaced with cleared/licensed media.
 - [ ] CORS locked to the production frontend origin.
 - [ ] Licensing notes + takedown policy published.

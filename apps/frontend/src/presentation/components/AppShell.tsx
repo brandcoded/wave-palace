@@ -16,12 +16,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               Wave<span className="text-gradient">Palace</span>
             </span>
           </Link>
-          <Link
-            href="/#channels"
-            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/10"
-          >
-            Browse channels
-          </Link>
+          <nav className="flex items-center gap-2">
+            <Link
+              href="/submit"
+              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white"
+            >
+              Submit
+            </Link>
+            <Link
+              href="/#channels"
+              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/10"
+            >
+              Browse channels
+            </Link>
+          </nav>
         </div>
       </header>
 

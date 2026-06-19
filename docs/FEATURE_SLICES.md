@@ -13,13 +13,14 @@ looping back to track 1 after the last. A track counter shows the current
 position. A static channel art image displays behind the player. I can copy
 either the web link or the VRChat playback link to share the channel.
 
-**Media architecture:** Each channel has a `playlist` (ordered list of MP3 URLs)
-and a `coverImageUrl` stored on Cloudflare R2 (`stream.wavepalace.live`). The
-web player cycles through `playlist` automatically and renders `coverImageUrl`
-as background. The `audioUrl` field is retained for backwards compatibility and
-always equals `playlist[0]`. The VRChat link (`vrchatPlaybackUrl`) points to a
-pre-muxed static MP4 (cover image + audio combined) uploaded to R2 — single
-direct file, most VRChat-compatible format.
+**Media architecture:** Each channel has a `playlist` (ordered `TrackItem`
+objects with URL, title, and artist metadata) and a `coverImageUrl` stored on
+Cloudflare R2 (`stream.wavepalace.live`). The web player cycles through
+`playlist` automatically and renders `coverImageUrl` as background. The
+`audioUrl` field is retained for backwards compatibility and always equals
+`playlist[0].url`. The VRChat link (`vrchatPlaybackUrl`) points to a pre-muxed
+static MP4 (cover image + audio combined) uploaded to R2 — single direct file,
+most VRChat-compatible format.
 
 Includes: home hero + directory grid, filter chips, channel detail/player page
 with push-play persistent streaming + playlist cycling + track counter, Copy Web
@@ -206,31 +207,17 @@ Scale to CPX41 (8 vCPU, ~$30/mo) for 10+ channels.
 
 ---
 
-## Future slice 1: Animated / looping video backgrounds + admin visual type selector
+## ~~Slice 1: Animated / looping video backgrounds~~ — COMPLETE (v0.4.0)
 
-Replace the static cover image background on the web player with a looping MP4
-visual per channel. The schema already supports this via the `visualLoopUrl`
-field (optional, falls back to `coverImageUrl`) and the mux service already
-detects video vs image by file extension automatically.
+Frontend and data layer fully shipped ahead of schedule. `ChannelPlayer.tsx`
+renders a muted looping `<video>` when `visualLoopUrl` is present, falls back
+to `<img>` when not. All 3 seed channels have `visualLoopUrl` populated.
+`mux_service.py` handles both image and video covers via `_VIDEO_EXTS`
+detection — no mux changes needed when a loop is set.
 
-**Admin UX — Option B (explicit toggle):**
-The music director dashboard (Slice 3) will include a visual type selector per
-channel: `Visual type: ○ Image  ● Video Loop`. Each option has its own upload
-slot — `coverImageUrl` for the static image, `visualLoopUrl` for the looping
-MP4. The admin can switch between them without re-uploading either asset. The
-mux service uses `visualLoopUrl` when set, falls back to `coverImageUrl` when
-not — no code change needed at mux time.
-
-**Web player:** When `visualLoopUrl` is present, the `<img>` backdrop in
-`ChannelPlayer.tsx` is replaced with a muted, looping `<video>` element.
-When absent, the existing `<img>` renders as before.
-
-**VRChat mux:** No changes needed — `mux_service.py` already handles both
-image and video covers via `_VIDEO_EXTS` detection. Re-running
-`POST /api/mux/all` after uploading a loop video produces the correct output.
-
-Depends on: Slice 3 (music director dashboard + auth) for the admin UI.
-Can be partially activated now by manually setting `visualLoopUrl` in seed data.
+**Remaining work (Slice 3):** Admin UI toggle (`Visual type: ○ Image ● Video
+Loop`) with per-channel upload slots. The mux pipeline already supports it —
+only the admin interface is pending.
 
 ## Slice 1B: Channel & Host Info Display on Player (COMPLETE)
 
@@ -248,10 +235,24 @@ frame — mirroring the web player gradient. Video-loop path burns text into the
 Depends on: `fonts-dejavu-core` installed on Render.
 Re-mux required after deploy (`POST /api/mux/all` + Cloudflare cache purge).
 
-## Future slice 2: DJ / Artist submission requests
+## ~~Slice 2: DJ / Artist submission requests~~ — COMPLETE
 
-A form for hosts/DJs to submit a channel proposal (title, links, rights
-attestation). Goes to a review queue — not auto-published.
+A public `/submit` form lets hosts, DJs, and artists submit channel proposals
+for review. Submissions are stored with `status = "pending"` and are never
+auto-published.
+
+- `GET /api/submission-options` returns admin-managed genre, mood, energy, and
+  theme options with seed fallback
+- `POST /api/submissions/upload-image` validates JPEG/PNG/WebP profile images
+  up to 5 MB and uploads them to R2 under `submissions/images/`
+- `POST /api/submissions` validates option values, sample links, description
+  length, contact email, and rights attestation before storing the pending
+  submission
+- Frontend fetches chip options from the API, uploads profile images on select,
+  and shows a success confirmation without adding admin review UI
+
+Reserved for Slice 3: review queue UI, option management UI, auth, and admin
+approval/publishing workflows.
 
 ## Future slice 3: Music director dashboard (Admin UI)
 
@@ -266,19 +267,27 @@ internal implementation details the admin never touches directly.
 
 Admin scope: Songs, Ads, Videos, Channel info, Host info, Stream health.
 
-### Slice 3 add-on: Track metadata schema + now-playing display
+### ~~Slice 3 add-on: Track metadata schema + now-playing display~~ — COMPLETE
 
-Show "Now playing: Artist — Track Title" on the player. Requires replacing the
-flat `playlist: string[]` with a list of track objects `{ url, title, artist }`.
+Show "Now playing: Artist — Track Title" on the player. This shipped ahead of
+the Slice 3 admin dashboard: `playlist` now uses `TrackItem` objects
+`{ url, title, artist }`, and the web player shows title + artist in the
+overlay when metadata is present.
 
-- Admin enters title/artist when uploading tracks in the Slice 3 dashboard
+- Seed data includes title/artist metadata for each track
+- Backend and frontend channel contracts expose `playlist: TrackItem[]`
+- Web player displays current track title + artist in the overlay, updates on
+  track advance
+- VRChat mux burns per-track now-playing text into MP4 output using timed
+  FFmpeg `drawtext`
+- Future Slice 3 admin UI should let admins enter title/artist when uploading
+  or editing tracks
 - For true streaming (Slice 3 + VPS): AzuraCast's `/api/nowplaying` endpoint
   returns the currently playing track in real time — player polls or subscribes
   via SSE, no manual entry needed
-- Web player displays current track title + artist in the overlay, updates on
-  track advance
 
-Schema change lands with Slice 3, not before.
+Remaining Slice 3 work is admin editing and live-stream now-playing integration,
+not the TrackItem schema or static playlist display.
 
 ### Slice 3 add-on: Play count tracking
 
