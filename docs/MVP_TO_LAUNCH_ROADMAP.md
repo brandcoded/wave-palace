@@ -23,7 +23,7 @@ Add slices one at a time per `FEATURE_SLICES.md`. Slice order:
 |---|---|---|---|
 | 1 | Animated / looping video backgrounds | ✅ COMPLETE (v0.4.0) — admin UI toggle pending Slice 3 | Slice 3 for admin UI toggle |
 | 1B | Channel & Host Info Display on Player | ✅ COMPLETE — title, host, genre/mood in overlay; VRChat MP4 overlay parity also complete | None |
-| 2 | DJ / Artist submission requests | 🔲 NOT STARTED | None |
+| 2 | DJ / Artist submission requests | ✅ COMPLETE — public proposal form, API-backed options, R2 profile image upload, pending submission storage | None |
 | 3 | Music director dashboard (Admin UI) | 🔲 NOT STARTED | Auth |
 | 3 add-on | Track metadata schema + now-playing display | ✅ COMPLETE — `TrackItem` playlist contract, web overlay, and VRChat MP4 timed now-playing text shipped | None |
 | 3 add-on | Play count event tracking | 🔲 NOT STARTED | Slice 3 |

@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here.
 
+## [0.6.0] — DJ / Artist Submission Form
+
+### Added
+- Public `/submit` page for DJs, artists, and hosts to propose WavePalace
+  channels without auth. The form supports API-backed multi-select chips,
+  sample links, rights attestation, optional notes, and a success confirmation.
+- `GET /api/submission-options` returns genre, mood, energy, and theme option
+  lists from MongoDB with seed fallback.
+- `POST /api/submissions/upload-image` validates optional JPEG/PNG/WebP profile
+  images up to 5 MB and uploads them to R2 under `submissions/images/`.
+- `POST /api/submissions` stores validated proposals as `pending`; no
+  submission is auto-published.
+- Backend submission repositories, service-layer validation, and pytest
+  coverage for options, image upload, and submission validation cases.
+
 ## [0.5.0] — VRChat MP4 Text Overlay + Web Player Info in Overlay
 
 ### Added

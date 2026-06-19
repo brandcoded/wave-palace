@@ -235,10 +235,24 @@ frame — mirroring the web player gradient. Video-loop path burns text into the
 Depends on: `fonts-dejavu-core` installed on Render.
 Re-mux required after deploy (`POST /api/mux/all` + Cloudflare cache purge).
 
-## Future slice 2: DJ / Artist submission requests
+## ~~Slice 2: DJ / Artist submission requests~~ — COMPLETE
 
-A form for hosts/DJs to submit a channel proposal (title, links, rights
-attestation). Goes to a review queue — not auto-published.
+A public `/submit` form lets hosts, DJs, and artists submit channel proposals
+for review. Submissions are stored with `status = "pending"` and are never
+auto-published.
+
+- `GET /api/submission-options` returns admin-managed genre, mood, energy, and
+  theme options with seed fallback
+- `POST /api/submissions/upload-image` validates JPEG/PNG/WebP profile images
+  up to 5 MB and uploads them to R2 under `submissions/images/`
+- `POST /api/submissions` validates option values, sample links, description
+  length, contact email, and rights attestation before storing the pending
+  submission
+- Frontend fetches chip options from the API, uploads profile images on select,
+  and shows a success confirmation without adding admin review UI
+
+Reserved for Slice 3: review queue UI, option management UI, auth, and admin
+approval/publishing workflows.
 
 ## Future slice 3: Music director dashboard (Admin UI)
 
