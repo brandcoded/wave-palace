@@ -1,4 +1,4 @@
-import type { AdminChannel, AdminSubmission, SubmissionOptions } from "@/features/admin/types/admin";
+import type { AdminChannel, AdminSubmission, SubmissionOptions, URLCheckResult } from "@/features/admin/types/admin";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8000";
@@ -97,6 +97,12 @@ export async function deleteChannel(slug: string): Promise<void> {
 export async function muxChannel(slug: string): Promise<{ slug: string; vrchatPlaybackUrl: string }> {
   const res = await apiFetch(`/api/channels/${slug}/mux`, { method: "POST" });
   if (!res.ok) throw new Error("Mux failed");
+  return res.json();
+}
+
+export async function validateChannelUrls(slug: string): Promise<URLCheckResult[]> {
+  const res = await apiFetch(`/api/admin/channels/${slug}/validate-urls`, { method: "POST" });
+  if (!res.ok) throw new Error("Validation failed");
   return res.json();
 }
 

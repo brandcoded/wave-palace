@@ -2,7 +2,7 @@
 
 > Single source of truth for slice status. Update this file whenever a slice
 > ships or changes state. `CLAUDE.md` carries a compact copy — keep both in sync.
-> Last updated: 2026-06-19 (Slice 3 + admin mobile parity shipped — Slice 4 is next)
+> Last updated: 2026-06-19 (Slice 5 shipped — URL health checker in admin channel edit form)
 
 ---
 
@@ -22,7 +22,7 @@
 | 3 | Music director admin dashboard | ✅ COMPLETE (v0.7.0) | JWT cookie auth · Submission review queue · Channel CRUD + drag-to-reorder tracks · R2 media uploads · Options management |
 | 3 add-on | Play count event tracking | ✅ COMPLETE (v0.7.0) | `POST /api/channels/{slug}/play` · in-memory rate limit · sessionStorage gate on web player |
 | **4** | **Live event streaming — Link-In + ingest keys** | **🔲 NEXT** | OBS push · HLS/RTMP/SRT pull · AzuraCast DJ mode · Depends on VPS provisioning |
-| 5 | Media URL validation & compatibility checker | ⬜ NOT STARTED | No dependencies |
+| 5 | Media URL validation & compatibility checker | ✅ COMPLETE (v0.8.0) | `POST /api/admin/channels/{slug}/validate-urls` · HTTPS/reachability/content-type/VRChat-compat checks · "Check URLs" button in admin channel edit |
 | 6 | Featured / sponsored channels | ⬜ NOT STARTED | First monetisation surface |
 | 7 | Production analytics dashboard | ⬜ NOT STARTED | Depends on Slice 3 add-ons |
 | 8 | Play Metrics + Artist Reporting | ⬜ NOT STARTED | PM plan complete · Depends on Slice 3 add-ons + Slice 9 |

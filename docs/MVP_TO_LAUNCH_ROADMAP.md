@@ -28,7 +28,7 @@ Add slices one at a time per `FEATURE_SLICES.md`. Slice order:
 | 3 add-on | Track metadata schema + now-playing display | ✅ COMPLETE — `TrackItem` playlist contract, web overlay, and VRChat MP4 timed now-playing text shipped | None |
 | 3 add-on | Play count event tracking | 🔲 NOT STARTED | Slice 3 |
 | 4 | Live event streaming — Link-In and Ingest Keys | 🔲 NOT STARTED | Slice 3 + VPS (AzuraCast + SRS provisioned) |
-| 5 | Media URL validation & compatibility checker | 🔲 NOT STARTED | None |
+| 5 | Media URL validation & compatibility checker | ✅ COMPLETE | None |
 | 6 | Featured / sponsored channels | 🔲 NOT STARTED | None |
 | 7 | Production analytics dashboard | 🔲 NOT STARTED | Slice 3 add-ons (play count + track metadata) |
 | 8 | Play Metrics + Artist Reporting | 🔲 NOT STARTED | Slice 3 add-ons + Code Capture (Slice 9) for follow/contact data |

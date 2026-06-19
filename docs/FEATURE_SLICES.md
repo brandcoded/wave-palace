@@ -396,10 +396,10 @@ Full A/V ingest (push and pull) requires the VPS to be provisioned.
 Depends on: Slice 3 (admin dashboard + auth) + production streaming
 architecture (AzuraCast + SRS VPS provisioned and running).
 
-## Future slice 5: Media URL validation & compatibility checker
+## ✅ COMPLETE — Slice 5: Media URL validation & compatibility checker (v0.8.0)
 
-Validate that media URLs are reachable, HTTPS, and likely VRChat-compatible;
-surface warnings on the channel page.
+HTTPS/reachability/content-type/VRChat-compat checks via `POST /api/admin/channels/{slug}/validate-urls`.
+"Check URLs" button in admin channel edit form. 12 tests with respx mocks. See CHANGELOG [0.8.0].
 
 ## Future slice 6: Featured / sponsored channels
 

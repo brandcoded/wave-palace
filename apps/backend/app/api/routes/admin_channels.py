@@ -12,6 +12,7 @@ from app.api.dependencies import get_channel_service
 from app.core.auth import get_current_admin
 from app.schemas.channel import Channel
 from app.services.channel_service import ChannelService
+from app.services.url_validator import URLCheckResult, validate_urls
 
 router = APIRouter(prefix="/api/admin/channels", tags=["admin-channels"])
 
@@ -106,3 +107,29 @@ async def delete_channel(
     if not deleted:
         raise HTTPException(status_code=404, detail="Channel not found")
     return {"ok": True}
+
+
+@router.post("/{slug}/validate-urls", response_model=list[URLCheckResult])
+async def validate_channel_urls(
+    slug: str,
+    _: dict = Depends(get_current_admin),
+    service: ChannelService = Depends(get_channel_service),
+) -> list[URLCheckResult]:
+    channels = await service.list_all()
+    ch = next((c for c in channels if c.get("slug") == slug), None)
+    if ch is None:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    playlist = ch.get("playlist") or []
+    audio_urls: list[str] = []
+    for track in playlist:
+        if isinstance(track, dict):
+            url = track.get("url", "")
+        else:
+            url = str(track)
+        if url:
+            audio_urls.append(url)
+
+    visual_loop_url: str | None = ch.get("visualLoopUrl") or None
+
+    return await validate_urls(audio_urls, visual_loop_url)

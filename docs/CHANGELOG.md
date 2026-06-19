@@ -9,6 +9,17 @@ All notable changes to this project are documented here.
   secondary, email fallback, VRChat username as attribution only, and SMS
   explicitly deferred.
 
+## [0.8.0] — Media URL Validation (Slice 5)
+
+### Added
+- `POST /api/admin/channels/{slug}/validate-urls` — checks all playlist audio URLs
+  and `visualLoopUrl` for HTTPS, reachability, content-type, and VRChat MP4 compat.
+  Uses `asyncio.gather` so one timeout doesn't block others. R2 trusted host skips
+  content-type sniffing. Returns `URLCheckResult[]`.
+- "Check URLs" section in admin channel edit form — shows per-URL green/amber/red
+  result rows with inline warning text. Mobile-friendly, tap target ≥ 40px.
+- `respx>=0.22.0` added to backend dev deps (12 new tests, 88 total passing).
+
 ## [0.7.1] — Admin UI Mobile Responsive
 
 - Hamburger nav drawer replaces sidebar below `lg` breakpoint

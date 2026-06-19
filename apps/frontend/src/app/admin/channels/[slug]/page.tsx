@@ -26,10 +26,11 @@ import {
   uploadVideo,
   uploadAudio,
   muxChannel,
+  validateChannelUrls,
 } from "@/features/admin/lib/adminApi";
-import type { AdminChannel } from "@/features/admin/types/admin";
+import type { AdminChannel, URLCheckResult } from "@/features/admin/types/admin";
 import type { TrackItem } from "@/features/channels/types/channel";
-import { GripVertical, Trash2, Plus, Loader2 } from "lucide-react";
+import { GripVertical, Trash2, Plus, Loader2, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
 import Link from "next/link";
 
 const API_BASE =
@@ -186,6 +187,8 @@ export default function ChannelEditPage() {
   const [muxing, setMuxing] = useState(false);
   const [muxStatus, setMuxStatus] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [urlResults, setUrlResults] = useState<URLCheckResult[] | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -261,6 +264,19 @@ export default function ChannelEditPage() {
   async function handleDelete() {
     await deleteChannel(slug);
     router.push("/admin/channels");
+  }
+
+  async function handleValidateUrls() {
+    setValidating(true);
+    setUrlResults(null);
+    try {
+      const results = await validateChannelUrls(slug);
+      setUrlResults(results);
+    } catch {
+      setUrlResults([]);
+    } finally {
+      setValidating(false);
+    }
   }
 
   if (!channel) return <p className="text-sm text-white/40">Loading…</p>;
@@ -406,6 +422,58 @@ export default function ChannelEditPage() {
           </div>
           {form.vrchatPlaybackUrl && (
             <p className="truncate text-xs text-white/30">{form.vrchatPlaybackUrl as string}</p>
+          )}
+        </section>
+
+        {/* URL checker */}
+        <section className="flex flex-col gap-3">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white/30">URL health</h2>
+          <p className="text-xs text-white/40">Check that all audio and video URLs are reachable and VRChat-compatible.</p>
+          <button
+            onClick={handleValidateUrls}
+            disabled={validating}
+            className="flex min-h-[40px] items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 disabled:opacity-50"
+          >
+            {validating && <Loader2 className="h-4 w-4 animate-spin" />}
+            {validating ? "Checking…" : "Check URLs"}
+          </button>
+          {urlResults !== null && (
+            <div className="flex flex-col gap-2">
+              {urlResults.length === 0 ? (
+                <p className="text-xs text-white/40">No URLs to check on this channel.</p>
+              ) : (
+                urlResults.map((r) => (
+                  <div
+                    key={r.url}
+                    className={`rounded-lg border px-3 py-2 text-xs ${
+                      !r.ok
+                        ? "border-red-400/20 bg-red-400/5"
+                        : r.warnings.length > 0
+                        ? "border-amber-400/20 bg-amber-400/5"
+                        : "border-emerald-400/20 bg-emerald-400/5"
+                    }`}
+                  >
+                    <div className="flex items-start gap-2">
+                      {!r.ok ? (
+                        <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-400" />
+                      ) : r.warnings.length > 0 ? (
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                      ) : (
+                        <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
+                      )}
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <span className="break-all text-white/60">{r.url}</span>
+                        {r.warnings.map((w, i) => (
+                          <span key={i} className={r.ok ? "text-amber-300/80" : "text-red-300/80"}>
+                            {w}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           )}
         </section>
 

@@ -236,3 +236,37 @@ Per-channel `state` is one of `pending`, `running`, `done`, `error`.
 - Backend unreachable → the frontend shows a friendly recoverable message
   (directory and detail page both handle this).
 - Media fails to load in the player → the player shows an inline error card.
+
+## POST /api/admin/channels/{slug}/validate-urls
+
+Admin-auth required (`wp_admin_token` cookie). Checks all playlist audio URLs and
+`visualLoopUrl` for the channel and returns compatibility results.
+
+**Response** — array of `URLCheckResult`:
+
+```json
+[
+  {
+    "url": "https://stream.wavepalace.live/tracks/channel_abc/track-1.mp3",
+    "ok": true,
+    "warnings": [],
+    "checked_at": "2026-06-19T20:00:00Z"
+  },
+  {
+    "url": "https://stream.wavepalace.live/channels/abc/loop.mp4",
+    "ok": true,
+    "warnings": [],
+    "checked_at": "2026-06-19T20:00:00Z"
+  }
+]
+```
+
+`ok: false` → URL failed (not HTTPS, unreachable, HTTP 4xx/5xx).
+`ok: true` with `warnings` → URL is reachable but has compatibility concerns
+(e.g. `"Not MP4 — VRChat may reject this video"`).
+
+Checks performed:
+1. HTTPS scheme (no network call)
+2. HEAD request (5 s timeout), falls back to GET on 405
+3. Content-type sniff — flags `text/html`, non-MP4 video
+4. R2 trusted host (`stream.wavepalace.live`) skips content-type check

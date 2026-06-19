@@ -55,7 +55,7 @@ wave-palace/
 | Slice | Feature | Depends on |
 |---|---|---|
 | **4** | **Live event streaming — Link-In + Ingest Keys** | **Slice 3 ✅ + VPS provisioning** |
-| 5 | Media URL validation & compatibility checker | Nothing |
+| 5 | Media URL validation & compatibility checker | ✅ COMPLETE (v0.8.0) |
 | 6 | Featured / sponsored channels | Nothing |
 | 7 | Production analytics dashboard | Slice 3 add-ons ✅ |
 | 8 | Play Metrics + Artist Reporting | Slice 3 add-ons ✅ + Slice 9 |

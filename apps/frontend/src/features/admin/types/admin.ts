@@ -30,3 +30,10 @@ export interface SubmissionOptions {
   energy: string[];
   theme: string[];
 }
+
+export interface URLCheckResult {
+  url: string;
+  ok: boolean;
+  warnings: string[];
+  checked_at: string;
+}

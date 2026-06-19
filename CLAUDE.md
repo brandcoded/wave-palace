@@ -23,7 +23,7 @@ Full status: `docs/STATUS.md` (canonical) — this file carries a compact copy.
 | 3 | Music director admin dashboard | ✅ COMPLETE |
 | 3 add-on | Play count event tracking | ✅ COMPLETE |
 | **4** | **Live event streaming — Link-In + ingest keys** | **🔲 NEXT** |
-| 5 | Media URL validation & compatibility checker | ⬜ NOT STARTED |
+| 5 | Media URL validation & compatibility checker | ✅ COMPLETE |
 | 6 | Featured / sponsored channels | ⬜ NOT STARTED |
 | 7 | Production analytics dashboard | ⬜ NOT STARTED |
 | 8 | Play Metrics + Artist Reporting | ⬜ NOT STARTED |
