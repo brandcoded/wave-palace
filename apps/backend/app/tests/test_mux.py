@@ -79,8 +79,6 @@ def test_mux_all_accepts_and_points_to_status(mux_client):
 
 
 def test_mux_all_runs_background_and_records_status(mux_client):
-    # TestClient runs background tasks synchronously after the response,
-    # so by the time we poll, the job has completed.
     res = mux_client.post("/api/mux/all")
     assert res.status_code == 202
 
@@ -100,7 +98,6 @@ def test_mux_status_records_per_channel_error(mux_client):
     status = mux_client.get("/api/mux/status").json()
     assert status["channels"]["broken"]["state"] == "error"
     assert "ffmpeg failed" in status["channels"]["broken"]["error"]
-    app.dependency_overrides.clear()
     app.dependency_overrides.clear()
 
 
@@ -123,8 +120,6 @@ async def test_mux_service_mux_channel_happy_path():
         patch("app.services.mux_service.asyncio.to_thread") as mock_thread,
     ):
         mock_probe.return_value = 128.0
-        # Run each to_thread call inline; _download is mocked (returns a stub),
-        # r2.upload_file returns the final URL. Order-independent across N tracks.
         async def fake_to_thread(fn, *args, **kwargs):
             return fn(*args, **kwargs)
 
@@ -134,135 +129,6 @@ async def test_mux_service_mux_channel_happy_path():
         url = await svc.mux_channel("late-night-house")
 
     assert url == _FAKE_URL
-
-
-# ---------------------------------------------------------------------------
-# Overlay / drawtext unit tests
-# ---------------------------------------------------------------------------
-
-
-def test_escape_drawtext_handles_special_chars():
-    from app.services.mux_service import _escape_drawtext
-
-    result = _escape_drawtext("It's Showtime: 100% Lit")
-    assert "\\'" in result   # apostrophe escaped
-    assert "\\:" in result   # colon escaped
-    assert "%%" in result    # percent doubled
-
-
-def test_escape_drawtext_escapes_backslash_first():
-    from app.services.mux_service import _escape_drawtext
-
-    # Backslash must be doubled; subsequent passes must not re-escape it.
-    assert _escape_drawtext("a\\b") == "a\\\\b"
-
-
-def test_drawtext_overlay_empty_when_font_missing():
-    from app.services.mux_service import _drawtext_overlay
-
-    result = _drawtext_overlay("Title", "Host", "Genre", "Mood", "/nonexistent/font.ttf")
-    assert result == ""
-
-
-def test_drawtext_overlay_contains_title_host_genre_mood(tmp_path):
-    from app.services.mux_service import _drawtext_overlay
-
-    font = tmp_path / "DejaVuSans.ttf"
-    font.write_bytes(b"fake")
-    result = _drawtext_overlay("Late Night House", "DJ Ty", "Electronic", "Chill", str(font))
-    assert result != ""
-    assert "Late Night House" in result
-    assert "Hosted by DJ Ty" in result
-    assert "Electronic" in result
-    assert "Chill" in result
-    assert "drawtext" in result
-    assert "drawbox" in result
-
-
-def test_build_image_mux_cmd_overlay_appears_in_filter_complex(tmp_path):
-    from app.services.mux_service import _build_image_mux_cmd
-
-    cover = tmp_path / "cover.jpg"
-    cover.write_bytes(b"fake")
-    audios = [tmp_path / "track0.mp3"]
-    overlay = "drawbox=x=0:y=576:w=1280:h=144:color=black@0.50:t=fill,drawtext=text=Late Night House"
-    cmd = _build_image_mux_cmd(cover, audios, tmp_path / "out.mp4", 300.0, overlay=overlay)
-
-    fc = cmd[cmd.index("-filter_complex") + 1]
-    assert "drawtext" in fc
-    assert "Late Night House" in fc
-
-
-def test_build_image_mux_cmd_no_overlay_unchanged():
-    from app.services.mux_service import _build_image_mux_cmd
-
-    cover = Path("/tmp/cover.jpg")
-    audios = [Path("/tmp/track0.mp3")]
-    cmd = _build_image_mux_cmd(cover, audios, Path("/tmp/out.mp4"), 300.0)
-    fc = cmd[cmd.index("-filter_complex") + 1]
-    assert "drawtext" not in fc
-
-
-def test_build_segment_cmd_overlay_appears_in_vf(tmp_path):
-    from app.services.mux_service import _build_segment_cmd
-
-    cover = tmp_path / "loop.mp4"
-    cover.write_bytes(b"fake")
-    overlay = "drawbox=x=0:y=576:w=1280:h=144:color=black@0.50:t=fill,drawtext=text=Afro Future"
-    cmd = _build_segment_cmd(cover, tmp_path / "seg.mp4", overlay=overlay)
-
-    vf = cmd[cmd.index("-vf") + 1]
-    assert "drawtext" in vf
-    assert "Afro Future" in vf
-
-
-def test_build_video_mux_cmd_no_overlay_uses_copy():
-    from app.services.mux_service import _build_video_mux_cmd
-
-    # Final video mux must never re-encode (overlay is in segment, not here).
-    cmd = _build_video_mux_cmd(
-        Path("/tmp/seg.mp4"), 10, [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"), 300.0
-    )
-    assert cmd[cmd.index("-c:v") + 1] == "copy"
-    assert "drawtext" not in " ".join(cmd)
-
-
-def test_build_image_mux_cmd_concats_full_playlist():
-    from pathlib import Path
-    from app.services.mux_service import _build_image_mux_cmd
-
-    cover = Path("/tmp/cover.jpg")
-    audios = [Path(f"/tmp/track{i}.mp3") for i in range(4)]
-    cmd = _build_image_mux_cmd(cover, audios, Path("/tmp/out.mp4"), total_duration=512.5)
-
-    # One -i per track plus one for the cover image.
-    assert cmd.count("-i") == 5
-    fc = cmd[cmd.index("-filter_complex") + 1]
-    # All four tracks concatenated into a single audio stream.
-    assert "concat=n=4:v=0:a=1[aout]" in fc
-    # Output bounded by total duration, not -shortest (which hangs filter_complex).
-    assert "-t" in cmd
-    assert cmd[cmd.index("-t") + 1] == "512.500"
-    assert "-shortest" not in cmd
-    # Still image is looped at 1 fps.
-    assert "-loop" in cmd
-
-
-def test_build_video_mux_cmd_streamloops_segment_copy():
-    from pathlib import Path
-    from app.services.mux_service import _build_video_mux_cmd
-
-    seg = Path("/tmp/seg.mp4")
-    audios = [Path(f"/tmp/track{i}.mp3") for i in range(4)]
-    cmd = _build_video_mux_cmd(seg, repeats=31, audios=audios, output=Path("/tmp/out.mp4"), total_duration=889.6)
-
-    # Pre-encoded segment is stream-looped and copied (no video re-encode).
-    assert cmd[cmd.index("-stream_loop") + 1] == "31"
-    assert cmd[cmd.index("-c:v") + 1] == "copy"
-    # Audio still concatenated across the whole playlist and bounded by -t.
-    fc = cmd[cmd.index("-filter_complex") + 1]
-    assert "concat=n=4:v=0:a=1[aout]" in fc
-    assert cmd[cmd.index("-t") + 1] == "889.600"
 
 
 @pytest.mark.asyncio
@@ -285,7 +151,6 @@ async def test_mux_all_published_skips_unpublished():
         mock_mux.return_value = _FAKE_URL
         results = await svc.mux_all_published()
 
-    # hidden-draft is unpublished — must not be in results
     assert "hidden-draft" not in results
     assert len(results) == 3
 
@@ -301,3 +166,155 @@ async def test_mux_all_records_error_per_channel():
         results = await svc.mux_all_published()
 
     assert all(v.startswith("ERROR:") for v in results.values())
+
+
+# ---------------------------------------------------------------------------
+# Overlay / drawtext unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_escape_drawtext_handles_special_chars():
+    from app.services.mux_service import _escape_drawtext
+
+    result = _escape_drawtext("It's Showtime: 100% Lit")
+    assert "\\'" in result
+    assert "\\:" in result
+    assert "%%" in result
+
+
+def test_escape_drawtext_escapes_backslash_first():
+    from app.services.mux_service import _escape_drawtext
+
+    assert _escape_drawtext("a\\b") == "a\\\\b"
+
+
+def test_drawtext_overlay_empty_when_font_missing():
+    from app.services.mux_service import _drawtext_overlay
+
+    result = _drawtext_overlay("Title", "Host", "Genre", "Mood", "/nonexistent/font.ttf")
+    assert result == ""
+
+
+def test_drawtext_overlay_contains_title_host_genre_mood(tmp_path):
+    from app.services.mux_service import _drawtext_overlay
+
+    font = tmp_path / "DejaVuSans.ttf"
+    font.write_bytes(b"fake")
+    result = _drawtext_overlay("Late Night House", "DJ Skyy", "House", "Late Night", str(font))
+    assert "Late Night House" in result
+    assert "Hosted by DJ Skyy" in result
+    assert "House" in result
+    assert "Late Night" in result
+    assert "drawbox" in result
+
+
+def test_drawtext_overlay_includes_time_windowed_per_track(tmp_path):
+    from app.services.mux_service import _drawtext_overlay
+
+    font = tmp_path / "DejaVuSans.ttf"
+    font.write_bytes(b"fake")
+    track_times = [
+        (0.0, 120.0, "Come Thru", "DJ Skyy"),
+        (120.0, 250.0, "Day Trips", "DJ Skyy"),
+    ]
+    result = _drawtext_overlay("LNH", "DJ Skyy", "House", "Late Night", str(font), track_times)
+    assert "between(t,0.000,120.000)" in result
+    assert "between(t,120.000,250.000)" in result
+    assert "Come Thru" in result
+    assert "Day Trips" in result
+
+
+def test_drawtext_overlay_skips_empty_track_titles(tmp_path):
+    from app.services.mux_service import _drawtext_overlay
+
+    font = tmp_path / "DejaVuSans.ttf"
+    font.write_bytes(b"fake")
+    track_times = [(0.0, 120.0, "", "")]
+    result = _drawtext_overlay("LNH", "DJ", "House", "Late Night", str(font), track_times)
+    assert "between(t" not in result
+
+
+def test_build_image_mux_cmd_overlay_in_filter_complex(tmp_path):
+    from app.services.mux_service import _build_image_mux_cmd
+
+    cover = tmp_path / "cover.jpg"
+    cover.write_bytes(b"x")
+    audios = [tmp_path / "track0.mp3"]
+    overlay = "drawbox=x=0:y=548:w=1280:h=172,drawtext=text=Come Thru"
+    cmd = _build_image_mux_cmd(cover, audios, tmp_path / "out.mp4", 300.0, overlay=overlay)
+
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    assert "drawtext" in fc
+    assert "Come Thru" in fc
+
+
+def test_build_image_mux_cmd_no_overlay_no_drawtext():
+    from app.services.mux_service import _build_image_mux_cmd
+
+    cmd = _build_image_mux_cmd(
+        Path("/tmp/c.jpg"), [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"), 300.0
+    )
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    assert "drawtext" not in fc
+
+
+def test_build_image_mux_cmd_concats_full_playlist():
+    from app.services.mux_service import _build_image_mux_cmd
+
+    cover = Path("/tmp/cover.jpg")
+    audios = [Path(f"/tmp/track{i}.mp3") for i in range(4)]
+    cmd = _build_image_mux_cmd(cover, audios, Path("/tmp/out.mp4"), total_duration=512.5)
+
+    assert cmd.count("-i") == 5
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    assert "concat=n=4:v=0:a=1[aout]" in fc
+    assert "-t" in cmd
+    assert cmd[cmd.index("-t") + 1] == "512.500"
+    assert "-shortest" not in cmd
+    assert "-loop" in cmd
+
+
+def test_build_segment_cmd_no_overlay():
+    from app.services.mux_service import _build_segment_cmd
+
+    cmd = _build_segment_cmd(Path("/tmp/loop.mp4"), Path("/tmp/seg.mp4"))
+    vf = cmd[cmd.index("-vf") + 1]
+    assert "drawtext" not in vf
+    assert "scale=1280" in vf
+
+
+def test_build_video_mux_cmd_no_overlay_uses_stream_copy():
+    from app.services.mux_service import _build_video_mux_cmd
+
+    cmd = _build_video_mux_cmd(
+        Path("/tmp/seg.mp4"), 31, [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"), 300.0
+    )
+    assert cmd[cmd.index("-c:v") + 1] == "copy"
+    assert "drawtext" not in " ".join(cmd)
+    assert cmd[cmd.index("-stream_loop") + 1] == "31"
+
+
+def test_build_video_mux_cmd_with_overlay_reencodes(tmp_path):
+    from app.services.mux_service import _build_video_mux_cmd
+
+    overlay = "drawbox=x=0:y=548:w=1280:h=172,drawtext=text=Come Thru:enable='between(t,0.000,120.000)'"
+    cmd = _build_video_mux_cmd(
+        Path("/tmp/seg.mp4"), 31, [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"), 300.0,
+        overlay=overlay,
+    )
+    assert cmd[cmd.index("-c:v") + 1] == "libx264"
+    assert "ultrafast" in cmd
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    assert "drawtext" in fc
+    assert "between(t" in fc
+
+
+def test_build_video_mux_cmd_streamloops_segment():
+    from app.services.mux_service import _build_video_mux_cmd
+
+    seg = Path("/tmp/seg.mp4")
+    audios = [Path(f"/tmp/track{i}.mp3") for i in range(4)]
+    cmd = _build_video_mux_cmd(seg, repeats=31, audios=audios, output=Path("/tmp/out.mp4"), total_duration=889.6)
+
+    assert cmd[cmd.index("-stream_loop") + 1] == "31"
+    assert cmd[cmd.index("-t") + 1] == "889.600"

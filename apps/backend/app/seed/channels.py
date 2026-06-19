@@ -11,7 +11,6 @@ _BG_2 = "https://stream.wavepalace.live/channels/channel_def456/view_apartment.j
 _BG_3 = "https://stream.wavepalace.live/channels/channel_ghi789/moon_waves.jpeg"
 
 # Short looping video backdrops used as the visual layer in the muxed VRChat MP4.
-# Upload each loop.mp4 to channels/{id}/loop.mp4 in R2, then replace None with the URL.
 _LOOP_1: str = "https://stream.wavepalace.live/channels/channel_abc123/animated-115136.mp4"
 _LOOP_2: str = "https://stream.wavepalace.live/channels/channel_def456/cloud-45959.mp4"
 _LOOP_3: str = "https://stream.wavepalace.live/channels/channel_ghi789/cube-27033.mp4"
@@ -21,13 +20,17 @@ _AUDIO_2 = "https://stream.wavepalace.live/tracks/channel_def456/cant-explain-no
 _AUDIO_3 = "https://stream.wavepalace.live/tracks/channel_ghi789/akira.mp3"
 
 _PLAYLIST_1 = [
-    "https://stream.wavepalace.live/tracks/channel_abc123/come-thru.mp3",
-    "https://stream.wavepalace.live/tracks/channel_abc123/Day-Trips-4-82bpm.mp3",
-    "https://stream.wavepalace.live/tracks/channel_abc123/happier-106bpm-mix-3-M1.mp3",
-    "https://stream.wavepalace.live/tracks/channel_abc123/projections-Stems-Mix-3.mp3",
+    {"url": "https://stream.wavepalace.live/tracks/channel_abc123/come-thru.mp3",          "title": "Come Thru",    "artist": "DJ Skyy"},
+    {"url": "https://stream.wavepalace.live/tracks/channel_abc123/Day-Trips-4-82bpm.mp3",  "title": "Day Trips",    "artist": "DJ Skyy"},
+    {"url": "https://stream.wavepalace.live/tracks/channel_abc123/happier-106bpm-mix-3-M1.mp3", "title": "Happier", "artist": "DJ Skyy"},
+    {"url": "https://stream.wavepalace.live/tracks/channel_abc123/projections-Stems-Mix-3.mp3", "title": "Projections", "artist": "DJ Skyy"},
 ]
-_PLAYLIST_2 = [_AUDIO_2]
-_PLAYLIST_3 = [_AUDIO_3]
+_PLAYLIST_2 = [
+    {"url": _AUDIO_2, "title": "Can't Explain", "artist": "WavePalace Selects"},
+]
+_PLAYLIST_3 = [
+    {"url": _AUDIO_3, "title": "Akira", "artist": "Guest Host"},
+]
 
 # Pre-muxed MP4s produced by the mux service (POST /api/mux/all) and uploaded
 # to R2 at muxed/{channel_id}/{slug}.mp4 — cover image + audio in a single

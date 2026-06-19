@@ -8,7 +8,8 @@ Cover can be a still image (.jpg/.png) or a short looping video (.mp4/.mov).
 When a video loop is supplied it repeats seamlessly for the full audio duration.
 
 Channel info (title, host, genre, mood) is burned into the lower portion of
-the frame via FFmpeg drawtext so VRChat viewers see it without any overlay UI.
+the frame via FFmpeg drawtext. Per-track "now playing" text is shown using
+time-windowed enable='between(t,start,end)' entries — one per playlist track.
 """
 
 from __future__ import annotations
@@ -36,8 +37,7 @@ _VIDEO_FILTER = (
 
 _VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv"}
 
-# Looping-video output framerate. A background loop doesn't need 30 fps; 15 fps
-# halves the file size and encode work.
+# Looping-video output framerate.
 _LOOP_FPS = 15
 
 # Hard cap so a runaway encode fails fast instead of hanging the worker.
@@ -62,44 +62,68 @@ def _escape_drawtext(text: str) -> str:
 
 
 def _drawtext_overlay(
-    title: str, host_name: str, genre: str, mood: str, font_path: str
+    title: str,
+    host_name: str,
+    genre: str,
+    mood: str,
+    font_path: str,
+    track_times: list[tuple[float, float, str, str]] = (),
 ) -> str:
-    """Return a comma-joined FFmpeg filter chain that burns channel info into
-    the bottom 144 px of a 1280×720 frame.
+    """Return a comma-joined FFmpeg filter chain that burns channel info and
+    per-track now-playing text into the bottom portion of a 1280×720 frame.
 
-    Layout mirrors the web player overlay: title (bold, large) → host credit →
-    genre · mood pill (right-aligned).  A semi-transparent dark band sits
-    behind all text for legibility over any backdrop.
+    Layout (bottom-up, inside a dark band):
+      - Channel title (bold, 40 px) — static
+      - "Hosted by …" (26 px) — static
+      - "Artist — Track" (22 px, left) / "genre · mood" (22 px, right) — bottom row;
+        now-playing switches per track via enable='between(t,start,end)'
 
     Returns an empty string when the font file is not present so the mux still
-    succeeds — it just won't have burned-in text.
+    succeeds without text overlay.
+
+    track_times: list of (start_secs, end_secs, track_title, track_artist)
     """
     regular = Path(font_path)
     if not regular.exists():
         logger.warning("Drawtext font not found at %s — overlay skipped", font_path)
         return ""
 
-    # Use Bold variant for the title when available; fall back to regular.
     bold_candidate = regular.parent / "DejaVuSans-Bold.ttf"
     bold = str(bold_candidate) if bold_candidate.exists() else str(regular)
     fp = str(regular)
 
     t = _escape_drawtext(title)
     h = _escape_drawtext(f"Hosted by {host_name}")
-    gm = _escape_drawtext(f"{genre} · {mood}")  # · middle dot
+    gm = _escape_drawtext(f"{genre} · {mood}")
 
     shadow = "shadowx=1:shadowy=1:shadowcolor=black@0.80"
 
-    return ",".join([
-        # Semi-transparent band covering bottom 144 px.
-        "drawbox=x=0:y=576:w=1280:h=144:color=black@0.50:t=fill",
-        # Channel title — bold weight, 40 px.
-        f"drawtext=fontfile={bold}:text={t}:x=24:y=586:fontsize=40:fontcolor=white:{shadow}",
-        # Host credit — regular weight, 26 px.
-        f"drawtext=fontfile={fp}:text={h}:x=24:y=643:fontsize=26:fontcolor=white@0.80:{shadow}",
-        # Genre · mood — right-aligned, 22 px.
-        f"drawtext=fontfile={fp}:text={gm}:x=w-tw-24:y=683:fontsize=22:fontcolor=white@0.70:{shadow}",
-    ])
+    parts = [
+        # Dark band — tall enough for 4 text rows.
+        "drawbox=x=0:y=548:w=1280:h=172:color=black@0.50:t=fill",
+        # Row 1: channel title.
+        f"drawtext=fontfile={bold}:text={t}:x=24:y=558:fontsize=40:fontcolor=white:{shadow}",
+        # Row 2: host credit.
+        f"drawtext=fontfile={fp}:text={h}:x=24:y=608:fontsize=26:fontcolor=white@0.80:{shadow}",
+        # Row 3 right: genre · mood pill — always visible.
+        f"drawtext=fontfile={fp}:text={gm}:x=w-tw-24:y=648:fontsize=22:fontcolor=white@0.70:{shadow}",
+    ]
+
+    # Row 3 left: per-track now-playing — one entry per track, time-windowed.
+    for start, end, track_title, track_artist in track_times:
+        if not track_title and not track_artist:
+            continue
+        if track_artist and track_title:
+            now_playing = _escape_drawtext(f"{track_artist} — {track_title}")  # em dash
+        else:
+            now_playing = _escape_drawtext(track_title or track_artist)
+        parts.append(
+            f"drawtext=fontfile={fp}:text={now_playing}"
+            f":enable='between(t,{start:.3f},{end:.3f})'"
+            f":x=24:y=648:fontsize=22:fontcolor=white@0.90:{shadow}"
+        )
+
+    return ",".join(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -126,8 +150,8 @@ def _build_image_mux_cmd(
 ) -> list[str]:
     """Loop a still image at 1 fps over the concatenated playlist audio.
 
-    *overlay* is a comma-joined drawtext filter chain appended after the
-    scale/pad chain so text is burned into every frame.
+    *overlay* is a comma-joined drawtext filter chain (static + time-windowed)
+    appended after the scale/pad chain so text is burned into every frame.
     """
     cmd: list[str] = ["ffmpeg", "-y", "-loop", "1", "-framerate", "1", "-i", str(cover)]
     for a in audios:
@@ -153,22 +177,17 @@ def _build_image_mux_cmd(
     return cmd
 
 
-def _build_segment_cmd(
-    cover_video: Path,
-    seg_out: Path,
-    overlay: str = "",
-) -> list[str]:
+def _build_segment_cmd(cover_video: Path, seg_out: Path) -> list[str]:
     """Re-encode the short loop clip ONCE to a normalized 720p H.264 segment.
 
-    *overlay* is burned in here — the final _build_video_mux_cmd uses
-    -c:v copy, so text baked into this segment repeats for free.
+    Overlay is NOT applied here — it is applied in _build_video_mux_cmd so
+    time-windowed now-playing text works correctly across the full timeline.
     """
-    vf_chain = f"{_VIDEO_FILTER},{overlay}" if overlay else _VIDEO_FILTER
     return [
         "ffmpeg", "-y",
         "-i", str(cover_video),
         "-an",
-        "-vf", vf_chain,
+        "-vf", _VIDEO_FILTER,
         "-r", str(_LOOP_FPS),
         "-c:v", "libx264",
         "-preset", "veryfast",
@@ -185,27 +204,46 @@ def _build_video_mux_cmd(
     audios: list[Path],
     output: Path,
     total_duration: float,
+    overlay: str = "",
 ) -> list[str]:
-    """Stream-loop the pre-encoded *segment* (video copy, no re-encode) over
-    the concatenated playlist audio (AAC), bounded to *total_duration*.
+    """Stream-loop the pre-encoded *segment* and mux with concatenated audio.
 
-    Overlay is already burned into *segment* — no drawtext here.
+    When *overlay* is provided the video is re-encoded (libx264 ultrafast) so
+    the drawtext filter chain — including time-windowed per-track now-playing
+    entries — is burned in.  Without overlay the video is stream-copied (zero
+    re-encode cost).
     """
     cmd: list[str] = ["ffmpeg", "-y", "-stream_loop", str(repeats), "-i", str(segment)]
     for a in audios:
         cmd += ["-i", str(a)]
 
-    cmd += [
-        "-filter_complex", _audio_concat_filter(len(audios)),
-        "-map", "0:v",
-        "-map", "[aout]",
-        "-c:v", "copy",
-        "-c:a", "aac",
-        "-b:a", "256k",
-        "-t", f"{total_duration:.3f}",
-        "-movflags", "+faststart",
-        str(output),
-    ]
+    if overlay:
+        filter_complex = f"[0:v]{overlay}[vout];{_audio_concat_filter(len(audios))}"
+        cmd += [
+            "-filter_complex", filter_complex,
+            "-map", "[vout]",
+            "-map", "[aout]",
+            "-c:v", "libx264",
+            "-preset", "ultrafast",
+            "-threads", "1",
+            "-c:a", "aac",
+            "-b:a", "256k",
+            "-t", f"{total_duration:.3f}",
+            "-movflags", "+faststart",
+            str(output),
+        ]
+    else:
+        cmd += [
+            "-filter_complex", _audio_concat_filter(len(audios)),
+            "-map", "0:v",
+            "-map", "[aout]",
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-b:a", "256k",
+            "-t", f"{total_duration:.3f}",
+            "-movflags", "+faststart",
+            str(output),
+        ]
     return cmd
 
 
@@ -230,20 +268,30 @@ class MuxService:
 
         channel_id = channel["id"]
         cover_url = str(channel.get("visualLoopUrl") or channel["coverImageUrl"])
-        playlist = [str(u) for u in (channel.get("playlist") or [])] or [str(channel["audioUrl"])]
+
+        # Build track list — support both new {url,title,artist} dicts and
+        # legacy bare-string URLs (database backward-compat during migration).
+        raw_playlist = channel.get("playlist") or []
+        tracks_data: list[dict] = []
+        for t in raw_playlist:
+            if isinstance(t, dict):
+                tracks_data.append({
+                    "url": str(t.get("url", "")),
+                    "title": str(t.get("title", "")),
+                    "artist": str(t.get("artist", "")),
+                })
+            else:
+                tracks_data.append({"url": str(t), "title": "", "artist": ""})
+
+        if not tracks_data:
+            tracks_data = [{"url": str(channel["audioUrl"]), "title": "", "artist": ""}]
+
+        playlist_urls = [t["url"] for t in tracks_data]
         r2_key = f"muxed/{channel_id}/{slug}.mp4"
 
-        logger.info("Muxing channel '%s'  cover=%s  tracks=%d", slug, cover_url, len(playlist))
+        logger.info("Muxing channel '%s'  cover=%s  tracks=%d", slug, cover_url, len(playlist_urls))
 
-        # Build text overlay from channel metadata.
         settings = get_settings()
-        overlay = _drawtext_overlay(
-            title=str(channel.get("title", "")),
-            host_name=str(channel.get("hostName", "")),
-            genre=str(channel.get("genre", "")),
-            mood=str(channel.get("mood", "")),
-            font_path=settings.font_path,
-        )
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -257,7 +305,7 @@ class MuxService:
                 raise RuntimeError(f"Download failed for cover {cover_url}: {exc}") from exc
 
             audio_paths: list[Path] = []
-            for idx, track_url in enumerate(playlist):
+            for idx, track_url in enumerate(playlist_urls):
                 track_path = tmp_path / f"track{idx}.mp3"
                 try:
                     await asyncio.to_thread(_download, track_url, track_path)
@@ -265,28 +313,48 @@ class MuxService:
                     raise RuntimeError(f"Download failed for track {track_url}: {exc}") from exc
                 audio_paths.append(track_path)
 
+            # Probe each track duration to build track_times for time-windowed
+            # now-playing drawtext entries.
             total_duration = 0.0
-            for p in audio_paths:
-                total_duration += await _probe_duration(p)
+            track_times: list[tuple[float, float, str, str]] = []
+            cursor = 0.0
+            for idx, p in enumerate(audio_paths):
+                dur = await _probe_duration(p)
+                meta = tracks_data[idx] if idx < len(tracks_data) else {}
+                track_times.append((cursor, cursor + dur, meta.get("title", ""), meta.get("artist", "")))
+                cursor += dur
+                total_duration += dur
+
             if total_duration <= 0:
                 raise RuntimeError(f"Could not determine audio duration for '{slug}'")
 
+            overlay = _drawtext_overlay(
+                title=str(channel.get("title", "")),
+                host_name=str(channel.get("hostName", "")),
+                genre=str(channel.get("genre", "")),
+                mood=str(channel.get("mood", "")),
+                font_path=settings.font_path,
+                track_times=track_times,
+            )
+
             if cover_path.suffix.lower() in _VIDEO_EXTS:
-                # Video loop: encode the clip once (with overlay burned in), then
-                # repeat via stream-copy — overlay comes along for free.
+                # Encode raw normalized segment (no overlay — overlay goes in
+                # final pass so time-windowed text spans the full timeline).
                 seg_path = tmp_path / "seg.mp4"
-                await _run_ffmpeg(_build_segment_cmd(cover_path, seg_path, overlay=overlay))
+                await _run_ffmpeg(_build_segment_cmd(cover_path, seg_path))
                 seg_duration = await _probe_duration(seg_path)
                 if seg_duration <= 0:
                     raise RuntimeError(f"Could not determine loop duration for '{slug}'")
                 repeats = math.ceil(total_duration / seg_duration) + 1
                 cmd = _build_video_mux_cmd(
-                    seg_path, repeats, audio_paths, output_path, total_duration
+                    seg_path, repeats, audio_paths, output_path, total_duration,
+                    overlay=overlay,
                 )
             else:
                 cmd = _build_image_mux_cmd(
                     cover_path, audio_paths, output_path, total_duration, overlay=overlay
                 )
+
             logger.info("Running: %s", " ".join(cmd))
             await _run_ffmpeg(cmd)
 
@@ -298,13 +366,10 @@ class MuxService:
         return public_url
 
     async def published_slugs(self) -> list[str]:
-        """Slugs of all published channels, in order."""
         channels = await self._repository.list_channels()
         return [c["slug"] for c in channels if c.get("isPublished")]
 
     async def mux_all_published(self) -> dict[str, str]:
-        """Mux every published channel. Returns {slug: url} for successes and
-        {slug: error_message} for failures."""
         channels = await self._repository.list_channels()
         results: dict[str, str] = {}
         for ch in channels:
