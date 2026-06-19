@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink as ExternalLinkIcon, User } from "lucide-react";
+import { ArrowLeft, ExternalLink as ExternalLinkIcon } from "lucide-react";
 import { getChannelBySlug, ApiError } from "@/features/channels/lib/channelApi";
 import { ChannelPlayer } from "@/features/channels/components/ChannelPlayer";
 import { CopyLinkButton } from "@/features/channels/components/CopyLinkButton";
@@ -9,8 +9,6 @@ import { RightsNotice } from "@/features/channels/components/RightsNotice";
 import { GlassPanel } from "@/presentation/components/GlassPanel";
 import type { Channel } from "@/features/channels/types/channel";
 
-const tagClass =
-  "rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/70";
 
 export default async function ChannelDetailPage({
   params,
@@ -68,25 +66,14 @@ export default async function ChannelDetailPage({
             coverImage={channel.coverImageUrl}
             visualLoopUrl={channel.visualLoopUrl}
             title={channel.title}
+            hostName={channel.hostName}
+            genre={channel.genre}
+            mood={channel.mood}
           />
 
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              {channel.title}
-            </h1>
-            <p className="mt-2 flex items-center gap-1.5 text-sm text-white/55">
-              <User className="h-4 w-4" /> Hosted by {channel.hostName}
-            </p>
-            <p className="mt-4 max-w-2xl leading-relaxed text-white/70">
-              {channel.description}
-            </p>
-            <div className="mt-5 flex flex-wrap gap-2">
-              <span className={tagClass}>{channel.genre}</span>
-              <span className={tagClass}>{channel.mood}</span>
-              <span className={tagClass}>{channel.energy} energy</span>
-              <span className={tagClass}>{channel.theme}</span>
-            </div>
-          </div>
+          <p className="max-w-2xl leading-relaxed text-white/70">
+            {channel.description}
+          </p>
         </div>
 
         {/* Actions panel */}

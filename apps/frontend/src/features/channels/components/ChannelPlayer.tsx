@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Volume2, VolumeX, AlertTriangle } from "lucide-react";
+import { Play, Pause, Volume2, VolumeX, AlertTriangle, User } from "lucide-react";
 
 interface ChannelPlayerProps {
   playlist: string[];
   coverImage: string;
   title: string;
   visualLoopUrl?: string | null;
+  hostName: string;
+  genre: string;
+  mood: string;
 }
 
-export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl }: ChannelPlayerProps) {
+export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl, hostName, genre, mood }: ChannelPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -130,52 +133,69 @@ export function ChannelPlayer({ playlist, coverImage, title, visualLoopUrl }: Ch
         onEnded={handleEnded}
       />
 
-      {/* Controls overlay */}
-      <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-gradient-to-t from-black/80 to-transparent px-4 py-4">
-        {/* Play / Pause */}
-        <button
-          onClick={togglePlay}
-          aria-label={playing ? "Pause" : "Play"}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition hover:bg-white/25 active:scale-95"
-        >
-          {playing ? (
-            <Pause className="h-5 w-5 fill-current" />
-          ) : (
-            <Play className="h-5 w-5 translate-x-px fill-current" />
-          )}
-        </button>
+      {/* Overlay — channel info (top) + controls (bottom) */}
+      <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-black/80 to-transparent px-4 pt-8 pb-4">
+        {/* Row 1: title + host */}
+        <div>
+          <p className="truncate text-sm font-semibold leading-tight text-white">{title}</p>
+          <p className="flex items-center gap-1 text-xs text-white/60">
+            <User className="h-3 w-3 shrink-0" /> Hosted by {hostName}
+          </p>
+        </div>
 
-        {/* Mute toggle */}
-        <button
-          onClick={toggleMute}
-          aria-label={muted ? "Unmute" : "Mute"}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/70 transition hover:text-white"
-        >
-          {muted ? (
-            <VolumeX className="h-4 w-4" />
-          ) : (
-            <Volume2 className="h-4 w-4" />
-          )}
-        </button>
+        {/* Row 2: controls + tags + track counter */}
+        <div className="flex items-center gap-3">
+          {/* Play / Pause */}
+          <button
+            onClick={togglePlay}
+            aria-label={playing ? "Pause" : "Play"}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-sm transition hover:bg-white/25 active:scale-95"
+          >
+            {playing ? (
+              <Pause className="h-5 w-5 fill-current" />
+            ) : (
+              <Play className="h-5 w-5 translate-x-px fill-current" />
+            )}
+          </button>
 
-        {/* Volume slider */}
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={muted ? 0 : volume}
-          onChange={handleVolumeChange}
-          aria-label="Volume"
-          className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-white/20 accent-white"
-        />
+          {/* Mute toggle */}
+          <button
+            onClick={toggleMute}
+            aria-label={muted ? "Unmute" : "Mute"}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/70 transition hover:text-white"
+          >
+            {muted ? (
+              <VolumeX className="h-4 w-4" />
+            ) : (
+              <Volume2 className="h-4 w-4" />
+            )}
+          </button>
 
-        {/* Track counter */}
-        {playlist.length > 1 && (
-          <span className="ml-auto text-xs font-medium text-white/50">
-            Track {currentIndex + 1} of {playlist.length}
-          </span>
-        )}
+          {/* Volume slider */}
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={muted ? 0 : volume}
+            onChange={handleVolumeChange}
+            aria-label="Volume"
+            className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-white/20 accent-white"
+          />
+
+          {/* Genre + mood tags + track counter */}
+          <div className="ml-auto flex items-center gap-2">
+            <div className="hidden sm:flex gap-1.5">
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">{genre}</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">{mood}</span>
+            </div>
+            {playlist.length > 1 && (
+              <span className="text-xs font-medium text-white/50">
+                Track {currentIndex + 1} of {playlist.length}
+              </span>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
