@@ -32,7 +32,7 @@ Add slices one at a time per `FEATURE_SLICES.md`. Slice order:
 | 6 | Featured / sponsored channels | 🔲 NOT STARTED | None |
 | 7 | Production analytics dashboard | 🔲 NOT STARTED | Slice 3 add-ons (play count + track metadata) |
 | 8 | Play Metrics + Artist Reporting | 🔲 NOT STARTED | Slice 3 add-ons + Code Capture (Slice 9) for follow/contact data |
-| 9 | Code Capture + Follow Intent | 🔲 NOT STARTED | Slice 3 (code management in admin UI) + Slice 8 Phase 1–2 (event tracking) |
+| 9 | Code Capture + Follow Intent + Notification Stack | 🔲 NOT STARTED — product spec drafted | Slice 3 (code management in admin UI) + Slice 8 Phase 1–2 (event tracking) |
 
 Each slice ships with UI, API, tests, and docs.
 

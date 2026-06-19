@@ -2,7 +2,7 @@
 
 > Single source of truth for slice status. Update this file whenever a slice
 > ships or changes state. `CLAUDE.md` carries a compact copy — keep both in sync.
-> Last updated: 2026-06-19 (Slice 3 shipped)
+> Last updated: 2026-06-19 (Slice 3 + admin mobile parity shipped — Slice 4 is next)
 
 ---
 
@@ -26,9 +26,9 @@
 | 6 | Featured / sponsored channels | ⬜ NOT STARTED | First monetisation surface |
 | 7 | Production analytics dashboard | ⬜ NOT STARTED | Depends on Slice 3 add-ons |
 | 8 | Play Metrics + Artist Reporting | ⬜ NOT STARTED | PM plan complete · Depends on Slice 3 add-ons + Slice 9 |
-| 9 | Code Capture + Follow Intent | ⬜ NOT STARTED | VRChat listener enters code → follow/contact · Depends on Slice 3 + Slice 8 |
+| 9 | Code Capture + Follow Intent + Notification Stack | ⬜ NOT STARTED | PM plan drafted · VRChat listener enters code → Discord/email/push follow intent · SMS explicitly deferred |
 
-† Docs (FEATURE_SLICES.md, MVP_TO_LAUNCH_ROADMAP.md) still show these as NOT STARTED. Update on next doc commit.
+† TrackItem / now-playing shipped in commits `2d3a72c`, `2ee4fa2`, `e2385bc` before Slice 2 was merged; status docs now reflect that it already shipped.
 
 ---
 

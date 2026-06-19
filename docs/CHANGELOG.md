@@ -2,6 +2,13 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased] — Planning / Status Cleanup
+
+- Marked Slice 9 as **Code Capture + Follow Intent + Notification Stack** in
+  planning/status docs, with Discord as primary delivery, browser push as
+  secondary, email fallback, VRChat username as attribution only, and SMS
+  explicitly deferred.
+
 ## [0.7.1] — Admin UI Mobile Responsive
 
 - Hamburger nav drawer replaces sidebar below `lg` breakpoint

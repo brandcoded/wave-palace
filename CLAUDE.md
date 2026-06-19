@@ -27,7 +27,7 @@ Full status: `docs/STATUS.md` (canonical) — this file carries a compact copy.
 | 6 | Featured / sponsored channels | ⬜ NOT STARTED |
 | 7 | Production analytics dashboard | ⬜ NOT STARTED |
 | 8 | Play Metrics + Artist Reporting | ⬜ NOT STARTED |
-| 9 | Code Capture + Follow Intent | ⬜ NOT STARTED |
+| 9 | Code Capture + Follow Intent + Notification Stack | ⬜ NOT STARTED |
 
 **Always update this table and `docs/STATUS.md` when a slice ships.**
 

@@ -448,19 +448,161 @@ Depends on: Slice 3 add-ons (play count + track metadata schema) for Phase 1–2
 Full report endpoints (Phase 3+) should follow Code Capture (Slice 9) so
 follow/contact data exists to report on.
 
-## Future slice 9: Code Capture + Follow Intent
+## Future slice 9: Code Capture + Follow Intent + Notification Stack
 
-VRChat listeners see or hear a short code in the stream (via the visual overlay
-or audio cue). They enter it at wavepalace.live. WavePalace resolves the code
-to the current artist, channel, host, or event and lets the listener follow,
-save, or request updates — bridging the gap between passive VRChat listening and
-verified engagement.
+VRChat listeners are passive — they cannot click links from inside a VRChat
+world. Code Capture bridges that gap: WavePalace burns a short code into the
+VRChat stream overlay, the listener types it at `wavepalace.live` on a phone or
+browser, and WavePalace resolves it to the current channel, artist, host, or
+event so the listener can follow.
 
-This is the primary mechanism for converting VRChat listeners (who cannot click)
-into verified followers and contacts. Feeds directly into Slice 8 reporting
-(code entries, code conversions, follow-created events).
+This is the primary mechanism for converting VRChat listeners into verified
+followers and contacts. It feeds directly into Slice 8 reporting through
+`code_resolved` and `follow_created` events.
 
 Depends on: Slice 3 (admin dashboard to generate and manage codes) + Slice 8
 Phase 1–2 (event tracking to record code_resolved and follow_created events).
+
+### UX principle
+
+Decide for the listener at capture, then give them control after. Discord is the
+prominent capture CTA because the VRChat audience is Discord-native. Email is
+available as a visually subordinate fallback. Browser push and VRChat username
+belong in preferences after follow, not in the first capture moment.
+
+### Notification stack
+
+| Channel | Use case | Priority |
+|---|---|---|
+| Discord DM via bot | Follows, live alerts, announcements | Primary |
+| Browser push (Web Push API) | Live alerts for web listeners | Secondary |
+| Email via Resend | Advance announcements, account management, fallback | Fallback |
+| VRChat username | Attribution and analytics only | Identity anchor |
+| SMS via Twilio | "Going live right now" only | Future add-on — do not build now |
+
+SMS is excluded from Slice 9. The data model may be future-ready for SMS, but
+there is no SMS UI or API submission path until demand proves Discord and
+browser push are insufficient.
+
+### Code generation and resolution
+
+Store codes in a MongoDB `codes` collection:
+
+```python
+class CodeDocument(BaseModel):
+    code: str                    # e.g. "WAVE42" — 6 chars, uppercase alphanumeric
+    channel_slug: str
+    entity_type: str             # "channel" | "artist" | "host" | "event"
+    entity_id: str
+    created_at: datetime
+    expires_at: datetime | None  # None = permanent; live event codes expire
+    active: bool = True
+```
+
+Planned endpoints:
+
+```http
+POST /api/admin/codes
+GET  /api/codes/{code}
+POST /api/codes/{code}/follow
+```
+
+Code generation uses 6-character uppercase alphanumeric codes and checks
+collisions against existing active codes. Admins generate codes from the Slice 3
+dashboard per channel or per live event.
+
+Resolution response (`GET /api/codes/{code}`):
+
+```json
+{
+  "code": "WAVE42",
+  "entity_type": "channel",
+  "entity_id": "...",
+  "display_name": "Late Night House",
+  "host_name": "DJ Nova",
+  "genre": "House",
+  "mood": "Late Night",
+  "cover_image_url": "..."
+}
+```
+
+### Capture UX
+
+Add a persistent code entry field in the site header and/or home page. It should
+be small, always visible, and never buried.
+
+The `/follow/{code}` page resolves the code and displays:
+
+```text
+[Channel cover image / visual]
+
+Late Night House
+Hosted by DJ Nova · House · Late Night
+
+Follow this channel
+
+[Connect Discord]
+
+or enter your email ↓
+
+[_________________________] [Follow]
+```
+
+Rules:
+- Discord is the only prominent CTA
+- Email is secondary and visually subordinate
+- Browser push and VRChat username are not shown at capture
+- SMS is not shown at capture
+- No account creation, username, password, or profile form
+- Expired/inactive codes show: "This code is no longer active — tune in at wavepalace.live"
+
+### Follow submission and identity anchoring
+
+`POST /api/codes/{code}/follow` accepts one of:
+
+```json
+{ "channel": "discord", "discord_user_id": "...", "discord_username": "..." }
+```
+
+```json
+{ "channel": "email", "email": "user@example.com" }
+```
+
+```json
+{ "channel": "browser_push", "push_subscription": { "...": "..." } }
+```
+
+It also accepts optional attribution:
+
+```json
+{ "vrchat_username": "VRCUSER_xyz" }
+```
+
+VRChat username is stored for attribution only and is never used for delivery.
+
+Store follows in a MongoDB `follows` collection:
+
+```python
+class FollowDocument(BaseModel):
+    id: str
+    entity_type: str
+    entity_id: str
+    channel_slug: str
+    notification_channel: str       # "discord" | "email" | "browser_push" | "sms"
+    discord_user_id: str | None
+    discord_username: str | None
+    email: str | None
+    phone: str | None               # future-ready — unused until SMS is activated
+    push_subscription: dict | None
+    vrchat_username: str | None     # attribution only
+    confirmed: bool = False         # True after double opt-in for email
+    created_at: datetime
+    code_used: str
+```
+
+Confirmation rules:
+- Discord requires no extra confirmation after OAuth grants permission
+- Email requires Resend double opt-in before the follow becomes active
+- Browser push requires browser permission and no extra confirmation
 
 **Do not build future slices until explicitly requested.**
