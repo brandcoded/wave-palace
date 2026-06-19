@@ -12,11 +12,29 @@ seed-mode fallback. Backend tests green.
 - Animated/looping video backgrounds deferred to Future Slice 1
 - Hero copy updated to reflect static image + audio (not "cinematic loops") until video backgrounds ship
 
+**Current VRChat stream format:** `stream.wavepalace.live/muxed/{channel_id}/{slug}.mp4`
+**Target VRChat stream format (Slice 3):** `stream.wavepalace.live/live/{slug}.ts`
+
 ## 2. Complete vertical slices
 
-Add slices one at a time per `FEATURE_SLICES.md` (submissions → director
-dashboard → URL/compatibility checker → featured channels → analytics). Each
-ships with UI, API, tests, and docs.
+Add slices one at a time per `FEATURE_SLICES.md`. Slice order:
+
+| Slice | Name | Depends on |
+|---|---|---|
+| 1 | Animated / looping video backgrounds | Slice 3 for admin UI |
+| 1B | Channel & Host Info Display on Player | None — frontend only, can build now |
+| 2 | DJ / Artist submission requests | None |
+| 3 | Music director dashboard (Admin UI) | Auth |
+| 3 add-on | Track metadata schema + now-playing display | Slice 3 |
+| 3 add-on | Play count event tracking | Slice 3 |
+| 4 | Live event streaming — Link-In and Ingest Keys | Slice 3 + VPS (AzuraCast + SRS provisioned) |
+| 5 | Media URL validation & compatibility checker | None |
+| 6 | Featured / sponsored channels | None |
+| 7 | Production analytics dashboard | Slice 3 add-ons (play count + track metadata) |
+| 8 | Play Metrics + Artist Reporting | Slice 3 add-ons + Code Capture (Slice 9) for follow/contact data |
+| 9 | Code Capture + Follow Intent | Slice 3 (code management in admin UI) + Slice 8 Phase 1–2 (event tracking) |
+
+Each slice ships with UI, API, tests, and docs.
 
 ## 3. Production hardening
 
@@ -29,10 +47,31 @@ ships with UI, API, tests, and docs.
 
 ## 4. Deployment plan
 
-Frontend → Vercel. Backend → Render. Database → MongoDB Atlas. See
-`DEPLOYMENT.md` for env vars and steps.
+| Layer | Platform | Notes |
+|---|---|---|
+| Frontend | Vercel (free) | Next.js — `apps/frontend` |
+| Backend API | Render Starter ($7/mo) | FastAPI — `apps/backend` |
+| Database | MongoDB Atlas Flex ($8–30/mo) | Metadata only, no binary files |
+| Media storage | Cloudflare R2 (~$0–1/mo) | Audio, video, images via `stream.wavepalace.live` |
+| Streaming VPS | Hetzner CPX31 (~$16/mo) | AzuraCast + SRS + FFmpeg — provisioned at Slice 3 |
+| CDN / proxy | Cloudflare (free) | HTTPS termination, `stream.wavepalace.live` custom domain |
 
-## 5. Launch checklist
+See `DEPLOYMENT.md` for env vars and steps.
+
+## 5. True streaming architecture (Slice 3 target)
+
+Full detail in `FEATURE_SLICES.md` under "Production streaming architecture."
+Summary of what changes at Slice 3:
+
+- Provision Hetzner CPX31 VPS
+- Deploy Docker Compose: AzuraCast + SRS + FFmpeg combiner (one process per channel)
+- WavePalace FastAPI proxies AzuraCast REST API — admin never touches AzuraCast
+- VRChat URL changes from `/muxed/{id}.mp4` to `/live/{slug}.ts`
+- Mux approach retired for PC; kept as Quest fallback until HTTP-TS Quest testing confirms compatibility
+- Instant track add/delete/update — zero re-encode
+- All listeners synchronized in real time
+
+## 6. Launch checklist
 
 - [x] All MVP "Definition of Done" items pass (see README).
 - [x] Playlist cycling implemented — tracks auto-advance, loop, track counter shown.
@@ -45,13 +84,15 @@ Frontend → Vercel. Backend → Render. Database → MongoDB Atlas. See
 - [ ] Smoke tests pass against deployed URLs.
 - [ ] 404 and API-down states verified in production.
 
-## 6. Maintenance plan
+## 7. Maintenance plan
 
 - Keep dependencies patched (Next.js, FastAPI, Pydantic).
 - Monitor backend health (`/health`) and media-host availability.
+- Monitor VPS stream uptime (AzuraCast + SRS) once Slice 3 is provisioned.
 - Periodically re-verify VRChat compatibility (host behavior changes).
+- Test HTTP-TS Quest compatibility when VPS is live — retire mux MP4 fallback if confirmed.
 
-## 7. Feature update workflow
+## 8. Feature update workflow
 
 Pick one slice → branch → build UI + API + data + tests → update `docs/` and
 `CHANGELOG.md` → review against `AGENTS.md` → merge → deploy → smoke test.
