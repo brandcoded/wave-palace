@@ -43,7 +43,15 @@ Each slice ships with UI, API, tests, and docs.
 
 ## 3. Production hardening
 
-- Switch from seed mode to MongoDB Atlas (`MONGODB_URI`).
+- **[PRIORITY — active data loss] Switch from seed mode to MongoDB Atlas
+  (`MONGODB_URI`).** The production backend currently runs in **seed mode**
+  (no `MONGODB_URI`), so all admin-managed data — created/edited channels,
+  sponsors, and `muxOutdated`/`muxLastAt` state — lives only in memory and is
+  **wiped on every Render restart or redeploy**. Now that the admin dashboard is
+  live and in use, this is a blocker, not a someday task: provision Atlas and set
+  `MONGODB_URI` before relying on the admin to manage real channels. The repo
+  already has `MongoChannelRepository` behind the same interface, so it's a
+  config switch (see `ARCHITECTURE.md` and `DEPLOYMENT.md`).
 - Add request logging, error monitoring, and rate limiting.
 - Introduce auth before any dashboard/submission write paths (mux endpoints first).
 - Validate and sanitize all media URLs (HTTPS-only).
