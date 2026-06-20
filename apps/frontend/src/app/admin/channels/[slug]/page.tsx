@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   DndContext,
@@ -187,13 +187,13 @@ export default function ChannelEditPage() {
   const [saving, setSaving] = useState(false);
   const [muxing, setMuxing] = useState(false);
   const [muxStatus, setMuxStatus] = useState("");
+  const [muxElapsed, setMuxElapsed] = useState(0);
+  const muxIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [validating, setValidating] = useState(false);
   const [urlResults, setUrlResults] = useState<URLCheckResult[] | null>(null);
   const [sponsorForm, setSponsorForm] = useState<Sponsor | null>(null);
   const [savingSponsor, setSavingSponsor] = useState(false);
-  const [muxingChannel, setMuxingChannel] = useState(false);
-  const [muxChannelStatus, setMuxChannelStatus] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -254,33 +254,31 @@ export default function ChannelEditPage() {
     router.push("/admin/channels");
   }
 
-  async function handleMux() {
-    setMuxing(true);
-    setMuxStatus("Muxing…");
-    try {
-      await muxChannel(slug);
-      setMuxStatus("Done ✓");
-    } catch {
-      setMuxStatus("Mux failed.");
-    } finally {
-      setMuxing(false);
-    }
+  function formatElapsed(s: number): string {
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return `${m}:${sec.toString().padStart(2, "0")}`;
   }
 
-  async function handleMuxChannel() {
-    setMuxingChannel(true);
-    setMuxChannelStatus("Updating VR video…");
+  async function handleMuxVideo() {
+    setMuxing(true);
+    setMuxStatus("");
+    setMuxElapsed(0);
+    const interval = setInterval(() => setMuxElapsed((s) => s + 1), 1000);
+    muxIntervalRef.current = interval;
     try {
       await muxChannel(slug);
-      setMuxChannelStatus("Done — VRChat video updated.");
-      if (channel) {
-        setChannel({ ...channel, muxOutdated: false });
-      }
-      setTimeout(() => setMuxChannelStatus(""), 3000);
+      clearInterval(interval);
+      muxIntervalRef.current = null;
+      setMuxStatus("Done — VRChat video updated.");
+      if (channel) setChannel({ ...channel, muxOutdated: false });
+      setTimeout(() => setMuxStatus(""), 4000);
     } catch {
-      setMuxChannelStatus("Update failed.");
+      clearInterval(interval);
+      muxIntervalRef.current = null;
+      setMuxStatus("Update failed — try again.");
     } finally {
-      setMuxingChannel(false);
+      setMuxing(false);
     }
   }
 
@@ -373,15 +371,15 @@ export default function ChannelEditPage() {
                 Channel info, tracks, or sponsor changed since the last video update.
               </p>
               <button
-                onClick={handleMuxChannel}
-                disabled={muxingChannel}
+                onClick={handleMuxVideo}
+                disabled={muxing}
                 className="mt-3 rounded-lg bg-amber-500/20 px-3 py-1.5 text-sm font-medium text-amber-300 transition hover:bg-amber-500/30 disabled:opacity-50 flex items-center gap-2"
               >
-                {muxingChannel && <Loader2 className="h-4 w-4 animate-spin" />}
-                {muxingChannel ? "Updating VR Video…" : "Update VR Video"}
+                {muxing && <Loader2 className="h-4 w-4 animate-spin" />}
+                {muxing ? `Updating VR Video… ${formatElapsed(muxElapsed)}` : "Update VR Video"}
               </button>
-              {muxChannelStatus && (
-                <p className="mt-2 text-sm text-amber-100">{muxChannelStatus}</p>
+              {muxStatus && (
+                <p className="mt-2 text-sm text-amber-100">{muxStatus}</p>
               )}
             </div>
           </div>
@@ -489,14 +487,14 @@ export default function ChannelEditPage() {
           <p className="text-xs text-white/40">Re-mux after changing tracks, cover image, or visual loop.</p>
           <div className="flex items-center gap-3">
             <button
-              onClick={handleMux}
+              onClick={handleMuxVideo}
               disabled={muxing}
               className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/70 transition hover:bg-white/10 disabled:opacity-50"
             >
               {muxing && <Loader2 className="h-4 w-4 animate-spin" />}
-              Re-mux for VRChat
+              {muxing ? `Re-muxing… ${formatElapsed(muxElapsed)}` : "Re-mux for VRChat"}
             </button>
-            {muxStatus && <span className="text-xs text-white/50">{muxStatus}</span>}
+            {!muxing && muxStatus && <span className="text-xs text-white/50">{muxStatus}</span>}
           </div>
           {form.vrchatPlaybackUrl && (
             <p className="truncate text-xs text-white/30">{form.vrchatPlaybackUrl as string}</p>

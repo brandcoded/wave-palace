@@ -1,22 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { listAdminChannels, updateChannel } from "@/features/admin/lib/adminApi";
 import type { AdminChannel } from "@/features/admin/types/admin";
-import { Plus, Eye, EyeOff, Loader2 } from "lucide-react";
+import { Plus, Eye, EyeOff, Loader2, Clock, CheckCircle, XCircle } from "lucide-react";
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8000";
+
+type ChannelMuxState = { state: "pending" | "running" | "done" | "error"; url: string | null; error: string | null };
+type MuxJobStatus = { running: boolean; channels: Record<string, ChannelMuxState> };
 
 export default function AdminChannelsPage() {
   const [channels, setChannels] = useState<AdminChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [muxingAll, setMuxingAll] = useState(false);
   const [muxStatus, setMuxStatus] = useState("");
+  const [muxJob, setMuxJob] = useState<MuxJobStatus | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     listAdminChannels().then((data) => {
       setChannels(data);
       setLoading(false);
     });
+  }, []);
+
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
 
   async function togglePublish(ch: AdminChannel) {
@@ -26,14 +38,28 @@ export default function AdminChannelsPage() {
 
   async function handleMuxAll() {
     setMuxingAll(true);
-    setMuxStatus("VR video update started — this may take several minutes per channel.");
+    setMuxStatus("");
+    setMuxJob(null);
     try {
-      const res = await fetch("/api/mux/all", { method: "POST" });
-      if (!res.ok) throw new Error("Failed to start mux job");
-      setMuxStatus("Updates queued. Check back in a few minutes.");
+      const res = await fetch(`${API_BASE}/api/mux/all`, { method: "POST", credentials: "include" });
+      if (!res.ok) throw new Error();
+      pollRef.current = setInterval(async () => {
+        try {
+          const statusRes = await fetch(`${API_BASE}/api/mux/status`, { credentials: "include" });
+          const data: MuxJobStatus = await statusRes.json();
+          setMuxJob(data);
+          if (!data.running) {
+            clearInterval(pollRef.current!);
+            pollRef.current = null;
+            setMuxingAll(false);
+            listAdminChannels().then(setChannels);
+          }
+        } catch {
+          setMuxStatus("Could not fetch status — job may still be running.");
+        }
+      }, 3000);
     } catch {
       setMuxStatus("Update failed to start.");
-    } finally {
       setMuxingAll(false);
     }
   }
@@ -68,6 +94,47 @@ export default function AdminChannelsPage() {
           {muxStatus}
         </div>
       )}
+      {muxJob && (() => {
+        const entries = Object.entries(muxJob.channels);
+        const doneCount = entries.filter(([, c]) => c.state === "done").length;
+        const totalCount = entries.length;
+        const pct = totalCount > 0 ? (doneCount / totalCount) * 100 : 0;
+        return (
+          <div className="mb-4 min-h-[120px] rounded-xl border border-white/10 bg-white/5 p-4">
+            <p className="mb-3 text-sm font-medium text-white">
+              {muxJob.running ? "Updating VR videos…" : "VR video update complete"}
+            </p>
+            <div className="mb-1 flex items-center gap-3">
+              <div className="flex-1 h-1.5 rounded-full bg-white/10">
+                <div
+                  className="h-full rounded-full bg-amber-400 transition-all duration-500"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <span className="shrink-0 text-xs text-white/50">{doneCount} / {totalCount} done</span>
+            </div>
+            <div className="mt-3 flex flex-col gap-1.5">
+              {entries.map(([slug, ch]) => (
+                <div key={slug} className="flex items-center gap-2 text-sm">
+                  {ch.state === "done" && <CheckCircle className="h-4 w-4 shrink-0 text-emerald-400" />}
+                  {ch.state === "running" && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-amber-300" />}
+                  {ch.state === "pending" && <Clock className="h-4 w-4 shrink-0 text-white/30" />}
+                  {ch.state === "error" && <XCircle className="h-4 w-4 shrink-0 text-red-400" />}
+                  <span className={
+                    ch.state === "done" ? "text-white/80" :
+                    ch.state === "running" ? "text-amber-200" :
+                    ch.state === "error" ? "text-red-300" :
+                    "text-white/40"
+                  }>{slug}</span>
+                  {ch.state === "running" && <span className="text-xs text-white/40">(running)</span>}
+                  {ch.state === "pending" && <span className="text-xs text-white/30">(pending)</span>}
+                  {ch.state === "error" && ch.error && <span className="text-xs text-red-400/70">{ch.error}</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {loading ? (
         <p className="text-sm text-white/40">Loading…</p>

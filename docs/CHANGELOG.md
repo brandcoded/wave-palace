@@ -22,6 +22,13 @@ All notable changes to this project are documented here.
 - Directory (`ChannelGrid`): featured active sponsors sorted to top. `ChannelCard`: "Sponsored" badge overlay on cover art when `isFeatured && isActive`.
 - 22 backend tests in `tests/test_sponsor.py` (20 pass, 2 skipped for missing font on CI).
 
+## [Unreleased] — VR video progress feedback
+
+- **Single-channel elapsed timer**: Channel edit page consolidates `handleMux` and `handleMuxChannel` into one `handleMuxVideo()`. While muxing, both the warning-banner button and the VRChat mux section button show a live `M:SS` elapsed counter (e.g. "Updating VR Video… 1:24"). A `setInterval` drives the counter; it is cleared on success or error. Success clears the `muxOutdated` banner inline without a page reload.
+- **Bulk update progress panel**: Channels list page replaces the static "Updates queued" message with a live per-channel progress panel. Clicking "Update All VR Videos" calls `POST /api/mux/all`, then polls `GET /api/mux/status` every 3 s. The panel shows a progress bar (`doneCount / totalCount`) and a per-channel row with state icons (pending / running / done / error). Polling stops when `running === false`; the channel list auto-refreshes to clear "VR outdated" badges.
+- No backend changes — uses existing `POST /api/mux/all` → 202 + `GET /api/mux/status` contract.
+- No new packages — `lucide-react` (Clock, CheckCircle, XCircle, Loader2) + Tailwind only.
+
 ## [Unreleased] — Mux dirty-flag system + cache TTL reduction
 
 - **Mux outdated tracking**: `muxOutdated` and `muxLastAt` fields on Channel
