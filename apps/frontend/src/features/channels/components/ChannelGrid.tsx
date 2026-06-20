@@ -80,7 +80,11 @@ export function ChannelGrid() {
 
       {status === "ready" && channels.length > 0 && (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {channels.map((channel) => (
+          {[...channels].sort((a, b) => {
+            const aFeatured = a.sponsor?.isFeatured && a.sponsor?.isActive ? 1 : 0;
+            const bFeatured = b.sponsor?.isFeatured && b.sponsor?.isActive ? 1 : 0;
+            return bFeatured - aFeatured;
+          }).map((channel) => (
             <ChannelCard key={channel.id} channel={channel} />
           ))}
         </div>

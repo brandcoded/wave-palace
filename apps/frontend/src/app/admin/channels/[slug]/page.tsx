@@ -27,8 +27,9 @@ import {
   uploadAudio,
   muxChannel,
   validateChannelUrls,
+  updateChannelSponsor,
 } from "@/features/admin/lib/adminApi";
-import type { AdminChannel, URLCheckResult } from "@/features/admin/types/admin";
+import type { AdminChannel, Sponsor, URLCheckResult } from "@/features/admin/types/admin";
 import type { TrackItem } from "@/features/channels/types/channel";
 import { GripVertical, Trash2, Plus, Loader2, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
 import Link from "next/link";
@@ -189,6 +190,8 @@ export default function ChannelEditPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [validating, setValidating] = useState(false);
   const [urlResults, setUrlResults] = useState<URLCheckResult[] | null>(null);
+  const [sponsorForm, setSponsorForm] = useState<Sponsor | null>(null);
+  const [savingSponsor, setSavingSponsor] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -202,6 +205,7 @@ export default function ChannelEditPage() {
       setTracks(
         (ch.playlist ?? []).map((t, i) => ({ ...t, _id: `track-${i}-${Date.now()}` }))
       );
+      setSponsorForm((ch as AdminChannel & { sponsor?: Sponsor | null }).sponsor ?? null);
     });
   }, [slug]);
 
@@ -264,6 +268,36 @@ export default function ChannelEditPage() {
   async function handleDelete() {
     await deleteChannel(slug);
     router.push("/admin/channels");
+  }
+
+  async function handleSaveSponsor() {
+    setSavingSponsor(true);
+    try {
+      await updateChannelSponsor(slug, sponsorForm);
+    } finally {
+      setSavingSponsor(false);
+    }
+  }
+
+  async function handleClearSponsor() {
+    setSavingSponsor(true);
+    try {
+      await updateChannelSponsor(slug, null);
+      setSponsorForm(null);
+    } finally {
+      setSavingSponsor(false);
+    }
+  }
+
+  function setSponsorField<K extends keyof Sponsor>(key: K, value: Sponsor[K]) {
+    setSponsorForm((prev) => ({
+      ...(prev ?? {
+        name: "", logoUrl: null, text: "", clickUrl: null,
+        placement: "lower_third" as const, startDate: null, endDate: null,
+        isActive: true, isFeatured: false, impressionCount: 0, clickCount: 0,
+      }),
+      [key]: value,
+    }));
   }
 
   async function handleValidateUrls() {
@@ -423,6 +457,122 @@ export default function ChannelEditPage() {
           {form.vrchatPlaybackUrl && (
             <p className="truncate text-xs text-white/30">{form.vrchatPlaybackUrl as string}</p>
           )}
+        </section>
+
+        {/* Sponsor */}
+        <section className="flex flex-col gap-4">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white/30">Sponsor</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-white/50">Sponsor name</label>
+              <input
+                value={sponsorForm?.name ?? ""}
+                onChange={(e) => setSponsorField("name", e.target.value)}
+                placeholder="e.g. Neon Drinks Co."
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-white/50">Placement</label>
+              <select
+                value={sponsorForm?.placement ?? "lower_third"}
+                onChange={(e) => setSponsorField("placement", e.target.value as Sponsor["placement"])}
+                className="rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-sm text-white outline-none focus:border-white/30"
+              >
+                <option value="lower_third">Lower third</option>
+                <option value="bug">Bug (corner logo)</option>
+                <option value="backdrop">Backdrop</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <label className="text-xs font-medium text-white/50">Logo URL</label>
+              <input
+                value={sponsorForm?.logoUrl ?? ""}
+                onChange={(e) => setSponsorField("logoUrl", e.target.value || null)}
+                placeholder="https://…"
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <label className="text-xs font-medium text-white/50">Display text</label>
+              <input
+                value={sponsorForm?.text ?? ""}
+                onChange={(e) => setSponsorField("text", e.target.value)}
+                placeholder="Brought to you by …"
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5 sm:col-span-2">
+              <label className="text-xs font-medium text-white/50">Click URL</label>
+              <input
+                value={sponsorForm?.clickUrl ?? ""}
+                onChange={(e) => setSponsorField("clickUrl", e.target.value || null)}
+                placeholder="https://…"
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-white/50">Start date (optional)</label>
+              <input
+                type="datetime-local"
+                value={sponsorForm?.startDate?.slice(0, 16) ?? ""}
+                onChange={(e) => setSponsorField("startDate", e.target.value ? e.target.value + ":00Z" : null)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30 [color-scheme:dark]"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-medium text-white/50">End date (optional)</label>
+              <input
+                type="datetime-local"
+                value={sponsorForm?.endDate?.slice(0, 16) ?? ""}
+                onChange={(e) => setSponsorField("endDate", e.target.value ? e.target.value + ":00Z" : null)}
+                className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30 [color-scheme:dark]"
+              />
+            </div>
+          </div>
+          <div className="flex gap-6">
+            <label className="flex items-center gap-2 text-sm text-white/60">
+              <input
+                type="checkbox"
+                checked={sponsorForm?.isActive ?? true}
+                onChange={(e) => setSponsorField("isActive", e.target.checked)}
+                className="accent-cyan-400"
+              />
+              Active
+            </label>
+            <label className="flex items-center gap-2 text-sm text-white/60">
+              <input
+                type="checkbox"
+                checked={sponsorForm?.isFeatured ?? false}
+                onChange={(e) => setSponsorField("isFeatured", e.target.checked)}
+                className="accent-cyan-400"
+              />
+              Featured (pin to top of directory)
+            </label>
+          </div>
+          {sponsorForm && (
+            <p className="text-xs text-white/30">
+              Impressions: {sponsorForm.impressionCount ?? 0} · Clicks: {sponsorForm.clickCount ?? 0}
+            </p>
+          )}
+          <div className="flex gap-3">
+            <button
+              onClick={handleSaveSponsor}
+              disabled={savingSponsor}
+              className="rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20 disabled:opacity-50"
+            >
+              {savingSponsor ? "Saving…" : "Save sponsor"}
+            </button>
+            {sponsorForm && (
+              <button
+                onClick={handleClearSponsor}
+                disabled={savingSponsor}
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm text-white/50 transition hover:border-white/20 hover:text-white/70 disabled:opacity-50"
+              >
+                Clear sponsor
+              </button>
+            )}
+          </div>
         </section>
 
         {/* URL checker */}

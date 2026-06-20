@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime, timezone
 
 from app.repositories.channel_repository import ChannelRepository
 from app.schemas.channel import Channel
+from app.schemas.sponsor import Sponsor, sponsor_is_live
 
 # In-memory TTL cache for play-count rate limiting: {slug:ip -> timestamp}
 _PLAY_CACHE: dict[str, float] = {}
 _PLAY_TTL = 1800  # 30 minutes
+
+# In-memory TTL cache for sponsor impression rate limiting: {slug:ip -> timestamp}
+_IMPRESSION_CACHE: dict[str, float] = {}
 
 
 class ChannelService:
@@ -102,4 +107,45 @@ class ChannelService:
                 _PLAY_CACHE.pop(k, None)
 
         await self._repository.increment_play_count(slug)
+        return True
+
+    # ------------------------------------------------------------------
+    # Sponsor events
+    # ------------------------------------------------------------------
+
+    async def _channel_has_live_sponsor(self, slug: str) -> bool:
+        channel = await self._repository.get_by_slug(slug)
+        if channel is None:
+            return False
+        raw_sponsor = channel.get("sponsor")
+        if not raw_sponsor:
+            return False
+        sp = Sponsor.model_validate(raw_sponsor)
+        return sponsor_is_live(sp, datetime.now(timezone.utc))
+
+    async def record_sponsor_impression(self, slug: str, ip: str) -> bool:
+        """Increment sponsor impressionCount (rate-limited by IP+slug, 30-min TTL)."""
+        if not await self._channel_has_live_sponsor(slug):
+            return True  # silent no-op
+
+        key = f"imp:{slug}:{ip}"
+        now = time.time()
+        if now - _IMPRESSION_CACHE.get(key, 0.0) < _PLAY_TTL:
+            return True  # already counted recently
+
+        _IMPRESSION_CACHE[key] = now
+        if len(_IMPRESSION_CACHE) > 10_000:
+            cutoff = now - _PLAY_TTL
+            stale = [k for k, v in _IMPRESSION_CACHE.items() if v < cutoff]
+            for k in stale:
+                _IMPRESSION_CACHE.pop(k, None)
+
+        await self._repository.increment_sponsor_impression(slug)
+        return True
+
+    async def record_sponsor_click(self, slug: str) -> bool:
+        """Increment sponsor clickCount (no rate limit — intentional user action)."""
+        if not await self._channel_has_live_sponsor(slug):
+            return True  # silent no-op
+        await self._repository.increment_sponsor_click(slug)
         return True

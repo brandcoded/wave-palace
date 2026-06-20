@@ -13,7 +13,7 @@ seed-mode fallback. Backend tests green.
 - Hero copy updated to reflect static image + audio (not "cinematic loops") until video backgrounds ship
 
 **Current VRChat stream format:** `stream.wavepalace.live/muxed/{channel_id}/{slug}.mp4`
-**Target VRChat stream format (Slice 3):** `stream.wavepalace.live/live/{slug}.ts`
+**Target VRChat stream format (Slice 4):** `stream.wavepalace.live/live/{slug}.ts`
 
 ## 2. Complete vertical slices
 
@@ -21,18 +21,23 @@ Add slices one at a time per `FEATURE_SLICES.md`. Slice order:
 
 | Slice | Name | Status | Depends on |
 |---|---|---|---|
-| 1 | Animated / looping video backgrounds | ✅ COMPLETE (v0.4.0) — admin UI toggle pending Slice 3 | Slice 3 for admin UI toggle |
+| 1 | Animated / looping video backgrounds | ✅ COMPLETE (v0.4.0) — admin UI toggle shipped in Slice 3 | None |
 | 1B | Channel & Host Info Display on Player | ✅ COMPLETE — title, host, genre/mood in overlay; VRChat MP4 overlay parity also complete | None |
 | 2 | DJ / Artist submission requests | ✅ COMPLETE — public proposal form, API-backed options, R2 profile image upload, pending submission storage | None |
-| 3 | Music director dashboard (Admin UI) | 🔲 NOT STARTED | Auth |
+| 3 | Music director admin dashboard | ✅ COMPLETE (v0.7.0) — JWT auth, submission review, channel CRUD, drag-to-reorder, R2 uploads, mobile parity | None |
 | 3 add-on | Track metadata schema + now-playing display | ✅ COMPLETE — `TrackItem` playlist contract, web overlay, and VRChat MP4 timed now-playing text shipped | None |
-| 3 add-on | Play count event tracking | 🔲 NOT STARTED | Slice 3 |
-| 4 | Live event streaming — Link-In and Ingest Keys | 🔲 NOT STARTED | Slice 3 + VPS (AzuraCast + SRS provisioned) |
-| 5 | Media URL validation & compatibility checker | ✅ COMPLETE | None |
-| 6 | Featured / sponsored channels | 🔲 NOT STARTED | None |
-| 7 | Production analytics dashboard | 🔲 NOT STARTED | Slice 3 add-ons (play count + track metadata) |
+| 3 add-on | Play count event tracking | ✅ COMPLETE (v0.7.0) | None |
+| 5 | Media URL validation & compatibility checker | ✅ COMPLETE (v0.8.0) — `POST /api/admin/channels/{slug}/validate-urls` | None |
+| 3 add-on | External Stream Passthrough (`liveStreamUrl` + admin UI) | 🔲 NOT STARTED | Slice 3 admin dashboard · no VPS · admin pastes VRCDN/OBS/.ts URL · VRChat-only passthrough · interim path before Slice 4 Link-In |
+| 6 | Sponsor Primitive (thin monetization) | ✅ COMPLETE (v0.9.0) | Slice 3 ✅ (admin) — no VPS dep |
+| **Pre-Slice 4 add-on** | **Streaming readiness + mux/stream toggle** | **🔲 NEXT** | `streamingActive` + `vrchatFallbackUrl` schema · player logic · admin per-channel toggle + bulk toggle + mux refresh · no VPS dep · activation = flag flip |
+| Pre-Slice 4 | Hetzner VPS provisioning (AzuraCast + SRS + FFmpeg) | ⬜ DEFERRED | ~2–3 hrs · CPX32 FSN1 ~$51/mo with backups · see `docs/VPS_PROVISIONING.md` · provision when live events are priority |
+| 4 | Live event streaming — Link-In and Ingest Keys | 🔲 NOT STARTED — after Slice 6 | Slice 3 ✅ + VPS provisioned (Hetzner CPX32 FSN1) · toggle infra ships pre-Slice 4, no frontend work at activation · External Stream Passthrough (Slice 3 add-on) covers no-VPS interim path |
+| 4 add-on | Event Sponsorship (QR bridge + sponsor frame) | 🔲 WITH Slice 4 | Slice 6 `sponsor` object + Slice 4 streaming path |
+| 6B | Full Ad Stack (rotation, CPM, audio stings, reporting) | 🔲 NOT STARTED — after Slice 4 | Slice 4 (AzuraCast for audio stings) · see `MONETIZATION_PLAN.md` |
+| 7 | Production analytics dashboard | 🔲 NOT STARTED | Slice 3 add-ons ✅ (play count + track metadata both shipped) |
 | 8 | Play Metrics + Artist Reporting | 🔲 NOT STARTED | Slice 3 add-ons + Code Capture (Slice 9) for follow/contact data |
-| 9 | Code Capture + Follow Intent + Notification Stack | 🔲 NOT STARTED — product spec drafted | Slice 3 (code management in admin UI) + Slice 8 Phase 1–2 (event tracking) |
+| 9 | Code Capture + Follow Intent + Notification Stack | 🔲 NOT STARTED — product spec drafted | Slice 3 ✅ (admin dashboard satisfied) + Slice 8 Phase 1–2 (event tracking) · Discord DM primary → browser push secondary → Resend email fallback · SMS/Twilio deferred (A2P 10DLC required) |
 
 Each slice ships with UI, API, tests, and docs.
 
@@ -53,23 +58,33 @@ Each slice ships with UI, API, tests, and docs.
 | Backend API | Render Starter ($7/mo) | FastAPI — `apps/backend` |
 | Database | MongoDB Atlas Flex ($8–30/mo) | Metadata only, no binary files |
 | Media storage | Cloudflare R2 (~$0–1/mo) | Audio, video, images via `stream.wavepalace.live` |
-| Streaming VPS | Hetzner CPX31 (~$16/mo) | AzuraCast + SRS + FFmpeg — provisioned at Slice 3 |
+| Streaming VPS | Hetzner CPX32 FSN1 (~$51/mo with backups) | **DEFERRED** — provision when live events (Slice 4) are priority · AzuraCast + SRS + FFmpeg · see `docs/VPS_PROVISIONING.md` |
 | CDN / proxy | Cloudflare (free) | HTTPS termination, `stream.wavepalace.live` custom domain |
 
 See `DEPLOYMENT.md` for env vars and steps.
 
-## 5. True streaming architecture (Slice 3 target)
+## 5. True streaming architecture — build now, activate later
 
 Full detail in `FEATURE_SLICES.md` under "Production streaming architecture."
-Summary of what changes at Slice 3:
 
-- Provision Hetzner CPX31 VPS
+**Current state:** All VRChat playback served from mux MP4 on R2. Mux is fully functional at current scale. VPS deferred — ~$51/mo is a meaningful cost before revenue. Build the streaming infra now, activate it when the VPS is provisioned.
+
+**Pre-Slice 4 add-on (no VPS dep — build now):**
+- Add `streamingActive: bool = False` + `vrchatFallbackUrl: str | None` to Channel schema
+- Player logic: `streamingActive` flag controls which URL serves VRChat
+- Admin per-channel toggle, bulk toggle, mux refresh controls
+- Run `POST /api/mux/all` to populate `vrchatFallbackUrl`
+
+**Pre-Slice 4 (when live events become priority — ~2–3 hrs infrastructure):**
+- Provision Hetzner CPX32 FSN1 VPS (see `docs/VPS_PROVISIONING.md`)
 - Deploy Docker Compose: AzuraCast + SRS + FFmpeg combiner (one process per channel)
+- Smoke test: `https://stream.wavepalace.live/live/{slug}.ts` plays in VLC + VRChat
+
+**Slice 4 (code — VPS already running):**
 - WavePalace FastAPI proxies AzuraCast REST API — admin never touches AzuraCast
-- VRChat URL changes from `/muxed/{id}.mp4` to `/live/{slug}.ts`
-- Mux approach retired for PC; kept as Quest fallback until HTTP-TS Quest testing confirms compatibility
-- Instant track add/delete/update — zero re-encode
-- All listeners synchronized in real time
+- Live event endpoints (ingest keys + link-in)
+- Activation: use existing bulk toggle — no frontend work, no schema migration
+- Mux MP4s remain on R2 as warm fallback indefinitely
 
 ## 6. Launch checklist
 
@@ -92,7 +107,7 @@ Summary of what changes at Slice 3:
 
 - Keep dependencies patched (Next.js, FastAPI, Pydantic).
 - Monitor backend health (`/health`) and media-host availability.
-- Monitor VPS stream uptime (AzuraCast + SRS) once Slice 3 is provisioned.
+- Monitor VPS stream uptime (AzuraCast + SRS) once Slice 4 VPS is provisioned.
 - Periodically re-verify VRChat compatibility (host behavior changes).
 - Test HTTP-TS Quest compatibility when VPS is live — retire mux MP4 fallback if confirmed.
 

@@ -75,8 +75,24 @@ Returns a single published channel by slug.
 - `playlist` — ordered list of track objects (`url`, `title`, `artist`); the web player cycles through these automatically, looping back to index 0 after the last track
 - `audioUrl` — always equals `playlist[0].url`; retained for backwards compatibility
 - `coverImageUrl` — static channel art displayed as the web player background
-- `vrchatPlaybackUrl` — pre-muxed static MP4 (cover image + audio combined), uploaded to R2, single direct URL for VRChat video players
+- `vrchatPlaybackUrl` — resolved URL served to VRChat players; the public API always returns the correct resolved URL based on current routing tier (see below); admin schema stores `liveStreamUrl`, `streamingActive`, `vrchatFallbackUrl` separately
 - `externalLinks` are attribution only and are never playback sources
+
+**VRChat URL routing (three-tier, resolved server-side before public API response):**
+
+```
+1. liveStreamUrl set    → return liveStreamUrl  (external passthrough — creator's infra)
+2. streamingActive true → return live/{slug}.ts  (WavePalace stream — VPS must be live)
+3. default              → return vrchatFallbackUrl  (mux MP4 on R2)
+```
+
+**Admin-only schema fields (not exposed on public channel API):**
+
+| Field | Type | Notes |
+|---|---|---|
+| `liveStreamUrl` | `string \| null` | Slice 3 add-on · settable via `PATCH /api/admin/channels/{slug}` · when set, routes VRChat players directly to this URL · VRChat-only (web player uses `playlist` regardless) · validated: must be reachable HTTPS URL ending in `.ts`, `.mp4`, or `.m3u8` · reuses Slice 5 media validation service |
+| `streamingActive` | `bool` | Pre-Slice 4 add-on · set via `PATCH /api/admin/channels/{slug}/streaming-mode` · default `false` |
+| `vrchatFallbackUrl` | `string \| null` | Pre-Slice 4 add-on · populated by mux endpoints on completion · never overwritten by streaming cutover |
 
 ## Submission endpoints
 
@@ -270,3 +286,265 @@ Checks performed:
 2. HEAD request (5 s timeout), falls back to GET on 405
 3. Content-type sniff — flags `text/html`, non-MP4 video
 4. R2 trusted host (`stream.wavepalace.live`) skips content-type check
+
+---
+
+## Sponsor endpoints (Slice 6)
+
+### PATCH /api/admin/channels/{slug}/sponsor
+
+Admin-auth required. Sets or clears the sponsor on a channel.
+
+- Body: `Sponsor` object (see Channel schema below), or JSON `null` to clear.
+- Response `200` — updated Channel object.
+- `404` — channel not found.
+
+**Sponsor object:**
+```json
+{
+  "name": "Neon Drinks Co.",
+  "logoUrl": "https://stream.wavepalace.live/sponsors/neon-logo.png",
+  "text": "Brought to you by Neon Drinks",
+  "clickUrl": "https://neondrinks.example.com",
+  "placement": "lower_third",
+  "startDate": "2026-07-01T00:00:00Z",
+  "endDate": "2026-07-31T23:59:59Z",
+  "isActive": true,
+  "isFeatured": false,
+  "impressionCount": 0,
+  "clickCount": 0
+}
+```
+
+`placement` values: `lower_third`, `bug`, `backdrop`.
+
+### POST /api/channels/{slug}/sponsor/impression
+
+Public. Records a sponsor impression. Rate-limited to once per IP per 30 minutes per channel.
+No-ops when `sponsor` is null, `isActive` is false, or current time is outside `startDate`/`endDate` window.
+
+- Response `200` — `{ "ok": true }`.
+
+### POST /api/channels/{slug}/sponsor/click
+
+Public. Increments `sponsor.clickCount`. No rate limit.
+No-ops when `sponsor` is null, `isActive` is false, or outside date window.
+
+- Response `200` — `{ "ok": true }`.
+
+---
+
+## Slice 9 — Code Capture + Follow Intent + Notification Stack
+
+> **Not yet built.** These endpoints are planned for Slice 9. Document here for
+> pre-implementation design review.
+
+### POST /api/admin/codes
+
+Admin-auth required (`wp_admin_token` cookie). Generates a 6-character
+uppercase alphanumeric code for a channel or entity.
+
+**Request:**
+```json
+{
+  "channel_slug": "late-night-house",
+  "entity_type": "channel",
+  "entity_id": "abc123",
+  "expires_at": null
+}
+```
+
+`entity_type`: `"channel"` | `"artist"` | `"host"` | `"event"`
+`expires_at`: ISO 8601 datetime or `null` (permanent)
+
+**Response `201`:**
+```json
+{
+  "code": "WAVE42",
+  "channel_slug": "late-night-house",
+  "entity_type": "channel",
+  "entity_id": "abc123",
+  "created_at": "2026-06-19T00:00:00Z",
+  "expires_at": null,
+  "active": true
+}
+```
+
+**Errors:** `409` if collision (retry on server side before returning error).
+
+---
+
+### GET /api/codes/{code}
+
+Public. Resolves a code to entity details for display on the `/follow/{code}`
+page.
+
+**Response `200`:**
+```json
+{
+  "code": "WAVE42",
+  "entity_type": "channel",
+  "entity_id": "abc123",
+  "display_name": "Late Night House",
+  "host_name": "DJ Nova",
+  "genre": "House",
+  "mood": "Late Night",
+  "cover_image_url": "https://stream.wavepalace.live/covers/late-night-house.jpg"
+}
+```
+
+**Response `404`** — code not found, expired, or inactive:
+```json
+{ "detail": "This code is no longer active — tune in at wavepalace.live" }
+```
+
+---
+
+### POST /api/codes/{code}/follow
+
+Public. Submit a follow intent for the entity the code resolves to. Accepts
+one notification channel per request.
+
+**Discord follow:**
+```json
+{
+  "channel": "discord",
+  "discord_user_id": "123456789",
+  "discord_username": "DJ Nova#1234",
+  "vrchat_username": "VRCUSER_xyz"
+}
+```
+
+**Email follow:**
+```json
+{
+  "channel": "email",
+  "email": "listener@example.com",
+  "vrchat_username": "VRCUSER_xyz"
+}
+```
+
+**Browser push follow:**
+```json
+{
+  "channel": "browser_push",
+  "push_subscription": { "endpoint": "...", "keys": { "p256dh": "...", "auth": "..." } },
+  "vrchat_username": "VRCUSER_xyz"
+}
+```
+
+`vrchat_username` is optional in all payloads — attribution/analytics only.
+
+**Response `201`:**
+```json
+{ "follow_id": "...", "channel": "discord", "confirmed": true }
+```
+
+`confirmed`: `true` for Discord and browser_push; `false` for email until
+double opt-in completes.
+
+**Errors:** `404` (code inactive/expired), `409` (duplicate follow for same
+identity + entity).
+
+---
+
+### GET /api/follows
+
+Authenticated listener. Returns the caller's active follows. Auth resolved from
+session cookie (Discord user ID or confirmed email).
+
+**Response `200`:**
+```json
+[
+  {
+    "id": "...",
+    "entity_type": "channel",
+    "channel_slug": "late-night-house",
+    "display_name": "Late Night House",
+    "notification_channel": "discord",
+    "confirmed": true,
+    "created_at": "2026-06-19T00:00:00Z"
+  }
+]
+```
+
+---
+
+### PATCH /api/follows/{id}
+
+Authenticated listener. Update notification preferences for a follow.
+
+**Request:**
+```json
+{ "notification_channel": "email" }
+```
+
+**Response `200`:** updated follow object (same shape as GET /api/follows item).
+
+---
+
+### DELETE /api/follows/{id}
+
+Authenticated listener. Remove a follow (unfollow).
+
+**Response `204`:** no body.
+
+---
+
+## Pre-Slice 4 add-on — Admin streaming controls
+
+> **Not yet built.** Ships as a pre-Slice 4 add-on with no VPS dependency.
+> Toggle infrastructure is built before the VPS is provisioned — activation
+> requires only VPS provisioning + a database flag flip, no code deploy.
+
+### PATCH /api/admin/channels/{slug}/streaming-mode
+
+Admin-auth required. Sets streaming mode for a single channel.
+
+**Request:**
+```json
+{ "streamingActive": true }
+```
+
+**Response `200`:**
+```json
+{
+  "slug": "late-night-house",
+  "streamingActive": true,
+  "vrchatPlaybackUrl": "https://stream.wavepalace.live/live/late-night-house.ts",
+  "vrchatFallbackUrl": "https://stream.wavepalace.live/muxed/channel_abc/late-night-house.mp4"
+}
+```
+
+When `streamingActive: true` → VRChat players receive `live/{slug}.ts`.
+When `streamingActive: false` → VRChat players receive `vrchatFallbackUrl` (mux MP4).
+
+---
+
+### POST /api/admin/channels/streaming-mode/bulk
+
+Admin-auth required. Flips `streamingActive` on **all** channels at once.
+Requires explicit confirmation to prevent accidental execution.
+
+**Request:**
+```json
+{ "streamingActive": false, "confirm": true }
+```
+
+`confirm: true` is required — request without it returns `400`.
+
+**Response `200`:**
+```json
+{
+  "updated": 3,
+  "streamingActive": false
+}
+```
+
+Use case: emergency fallback when VPS goes down — one API call flips all channels to mux.
+
+---
+
+> **Existing endpoints updated at Slice 3:**
+> - `POST /api/channels/{slug}/mux` — on completion, also writes `vrchatFallbackUrl` to the channel document
+> - `POST /api/mux/all` — on completion, also writes `vrchatFallbackUrl` for all channels

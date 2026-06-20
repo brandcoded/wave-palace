@@ -1,3 +1,17 @@
+export interface Sponsor {
+  name: string;
+  logoUrl: string | null;
+  text: string;
+  clickUrl: string | null;
+  placement: "lower_third" | "bug" | "backdrop";
+  startDate: string | null;
+  endDate: string | null;
+  isActive: boolean;
+  isFeatured: boolean;
+  impressionCount: number;
+  clickCount: number;
+}
+
 export interface ExternalLink {
   label: string;
   url: string;
@@ -28,6 +42,7 @@ export interface Channel {
   rightsStatus: string;
   isPublished: boolean;
   playCount: number;
+  sponsor?: Sponsor | null;
 }
 
 export interface ChannelFilters {

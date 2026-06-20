@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel, Field, HttpUrl
 
+from app.schemas.sponsor import Sponsor
+
 
 class ExternalLink(BaseModel):
     label: str
@@ -42,6 +44,7 @@ class Channel(BaseModel):
     rightsStatus: str = "owned_or_cleared"
     isPublished: bool = True
     playCount: int = 0
+    sponsor: Sponsor | None = None
 
     model_config = {"populate_by_name": True}
 

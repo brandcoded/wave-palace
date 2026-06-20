@@ -2,8 +2,31 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.0] — Sponsor Primitive (Slice 6)
+
+### Added
+- `Sponsor` Pydantic model on `Channel` (`name`, `logoUrl`, `text`, `clickUrl`, `placement`, `startDate`/`endDate`, `isActive`, `isFeatured`, `impressionCount`, `clickCount`). `sponsor_is_live()` pure helper handles timezone-aware window checks.
+- `PATCH /api/admin/channels/{slug}/sponsor` — admin-auth endpoint to set or clear the sponsor. Accepts `null` body to clear.
+- `POST /api/channels/{slug}/sponsor/impression` — public, IP rate-limited (30-min TTL), silently no-ops when sponsor is inactive or outside window.
+- `POST /api/channels/{slug}/sponsor/click` — public, no rate limit.
+- `increment_sponsor_impression` / `increment_sponsor_click` on both Seed and Mongo channel repositories (`$inc` on nested fields for Mongo).
+- VRChat mux: sponsor text burned into MP4 as Row 4 drawtext line at `y=676`.
+- Admin channel edit page: **Sponsor panel** between VRChat mux and URL health — fields for name, logo URL, display text, click URL, placement select, start/end datetime, active/featured toggles; Save and Clear buttons; live impression/click counter display.
+- `ChannelPlayer`: `sponsor` prop accepted. Logo bug (top-right, `placement="bug"`), lower-third line (`placement="lower_third"` / `"backdrop"`), and pause-screen takeover card (dismissible, shown when paused). `recordSponsorImpression` fires once per slug per session (`sessionStorage` gate). `recordSponsorClick` fires on any sponsor CTA/logo click and opens `clickUrl`.
+- Directory (`ChannelGrid`): featured active sponsors sorted to top. `ChannelCard`: "Sponsored" badge overlay on cover art when `isFeatured && isActive`.
+- 22 backend tests in `tests/test_sponsor.py` (20 pass, 2 skipped for missing font on CI).
+
 ## [Unreleased] — Planning / Status Cleanup
 
+- **Monetization re-sequenced** (Growth/Monetization PM). Added
+  `docs/MONETIZATION_PLAN.md` — ad/sponsorship inventory (Tiers 1–4), the
+  decision to ship a thin **Sponsor Primitive (Slice 6)** *before* Slice 4 so
+  live events are sponsorable on day one, an **Event-Sponsorship add-on**
+  (QR bridge + sponsor frame) for Slice 4, a **Full Ad Stack (Slice 6B)** after
+  Slice 4, and copy-paste build prompts for each. Slice 6 supersedes the old
+  "Featured / sponsored channels" (now the directory-slot surface). Updated
+  STATUS.md, CLAUDE.md, HANDOFF.md, MVP_TO_LAUNCH_ROADMAP.md, and
+  FEATURE_SLICES.md to make Slice 6 the next build. No code shipped — planning only.
 - Marked Slice 9 as **Code Capture + Follow Intent + Notification Stack** in
   planning/status docs, with Discord as primary delivery, browser push as
   secondary, email fallback, VRChat username as attribution only, and SMS

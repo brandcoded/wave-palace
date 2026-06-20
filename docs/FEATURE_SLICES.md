@@ -190,20 +190,59 @@ Admin uploads new loop.mp4 → FastAPI uploads to R2 (channels/{id}/loop.mp4)
 | OS overhead | 0.5 vCPU | 512 MB |
 | **Total** | **~4 vCPU** | **~3.5 GB** |
 
-Recommended: **Hetzner CPX31** — 4 vCPU, 8 GB, ~$16/mo.
-Scale to CPX41 (8 vCPU, ~$30/mo) for 10+ channels.
+**VPS: Hetzner CPX32 (FSN1)**
 
-### Monthly cost (true streaming)
+| Field | Value |
+|---|---|
+| Provider | Hetzner Cloud (hetzner.com/cloud) |
+| Server | CPX32 — 4 vCPU, 8 GB RAM (newer generation than CPX31) |
+| OS | Ubuntu 22.04 LTS |
+| Region | FSN1 — Falkenstein, Germany |
+| Monthly cost | ~$42/mo base · ~$51/mo with backups enabled |
+| Hetzner project name | `wavepalace` |
+
+**Why Hetzner CPX32 over alternatives:**
+- CPX32 at ~$42/mo vs ~$48/mo on DigitalOcean/Linode for identical specs
+- No AWS/GCP ecosystem needed — VPS runs one job: AzuraCast + SRS + FFmpeg
+
+**Why FSN1 (Falkenstein):**
+- Avoid ASH (Ashburn): active Load Balancer incident + higher pricing
+- Avoid HEL1 (Helsinki): active Object Storage incident at decision time
+- Avoid NBG1 (Nuremberg): active Object Storage incident at decision time
+- FSN1: no active incidents, lower cost
+
+Scale to CPX42 or CPX52 for 10+ channels.
+
+**Provisioning:** See `docs/VPS_PROVISIONING.md` for full step-by-step guide and smoke test checklist. **Provision the VPS before writing any Slice 4 code** — Slice 4 wires FastAPI to a running VPS rather than setting up both simultaneously.
+
+**Deferral:** VPS provisioning is deferred until Slice 4 (live events) becomes a priority. The ~$42–51/mo is a meaningful ongoing cost before the product generates revenue. The toggle infrastructure (schema + admin UI) ships as a pre-Slice 4 add-on with no VPS dependency — activation requires only VPS provisioning + a database flag flip, no code deploy.
+
+### Mux tradeoffs — accepted at current scale
+
+The mux approach remains the active VRChat delivery method. Known limitations
+and their impact at current scale (3 channels, stable playlists, no live events):
+
+| Limitation | Impact at current scale |
+|---|---|
+| VRChat worlds not synchronized — each listener starts MP4 at a different time | Low — listeners don't expect radio sync yet |
+| Playlist updates require re-mux (1–15 min encode) | Low — stable playlists, infrequent changes |
+| Practical track limit ~15–20 per channel (MP4 length) | Low — current channels are well under limit |
+| Live events (Slice 4) completely blocked until VPS is live | **Hard dependency — the only blocking limitation** |
+| No server-side now-playing source of truth | Low — web player tracks index locally |
+
+Revisit when any limit is hit or live events are scheduled.
+
+### Monthly cost (true streaming — when VPS is active)
 
 | Service | Tool | Cost/mo |
 |---|---|---|
-| VPS (AzuraCast + SRS + FFmpeg) | Hetzner CPX31 | ~$16 |
+| VPS (AzuraCast + SRS + FFmpeg) | Hetzner CPX32 FSN1 | ~$42 base / ~$51 with backups |
 | Media storage | Cloudflare R2 | ~$0–1 |
 | Frontend | Vercel free | $0 |
 | Backend | Render Starter | $7 |
 | Database | MongoDB Atlas Flex | $8–30 |
 | Cloudflare proxy | Free plan | $0 |
-| **Total** | | **~$31–54/mo** |
+| **Total (streaming active)** | | **~$57–89/mo** |
 
 ---
 
@@ -215,9 +254,9 @@ to `<img>` when not. All 3 seed channels have `visualLoopUrl` populated.
 `mux_service.py` handles both image and video covers via `_VIDEO_EXTS`
 detection — no mux changes needed when a loop is set.
 
-**Remaining work (Slice 3):** Admin UI toggle (`Visual type: ○ Image ● Video
-Loop`) with per-channel upload slots. The mux pipeline already supports it —
-only the admin interface is pending.
+**Admin UI toggle** (`Visual type: ○ Image ● Video Loop`) with per-channel
+upload slots shipped in Slice 3 (v0.7.0). The mux pipeline already supported
+it — only the admin interface was pending.
 
 ## Slice 1B: Channel & Host Info Display on Player (COMPLETE)
 
@@ -251,10 +290,11 @@ auto-published.
 - Frontend fetches chip options from the API, uploads profile images on select,
   and shows a success confirmation without adding admin review UI
 
-Reserved for Slice 3: review queue UI, option management UI, auth, and admin
-approval/publishing workflows.
+Delivered in Slice 3 (v0.7.0): review queue UI, option management UI, JWT auth,
+admin approval/publishing workflows, channel CRUD, drag-to-reorder tracks,
+R2 media uploads, options management, mobile parity.
 
-## Future slice 3: Music director dashboard (Admin UI)
+## ~~Slice 3: Music director dashboard (Admin UI)~~ — COMPLETE (v0.7.0)
 
 Internal tool to review submissions, publish/unpublish channels, edit metadata,
 manage tracks and playlists, upload media, and configure channel info and host
@@ -266,6 +306,7 @@ acts as the single control plane — AzuraCast, SRS, R2, and MongoDB are
 internal implementation details the admin never touches directly.
 
 Admin scope: Songs, Ads, Videos, Channel info, Host info, Stream health.
+
 
 ### ~~Slice 3 add-on: Track metadata schema + now-playing display~~ — COMPLETE
 
@@ -299,7 +340,159 @@ to work with.
 Lightweight enough to ship alongside the admin dashboard. Depends on Slice 3
 (auth + backend infrastructure in place).
 
+### Slice 3 add-on: External Stream Passthrough
+
+**Status: 🔲 NOT STARTED · No VPS required · Small effort**
+
+A creator already has a VRChat-compatible stream running — a VRCDN URL, an
+OBS → personal RTMP server → HTTP-TS output, or any direct `.ts` or `.mp4`
+link. The admin pastes that URL into a `liveStreamUrl` field on the channel
+editor. When set, VRChat players hit the external stream directly. WavePalace
+serves as the directory and web experience; the stream infrastructure belongs
+to the creator.
+
+**Schema addition:**
+
+```python
+liveStreamUrl: str | None = None
+# When set, overrides vrchatPlaybackUrl for VRChat delivery.
+# Cleared when channel reverts to mux or WavePalace streaming.
+# VRChat-only — web player uses playlist MP3s regardless.
+```
+
+**Full VRChat URL routing chain (three tiers, evaluated in order):**
+
+```
+1. liveStreamUrl set    → serve liveStreamUrl  (external passthrough — creator's infrastructure)
+2. streamingActive true → serve vrchatPlaybackUrl  (WavePalace stream — live/{slug}.ts)
+3. default              → serve vrchatFallbackUrl  (mux MP4 on R2)
+```
+
+**Admin UI:**
+- Location: channel detail/edit page in the Slice 3 admin dashboard
+- Section label: **External Stream Passthrough**
+- Field label: **External Stream URL**
+- Input: URL text field · placeholder: `https://stream.vrcdn.live/live/{key}.ts`
+- Helper text: "When set, VRChat players will stream directly from this URL. Leave blank to use WavePalace mux or streaming."
+- Clear button: removes `liveStreamUrl` and reverts to normal routing
+- Warning when populated: "WavePalace has no control over this stream's uptime. If the external stream goes down, this channel will go dark for VRChat players."
+
+**Supported URL formats:**
+
+| Source | Format | VRChat compatible |
+|---|---|---|
+| VRCDN | `https://stream.vrcdn.live/live/{key}.ts` | Yes |
+| OBS → personal RTMP → HTTP-TS | `https://their-server/live/{slug}.ts` | Yes |
+| Direct MP4 link | `https://example.com/stream.mp4` | Yes |
+| HLS stream | `https://example.com/stream.m3u8` | Partial — some VRChat players only |
+| Twitch / YouTube public stream | Public URL | No — ToS violation, not supported |
+
+**Note on VRCDN:** The prior roadmap decision "No VRCDN — all streaming
+self-hosted" applies to WavePalace's own infrastructure. Passthrough of a
+creator's existing VRCDN URL via `liveStreamUrl` is acceptable — WavePalace
+is consuming their stream, not building on the VRCDN platform.
+
+**Known tradeoffs:**
+- VRChat URL changes if the creator rotates their stream key or moves infrastructure — WavePalace does not own this URL
+- No uptime control — if the creator's stream dies, the channel goes dark for VRChat players
+- No burned-in overlay — title, host, now-playing are not applied; stream bypasses FFmpeg entirely
+- Web player compatibility varies — VRCDN HTTP-TS works in some browsers; HLS requires HLS.js (not currently in the web player); plain `.mp4` works everywhere
+- Web player falls back to mux MP4 audio (`playlist` MP3s) regardless of `liveStreamUrl` — passthrough is VRChat-only
+
+**Best use case:** Occasional or guest channels where a creator brings their
+own stream infrastructure and WavePalace surfaces it in the directory. Not
+suitable as a permanent channel setup — use Slice 4 Link-In for that.
+
+**Relationship to Slice 4 Link-In:** External Stream Passthrough is a
+low-friction stopgap — the stream URL goes directly to the creator's
+infrastructure with no WavePalace control. Slice 4 Link-In is the production
+version: WavePalace pulls the external stream via FFmpeg, rebroadcasts it on
+its own permanent `live/{slug}.ts` URL, applies the overlay, and controls
+fallback. Use Passthrough for guest/occasional channels; use Link-In for
+permanent live channels.
+
+**Validation:** `liveStreamUrl` must pass the same reachability check as other
+media URLs — the Slice 5 media validation service is already built; reuse it.
+
+## Pre-Slice 4 add-on: Streaming readiness + mux/stream toggle
+
+**Status: 🔲 NOT STARTED**
+
+Build all streaming-readiness code now — schema changes, player switching logic,
+and admin toggle controls — with **no VPS dependency**. When the Hetzner VPS is
+provisioned, activation requires only a database flag flip. Zero code changes.
+Zero deploys.
+
+**Why build now:** Schema and admin UI work is minimal and costs nothing extra.
+Having the toggle infrastructure in place means Slice 4 only needs VPS wiring +
+live event endpoints — not frontend work or a schema migration mid-deploy.
+
+### Schema additions
+
+```python
+streamingActive: bool = False      # default False — all channels start on mux
+                                   # True = serve live/{slug}.ts (VPS must be live)
+vrchatFallbackUrl: str | None      # permanent mux MP4 URL — populated by mux/all
+                                   # never overwritten by streaming cutover
+```
+
+Player switching logic (VRChat URL routing):
+```
+if streamingActive → serve live/{slug}.ts  (streaming — VPS must be live and verified)
+else               → serve vrchatFallbackUrl  (mux MP4 on R2 — always available)
+```
+
+`streamingActive` defaults to `False` on all channels. No channel switches to
+streaming until explicitly toggled after the VPS is verified end-to-end.
+
+### Admin UI controls (all safe while VPS is dormant)
+
+**A. Per-channel streaming toggle**
+- Location: each channel's admin detail page
+- Control: `Live Stream ↔ Mux MP4` toggle
+- Sets `streamingActive` on that channel in MongoDB
+- Warning shown when `streamingActive = true` but VPS is not confirmed live
+
+**B. Bulk toggle — all channels at once**
+- Location: top of `/admin/channels` list
+- Two buttons: `Switch All to Live Stream` and `Switch All to Mux`
+- Sets `streamingActive` on every channel in one operation
+- Requires confirmation dialog before executing
+- Primary use case: first activation when VPS goes live, or emergency fallback if VPS goes down
+
+**C. Mux refresh controls**
+- Per-channel: `Refresh Mux` button → `POST /api/channels/{slug}/mux` → updates `vrchatFallbackUrl`
+- All channels: `Refresh All Mux` → `POST /api/mux/all` → updates all `vrchatFallbackUrl` fields
+- Shows last mux refresh timestamp per channel
+- Safe to run at any time regardless of streaming status
+
+### Activation sequence (when VPS is ready — zero code changes)
+
+1. Provision Hetzner CPX32 FSN1 VPS (see `docs/VPS_PROVISIONING.md`) — ~2–3 hrs
+2. Verify `https://stream.wavepalace.live/live/{slug}.ts` plays in VLC and VRChat
+3. Run `POST /api/mux/all` to ensure `vrchatFallbackUrl` is current before switching
+4. Use per-channel toggle to switch channels one at a time — verify each in VRChat
+5. Or use bulk toggle to switch all at once when confident
+6. Mux MP4s remain on R2 as warm fallback indefinitely
+
+### When to provision the VPS
+
+Defer until any of these become true:
+- Slice 4 (live events) is the next build priority
+- A channel playlist exceeds ~15–20 tracks and re-mux delays are disruptive
+- Playlist update frequency makes 1–15 min turnaround unacceptable
+- First live event is scheduled
+
+---
+
 ## Future slice 4: Live event streaming — Link-In and Ingest Keys
+
+> **Note:** External Stream Passthrough (Slice 3 add-on) covers the immediate
+> use case of surfacing creator-owned streams with no WavePalace infrastructure.
+> Slice 4 Link-In is the production version — WavePalace pulls the external
+> stream via FFmpeg, rebroadcasts on its own permanent URL, applies the overlay,
+> and controls fallback. The `liveStreamUrl` field (Passthrough) and
+> `streamingActive` flag (Slice 4) are separate controls on the same channel.
 
 Extends channels with a **live event mode** alongside the regular playlist mode.
 When a live event is active the playlist stream pauses and the live feed plays
@@ -396,14 +589,80 @@ Full A/V ingest (push and pull) requires the VPS to be provisioned.
 Depends on: Slice 3 (admin dashboard + auth) + production streaming
 architecture (AzuraCast + SRS VPS provisioned and running).
 
+> **Sequencing note:** Slice 4 is now scheduled **after Slice 6 (Sponsor
+> Primitive)** so live events ship sponsorable. See `docs/MONETIZATION_PLAN.md`.
+
+> **Slice 4 scope is VPS + wiring only.** Toggle infrastructure (schema,
+> player logic, admin UI controls) ships as a pre-Slice 4 add-on — no frontend
+> work needed at Slice 4 activation. Slice 4 = VPS provisioning (Hetzner CPX32
+> FSN1, `docs/VPS_PROVISIONING.md`) + AzuraCast/SRS/FFmpeg wiring + FastAPI
+> proxy + live event endpoints. Activation = flip `streamingActive` via existing
+> admin bulk toggle after VPS smoke test passes.
+
+### Slice 4 add-on: Event Sponsorship (QR bridge + sponsor frame)
+
+Build alongside Slice 4. Depends on Slice 6's `sponsor` object and Slice 4's
+SRS/FFmpeg path. When a live event starts on a channel with a live sponsor:
+
+- Prepend a 3–5s "This set sponsored by {sponsor.name}" intro frame (logo + text)
+  to the event feed via the FFmpeg combiner.
+- Burn a small, low-opacity **QR code** (encoding `sponsor.clickUrl` or the
+  channel's follow code) into a corner of the live video — the only way to make a
+  baked VRChat ad actionable, since the in-world player isn't clickable.
+- Route the QR to `GET /s/{token}` → log a `sponsor_qr_scan` event → 302 to the
+  destination, so scans are attributable.
+
+This monetizes the exact moment a host drops a channel into a VRChat world. Full
+build prompt in `docs/MONETIZATION_PLAN.md`.
+
 ## ✅ COMPLETE — Slice 5: Media URL validation & compatibility checker (v0.8.0)
 
 HTTPS/reachability/content-type/VRChat-compat checks via `POST /api/admin/channels/{slug}/validate-urls`.
 "Check URLs" button in admin channel edit form. 12 tests with respx mocks. See CHANGELOG [0.8.0].
 
-## Future slice 6: Featured / sponsored channels
+## Slice 6: Sponsor Primitive (thin monetization) — ✅ COMPLETE (v0.9.0)
 
-Promote channels in the directory. First monetization surface.
+The first monetization surface, **resequenced ahead of Slice 4** so live events
+are sponsorable on day one. Supersedes the old "Featured / sponsored channels"
+(now folded in as the directory-slot surface). Full rationale, ad inventory,
+data model, endpoints, and a copy-paste build prompt live in
+`docs/MONETIZATION_PLAN.md`.
+
+**Key insight:** WavePalace already has a visual layer on every channel *and* a
+mux pipeline that bakes it into the VRChat MP4 — so sponsorship rides with the
+channel into a VRChat world, near-zero impact on listening.
+
+**Scope (thin):**
+- `sponsor: Sponsor | None` on Channel (`apps/backend/app/schemas/sponsor.py`)
+  with `sponsor_is_live()` date-window logic in the service layer.
+- Admin sponsor panel (`PATCH /api/admin/channels/{slug}/sponsor`, JWT) — logo
+  upload to R2, name, text, click URL, placement, active window, "Featured" toggle.
+- Web Tier-1 overlays (zero audio impact): logo bug, sponsored lower-third,
+  pause-screen takeover. Impression/click events via the play-event path
+  (`POST /api/channels/{slug}/sponsor/{impression,click}`).
+- Sponsored share card (OG image) on the channel page.
+- Featured directory slot + "Sponsored" badge when `sponsor.isFeatured` and live.
+- VRChat parity: burn the sponsor lower-third (and logo bug) into the muxed MP4
+  via the existing `mux_service.py` drawtext/overlay path — no re-encode regression.
+
+**Out of scope (→ Slice 6B):** multi-sponsor rotation, CPM billing, audio stings,
+intro/outro splash frames, idle card, sponsor reporting dashboard.
+Depends on: Slice 3 (admin) ✅, Slice 1B drawtext ✅, mux pipeline ✅. No VPS.
+
+## Slice 6B: Full Ad Stack — after Slice 4
+
+Builds out the rest of the ad inventory once live events draw real audience.
+Full spec + build prompt in `docs/MONETIZATION_PLAN.md`.
+
+**Scope:** multi-sponsor weighted rotation (`Channel.sponsors: list`), web CPM
+measurement + nightly rollups, intro/outro splash frames (mux concat) for
+evergreen channels, idle/inactivity card, **opt-in** between-track audio stings +
+sponsored station ID (via AzuraCast jingle rotation — cheap once Slice 4 is
+provisioned), and a sponsor reporting dashboard
+(`GET /api/admin/sponsors/report`: impressions, clicks, QR scans, channel-time).
+
+**Guardrails:** audio surfaces are opt-in per channel and between-track only;
+VRChat is sold on reach + scans, never CPM. Depends on: Slice 4 (AzuraCast).
 
 ## Future slice 7: Production analytics
 
@@ -604,5 +863,123 @@ Confirmation rules:
 - Discord requires no extra confirmation after OAuth grants permission
 - Email requires Resend double opt-in before the follow becomes active
 - Browser push requires browser permission and no extra confirmation
+
+### Discord bot (notification delivery)
+
+A Discord bot DMs followers when triggered events occur (channel going live,
+event announced, new guest DJ). The bot is the primary delivery path.
+
+- OAuth flow: listener clicks "Connect Discord" → Discord OAuth2 → bot stores
+  `discord_user_id` + `discord_username` → confirms follow → DM sent
+- Bot token stored in `DISCORD_BOT_TOKEN` (Render env var)
+- OAuth client ID stored in `DISCORD_CLIENT_ID`
+- Bot scope: `bot` + `dm_channels` only — no server permissions needed
+- Failure: if DM fails (user blocked bot, DMs closed), mark delivery failed;
+  do not retry more than once; log event for admin visibility
+
+### Browser push (Web Push API)
+
+For web listeners who want live alerts without Discord. Secondary to Discord.
+
+- VAPID keys generated once: `VAPID_PUBLIC_KEY` + `VAPID_PRIVATE_KEY` (Render)
+- `push_subscription` blob from `navigator.serviceWorker.pushManager.subscribe()`
+  stored verbatim in `FollowDocument.push_subscription`
+- Subscription is per-device and expires; silently drop stale subscriptions on
+  first send failure
+- Push payload: `{ title, body, icon, url }` — keep small (< 128 chars body)
+
+### SMS stub (future add-on — do not build in Slice 9)
+
+Schema is future-ready with `phone` field in `FollowDocument` but no UI or API
+path for SMS is exposed until demand proves Discord/push are insufficient.
+
+```python
+async def _send_sms(phone: str, message: str) -> None:
+    # SMS not yet active — A2P 10DLC carrier registration and TCPA compliance
+    # required before enabling. Use Discord or browser push for live alerts.
+    raise NotImplementedError("SMS delivery is not enabled in this build.")
+```
+
+Required before activating: Twilio A2P 10DLC registration + TCPA opt-in flow.
+Env vars (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`) are
+documented in `HANDOFF.md` under "Future (not active)" — not added to Render.
+
+### Notification service signatures
+
+```python
+# apps/backend/app/services/notification_service.py
+async def notify_channel_going_live(channel_slug: str) -> None: ...
+async def notify_event_announced(channel_slug: str, event: EventDocument) -> None: ...
+async def notify_new_guest_dj(channel_slug: str, dj_name: str) -> None: ...
+```
+
+Each function fans out to all active follows for the channel:
+1. Discord DMs (primary)
+2. Web push notifications (secondary)
+3. Resend email (fallback — only for `confirmed=True` email follows)
+4. SMS — raises NotImplementedError until activated
+
+### Listener preferences page (`/follows`)
+
+After following, listeners can return to `wavepalace.live/follows` to:
+- View their active follows
+- Update notification preferences (Discord vs email vs push)
+- Unfollow channels
+
+Identity is resolved from session/cookie tied to their Discord user ID or
+confirmed email — no separate account or password.
+
+Endpoints:
+```http
+GET    /api/follows         # authenticated listener's own follows
+PATCH  /api/follows/{id}    # update preferences
+DELETE /api/follows/{id}    # unfollow
+```
+
+### Admin code management (in Slice 3 dashboard)
+
+Admins generate codes from the admin dashboard per channel or per event.
+
+```http
+POST /api/admin/codes       # generate code for a channel/entity
+GET  /api/admin/codes       # list all codes with status
+DELETE /api/admin/codes/{code}  # deactivate code
+```
+
+Code generation rules:
+- 6-character uppercase alphanumeric (e.g. `WAVE42`)
+- Collision check against active codes before persisting
+- Permanent by default; live event codes have an `expires_at`
+- Admin can deactivate a code; expired/inactive codes show a friendly message
+
+### Build order
+
+1. Backend: `codes` collection + `CodeDocument` + admin code generation endpoints
+2. Backend: `GET /api/codes/{code}` public resolve
+3. Frontend: code entry field in site header + `/follow/{code}` page
+4. Backend: `POST /api/codes/{code}/follow` — Discord and email paths
+5. Backend: Resend double opt-in email flow
+6. Backend: Discord OAuth + bot DM delivery
+7. Frontend: browser push subscription + VAPID integration
+8. Backend: `notification_service.py` fan-out functions
+9. Frontend: `/follows` listener preferences page
+10. Admin UI: code management panel in Slice 3 dashboard
+11. Tests: code resolution, follow submission, duplicate-follow guard, expiry
+12. Docs: update API_CONTRACT.md, CHANGELOG.md, STATUS.md
+
+### Done criteria
+
+- [ ] Admin can generate a 6-char code for a channel from the admin dashboard
+- [ ] `GET /api/codes/{code}` returns channel info or expired message
+- [ ] VRChat listener enters code on web → `/follow/{code}` page loads channel card
+- [ ] Discord OAuth follow → bot DMs the listener confirming follow
+- [ ] Email follow → Resend double opt-in → `confirmed=True` in DB
+- [ ] Browser push follow → listener receives push on next trigger event
+- [ ] `notify_channel_going_live()` fans out to all follow channels
+- [ ] SMS path raises `NotImplementedError`; no SMS UI or endpoint exposed
+- [ ] Expired/inactive codes show friendly "no longer active" message
+- [ ] VRChat username stored for attribution; never used for delivery
+- [ ] Listener can view + manage follows at `/follows`
+- [ ] All backend paths have pytest coverage
 
 **Do not build future slices until explicitly requested.**

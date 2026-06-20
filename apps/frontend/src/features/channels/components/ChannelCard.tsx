@@ -5,7 +5,17 @@ import type { Channel } from "@/features/channels/types/channel";
 const tagClass =
   "rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[11px] font-medium text-white/70";
 
+const isFeaturedSponsor = (channel: Channel): boolean => {
+  const s = channel.sponsor;
+  if (!s || !s.isActive || !s.isFeatured) return false;
+  const now = Date.now();
+  if (s.startDate && now < new Date(s.startDate).getTime()) return false;
+  if (s.endDate && now > new Date(s.endDate).getTime()) return false;
+  return true;
+};
+
 export function ChannelCard({ channel }: { channel: Channel }) {
+  const featured = isFeaturedSponsor(channel);
   return (
     <Link
       href={`/channels/${channel.slug}`}
@@ -24,8 +34,15 @@ export function ChannelCard({ channel }: { channel: Channel }) {
           <span className={tagClass}>{channel.genre}</span>
           <span className={tagClass}>{channel.mood}</span>
         </div>
-        <div className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-wave-500/90 text-white opacity-0 shadow-lg transition duration-300 group-hover:opacity-100">
-          <Play className="h-4 w-4 translate-x-[1px]" fill="currentColor" />
+        <div className="absolute right-3 top-3 flex items-center gap-2">
+          {featured && (
+            <span className="rounded-full bg-wave-500/80 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-white backdrop-blur-sm">
+              Sponsored
+            </span>
+          )}
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-wave-500/90 text-white opacity-0 shadow-lg transition duration-300 group-hover:opacity-100">
+            <Play className="h-4 w-4 translate-x-[1px]" fill="currentColor" />
+          </div>
         </div>
       </div>
 

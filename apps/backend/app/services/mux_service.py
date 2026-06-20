@@ -25,6 +25,7 @@ from pathlib import Path
 from app.core.config import get_settings
 from app.repositories.channel_repository import ChannelRepository
 from app.repositories.r2_repository import R2Repository
+from app.schemas.sponsor import Sponsor, sponsor_is_live
 
 logger = logging.getLogger("wavepalace.mux")
 
@@ -68,6 +69,7 @@ def _drawtext_overlay(
     mood: str,
     font_path: str,
     track_times: list[tuple[float, float, str, str]] = (),
+    sponsor_text: str = "",
 ) -> str:
     """Return a comma-joined FFmpeg filter chain that burns channel info and
     per-track now-playing text into the bottom portion of a 1280×720 frame.
@@ -108,6 +110,13 @@ def _drawtext_overlay(
         # Row 3 right: genre · mood pill — always visible.
         f"drawtext=fontfile={fp}:text={gm}:x=w-tw-24:y=648:fontsize=22:fontcolor=white@0.70:{shadow}",
     ]
+
+    # Row 4: sponsor lower-third — small, low-opacity, below genre·mood row.
+    if sponsor_text:
+        s = _escape_drawtext(sponsor_text)
+        parts.append(
+            f"drawtext=fontfile={fp}:text={s}:x=24:y=676:fontsize=18:fontcolor=white@0.55:{shadow}"
+        )
 
     # Row 3 left: per-track now-playing — one entry per track, time-windowed.
     for start, end, track_title, track_artist in track_times:
@@ -328,6 +337,17 @@ class MuxService:
             if total_duration <= 0:
                 raise RuntimeError(f"Could not determine audio duration for '{slug}'")
 
+            # Resolve sponsor text for the drawtext overlay.
+            _sp_raw = channel.get("sponsor")
+            _sponsor_text = ""
+            if _sp_raw:
+                try:
+                    _sp = Sponsor.model_validate(_sp_raw)
+                    if sponsor_is_live(_sp):
+                        _sponsor_text = _sp.text or f"Brought to you by {_sp.name}"
+                except Exception:
+                    pass
+
             overlay = _drawtext_overlay(
                 title=str(channel.get("title", "")),
                 host_name=str(channel.get("hostName", "")),
@@ -335,6 +355,7 @@ class MuxService:
                 mood=str(channel.get("mood", "")),
                 font_path=settings.font_path,
                 track_times=track_times,
+                sponsor_text=_sponsor_text,
             )
 
             if cover_path.suffix.lower() in _VIDEO_EXTS:

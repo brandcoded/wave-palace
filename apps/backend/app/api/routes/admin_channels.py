@@ -5,12 +5,15 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.api.dependencies import get_channel_service
 from app.core.auth import get_current_admin
 from app.schemas.channel import Channel
+from app.schemas.sponsor import Sponsor
 from app.services.channel_service import ChannelService
 from app.services.url_validator import URLCheckResult, validate_urls
 
@@ -107,6 +110,20 @@ async def delete_channel(
     if not deleted:
         raise HTTPException(status_code=404, detail="Channel not found")
     return {"ok": True}
+
+
+@router.patch("/{slug}/sponsor", response_model=dict)
+async def update_channel_sponsor(
+    slug: str,
+    body: Annotated[Sponsor | None, Body()] = None,
+    _: dict = Depends(get_current_admin),
+    service: ChannelService = Depends(get_channel_service),
+) -> dict:
+    sponsor_data = body.model_dump() if body is not None else None
+    updated = await service.update(slug, {"sponsor": sponsor_data})
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    return updated
 
 
 @router.post("/{slug}/validate-urls", response_model=list[URLCheckResult])

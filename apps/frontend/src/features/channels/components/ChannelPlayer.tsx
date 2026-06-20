@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, Volume2, VolumeX, AlertTriangle, User } from "lucide-react";
-import type { TrackItem } from "@/features/channels/types/channel";
-import { recordPlay } from "@/features/channels/lib/channelApi";
+import { Play, Pause, Volume2, VolumeX, AlertTriangle, User, X } from "lucide-react";
+import type { Sponsor, TrackItem } from "@/features/channels/types/channel";
+import { recordPlay, recordSponsorImpression, recordSponsorClick } from "@/features/channels/lib/channelApi";
 
 interface ChannelPlayerProps {
   tracks: TrackItem[];
@@ -14,9 +14,10 @@ interface ChannelPlayerProps {
   hostName: string;
   genre: string;
   mood: string;
+  sponsor?: Sponsor | null;
 }
 
-export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, hostName, genre, mood }: ChannelPlayerProps) {
+export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, hostName, genre, mood, sponsor }: ChannelPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -25,6 +26,27 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
   const [muted, setMuted] = useState(false);
   const [volume, setVolume] = useState(0.8);
   const [errored, setErrored] = useState(false);
+  const [sponsorDismissed, setSponsorDismissed] = useState(false);
+
+  const sponsorActive =
+    sponsor != null &&
+    sponsor.isActive &&
+    (() => {
+      const now = Date.now();
+      if (sponsor.startDate && now < new Date(sponsor.startDate).getTime()) return false;
+      if (sponsor.endDate && now > new Date(sponsor.endDate).getTime()) return false;
+      return true;
+    })();
+
+  // Fire impression once per slug per session when sponsor is live.
+  useEffect(() => {
+    if (!sponsorActive) return;
+    const key = `wp_sponsor_${slug}`;
+    if (typeof window !== "undefined" && !sessionStorage.getItem(key)) {
+      sessionStorage.setItem(key, "1");
+      recordSponsorImpression(slug);
+    }
+  }, [slug, sponsorActive]);
 
   // When the track list changes (channel swap), reset to track 0.
   useEffect(() => {
@@ -56,7 +78,6 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
       playingRef.current = true;
       setPlaying(true);
       a.play().catch(() => { setPlaying(false); playingRef.current = false; });
-      // Fire-and-forget play count — once per slug per session.
       if (typeof window !== "undefined") {
         const key = `wp_played_${slug}`;
         if (!sessionStorage.getItem(key)) {
@@ -92,6 +113,12 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
     setMuted(next);
   }
 
+  function handleSponsorClick() {
+    if (!sponsorActive || !sponsor?.clickUrl) return;
+    recordSponsorClick(slug);
+    window.open(sponsor.clickUrl, "_blank", "noopener,noreferrer");
+  }
+
   if (errored) {
     return (
       <div className="flex aspect-video w-full flex-col items-center justify-center gap-3 rounded-2xl border border-amber-400/30 bg-amber-400/5 p-6 text-center">
@@ -109,11 +136,13 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
 
   const currentTrack = tracks[currentIndex];
   const trackSrc = currentTrack?.url ?? "";
+  const showBug = sponsorActive && sponsor!.placement === "bug" && sponsor!.logoUrl;
+  const showLowerThird = sponsorActive && sponsor!.placement !== "bug";
+  const showTakeover = sponsorActive && !playing && !sponsorDismissed;
 
   return (
     <div className="group relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/50">
-      {/* Visual backdrop: looping muted video when available, else static cover.
-          Audio (incl. playlist cycling) is driven by the <audio> element below. */}
+      {/* Visual backdrop */}
       {visualLoopUrl ? (
         <video
           ref={videoRef}
@@ -145,7 +174,58 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
         onEnded={handleEnded}
       />
 
-      {/* Overlay — channel info (top) + now-playing + controls (bottom) */}
+      {/* Sponsor bug — corner logo (top-right) for placement="bug" */}
+      {showBug && (
+        <button
+          onClick={handleSponsorClick}
+          aria-label={`Sponsor: ${sponsor!.name}`}
+          className="absolute top-3 right-3 rounded-lg bg-black/50 p-1.5 backdrop-blur-sm transition hover:bg-black/70"
+        >
+          <img
+            src={sponsor!.logoUrl!}
+            alt={sponsor!.name}
+            className="h-7 w-auto max-w-[80px] object-contain"
+          />
+        </button>
+      )}
+
+      {/* Pause takeover — sponsor card when paused */}
+      {showTakeover && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="relative mx-6 flex max-w-xs flex-col items-center gap-3 rounded-2xl border border-white/15 bg-black/80 px-6 py-5 text-center shadow-xl">
+            <button
+              onClick={() => setSponsorDismissed(true)}
+              aria-label="Dismiss sponsor"
+              className="absolute right-2 top-2 text-white/30 hover:text-white/60 transition"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            {sponsor!.logoUrl && (
+              <img
+                src={sponsor!.logoUrl}
+                alt={sponsor!.name}
+                className="h-10 w-auto max-w-[140px] object-contain"
+              />
+            )}
+            {sponsor!.text && (
+              <p className="text-xs text-white/70">{sponsor!.text}</p>
+            )}
+            <p className="text-xs font-semibold text-white/50 uppercase tracking-widest">
+              {sponsor!.name}
+            </p>
+            {sponsor!.clickUrl && (
+              <button
+                onClick={handleSponsorClick}
+                className="rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white transition hover:bg-white/20"
+              >
+                Learn more
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Overlay — channel info + now-playing + controls */}
       <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-black/80 to-transparent px-4 pt-8 pb-4">
         {/* Row 1: title + host */}
         <div>
@@ -155,7 +235,7 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
           </p>
         </div>
 
-        {/* Row 2: now-playing — only shown when track has metadata */}
+        {/* Row 2: now-playing */}
         {currentTrack?.title && (
           <p className="truncate text-xs text-white/90">
             {currentTrack.artist && (
@@ -165,9 +245,27 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
           </p>
         )}
 
-        {/* Row 3: controls + tags + track counter */}
+        {/* Row 3: sponsor lower-third */}
+        {showLowerThird && (
+          <button
+            onClick={handleSponsorClick}
+            className={`flex items-center gap-2 ${sponsor!.clickUrl ? "cursor-pointer hover:opacity-80" : "cursor-default"} transition`}
+          >
+            {sponsor!.logoUrl && (
+              <img
+                src={sponsor!.logoUrl}
+                alt={sponsor!.name}
+                className="h-4 w-auto max-w-[48px] object-contain opacity-70"
+              />
+            )}
+            <span className="text-xs text-white/45">
+              {sponsor!.text || `Sponsored by ${sponsor!.name}`}
+            </span>
+          </button>
+        )}
+
+        {/* Row 4: controls + tags + track counter */}
         <div className="flex items-center gap-3">
-          {/* Play / Pause */}
           <button
             onClick={togglePlay}
             aria-label={playing ? "Pause" : "Play"}
@@ -180,7 +278,6 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
             )}
           </button>
 
-          {/* Mute toggle */}
           <button
             onClick={toggleMute}
             aria-label={muted ? "Unmute" : "Mute"}
@@ -193,7 +290,6 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
             )}
           </button>
 
-          {/* Volume slider */}
           <input
             type="range"
             min={0}
@@ -205,7 +301,6 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
             className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-white/20 accent-white"
           />
 
-          {/* Genre + mood tags + track counter */}
           <div className="ml-auto flex items-center gap-2">
             <div className="hidden sm:flex gap-1.5">
               <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">{genre}</span>

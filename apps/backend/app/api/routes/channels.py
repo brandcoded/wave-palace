@@ -39,6 +39,26 @@ async def get_channel(
     return channel
 
 
+@router.post("/{slug}/sponsor/impression")
+async def record_sponsor_impression(
+    slug: str,
+    request: Request,
+    service: ChannelService = Depends(get_channel_service),
+) -> dict:
+    ip = request.headers.get("x-forwarded-for", "unknown")
+    await service.record_sponsor_impression(slug, ip)
+    return {"ok": True}
+
+
+@router.post("/{slug}/sponsor/click")
+async def record_sponsor_click(
+    slug: str,
+    service: ChannelService = Depends(get_channel_service),
+) -> dict:
+    await service.record_sponsor_click(slug)
+    return {"ok": True}
+
+
 @router.post("/{slug}/play")
 async def record_play(
     slug: str,

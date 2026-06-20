@@ -22,14 +22,25 @@ Full status: `docs/STATUS.md` (canonical) — this file carries a compact copy.
 | 2 | DJ / Artist submission form | ✅ COMPLETE |
 | 3 | Music director admin dashboard | ✅ COMPLETE |
 | 3 add-on | Play count event tracking | ✅ COMPLETE |
-| **4** | **Live event streaming — Link-In + ingest keys** | **🔲 NEXT** |
+| 3 add-on | External Stream Passthrough (`liveStreamUrl` + admin UI, no VPS) | ⬜ NOT STARTED |
+| 6 | Sponsor Primitive (thin monetization) | ✅ COMPLETE |
+| **Pre-Slice 4 add-on** | **Streaming readiness + mux/stream toggle (schema + admin UI, no VPS dep)** | **🔲 NEXT** |
+| Pre-Slice 4 | Hetzner VPS provisioning (AzuraCast + SRS + FFmpeg) | ⬜ DEFERRED — provision when live events are priority |
+| 4 | Live event streaming — Link-In + ingest keys | ⬜ AFTER Pre-Slice 4 + VPS provisioned |
+| 4 add-on | Event Sponsorship (QR bridge + sponsor frame) | ⬜ WITH Slice 4 |
 | 5 | Media URL validation & compatibility checker | ✅ COMPLETE |
-| 6 | Featured / sponsored channels | ⬜ NOT STARTED |
+| 6B | Full Ad Stack (rotation, CPM, audio stings, reporting) | ⬜ AFTER Slice 4 |
 | 7 | Production analytics dashboard | ⬜ NOT STARTED |
 | 8 | Play Metrics + Artist Reporting | ⬜ NOT STARTED |
 | 9 | Code Capture + Follow Intent + Notification Stack | ⬜ NOT STARTED |
 
 **Always update this table and `docs/STATUS.md` when a slice ships.**
+
+**Monetization sequence (Growth/Monetization PM):** the thin **Sponsor Primitive
+(Slice 6)** ships *before* Slice 4 so live events are sponsorable on day one; the
+**Full Ad Stack (Slice 6B)** follows Slice 4. Full plan + copy-paste build prompts
+in `docs/MONETIZATION_PLAN.md`. Slice 6 supersedes the old "Featured / sponsored
+channels" (now folded in as the directory-slot surface).
 
 ---
 

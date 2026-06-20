@@ -42,6 +42,14 @@ class ChannelRepository(ABC):
     async def increment_play_count(self, slug: str) -> bool:
         """Atomically increment playCount. Returns True if channel exists."""
 
+    @abstractmethod
+    async def increment_sponsor_impression(self, slug: str) -> bool:
+        """Atomically increment sponsor.impressionCount. Returns True if channel exists."""
+
+    @abstractmethod
+    async def increment_sponsor_click(self, slug: str) -> bool:
+        """Atomically increment sponsor.clickCount. Returns True if channel exists."""
+
 
 class SeedChannelRepository(ChannelRepository):
     """In-memory repository backed by static seed data (mutable copy)."""
@@ -82,6 +90,24 @@ class SeedChannelRepository(ChannelRepository):
         for i, c in enumerate(self._channels):
             if c["slug"] == slug:
                 self._channels[i] = {**c, "playCount": c.get("playCount", 0) + 1}
+                return True
+        return False
+
+    async def increment_sponsor_impression(self, slug: str) -> bool:
+        for i, c in enumerate(self._channels):
+            if c["slug"] == slug:
+                sp = dict(c.get("sponsor") or {})
+                sp["impressionCount"] = sp.get("impressionCount", 0) + 1
+                self._channels[i] = {**c, "sponsor": sp}
+                return True
+        return False
+
+    async def increment_sponsor_click(self, slug: str) -> bool:
+        for i, c in enumerate(self._channels):
+            if c["slug"] == slug:
+                sp = dict(c.get("sponsor") or {})
+                sp["clickCount"] = sp.get("clickCount", 0) + 1
+                self._channels[i] = {**c, "sponsor": sp}
                 return True
         return False
 
@@ -128,6 +154,20 @@ class MongoChannelRepository(ChannelRepository):
         result = await self._collection.update_one(
             {"slug": slug},
             {"$inc": {"playCount": 1}},
+        )
+        return result.matched_count > 0
+
+    async def increment_sponsor_impression(self, slug: str) -> bool:
+        result = await self._collection.update_one(
+            {"slug": slug},
+            {"$inc": {"sponsor.impressionCount": 1}},
+        )
+        return result.matched_count > 0
+
+    async def increment_sponsor_click(self, slug: str) -> bool:
+        result = await self._collection.update_one(
+            {"slug": slug},
+            {"$inc": {"sponsor.clickCount": 1}},
         )
         return result.matched_count > 0
 

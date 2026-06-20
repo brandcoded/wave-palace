@@ -48,22 +48,54 @@ wave-palace/
 | 2 | DJ / Artist submission form — public form → pending queue, profile image upload | v0.6.0 |
 | 3 | Music director admin dashboard — JWT auth, submission review, channel CRUD, drag-to-reorder, R2 uploads | v0.7.0 |
 | 3 add-on | Play count event tracking (`POST /api/channels/{slug}/play`) | v0.7.0 |
-| 3 | Admin UI mobile parity | `88a40a5` (latest) |
+| 3 | Admin UI mobile parity | `88a40a5` |
+| 5 | Media URL validation & compatibility checker — `POST /api/admin/channels/{slug}/validate-urls` | v0.8.0 |
 
 ### What is NOT STARTED
 
 | Slice | Feature | Depends on |
 |---|---|---|
-| **4** | **Live event streaming — Link-In + Ingest Keys** | **Slice 3 ✅ + VPS provisioning** |
-| 5 | Media URL validation & compatibility checker | ✅ COMPLETE (v0.8.0) |
-| 6 | Featured / sponsored channels | Nothing |
+| 3 add-on | External Stream Passthrough (`liveStreamUrl` + admin UI) | Slice 3 ✅ — no VPS |
+| Pre-Slice 4 add-on | Streaming readiness + mux/stream toggle | Slice 3 ✅ — no VPS dep |
+| 6 | Sponsor Primitive (thin monetization) | ✅ COMPLETE (v0.9.0) |
+| Pre-Slice 4 | Hetzner CPX32 FSN1 VPS provisioning | Deferred — provision when live events are priority |
+| 4 | Live event streaming — Link-In + Ingest Keys | Slice 3 ✅ + VPS provisioned |
+| 4 add-on | Event Sponsorship (QR bridge + sponsor frame) | Slice 6 `sponsor` object + Slice 4 streaming path |
+| 6B | Full Ad Stack (rotation, CPM, audio stings, reporting) | Slice 4 ✅ (AzuraCast for audio stings) |
 | 7 | Production analytics dashboard | Slice 3 add-ons ✅ |
 | 8 | Play Metrics + Artist Reporting | Slice 3 add-ons ✅ + Slice 9 |
 | 9 | Code Capture + Follow Intent + Notification Stack | Slice 3 ✅ + Slice 8 Phase 1–2 |
 
-**Slice 4 is next.** Its Slice 3 dependency is satisfied. The only remaining gate is VPS provisioning (Hetzner CPX31 — see `docs/FEATURE_SLICES.md` for full spec). Slice 5 has no dependencies and can run in parallel if VPS provisioning is blocked.
+**Slice 6 (Sponsor Primitive) is complete.** The next build is the **Pre-Slice 4 streaming readiness add-on** (toggle schema + admin UI, no VPS dep), then **Slice 4** (live event streaming, requires VPS). The **Full Ad Stack (Slice 6B)** comes after Slice 4. Rationale + copy-paste build prompts: `docs/MONETIZATION_PLAN.md`.
 
 **Build one slice at a time. Do not start a slice until the previous one is merged and smoke-tested.**
+
+### Streaming deferral + toggle infrastructure (pre-Slice 4 add-on)
+
+All VRChat playback currently served from mux MP4 (`vrchatFallbackUrl`) on R2.
+`streamingActive = False` on all channels. Streaming infrastructure is deferred
+until Slice 4 (live events) becomes a priority — CPX32 FSN1 at ~$51/mo is a
+meaningful ongoing cost before the product generates revenue.
+
+**VRChat URL routing chain (three tiers, evaluated in order):**
+1. `liveStreamUrl` set → external passthrough (creator's infrastructure — VRCDN, OBS/.ts, .mp4)
+2. `streamingActive = true` → WavePalace live stream (`live/{slug}.ts` via SRS on VPS)
+3. Default → mux MP4 (`vrchatFallbackUrl` on R2)
+
+**Schema fields (pre-Slice 4 add-on + Slice 3 add-on):**
+- `liveStreamUrl: str | None` — Slice 3 add-on · admin-settable via channel editor · VRChat-only (web player uses `playlist` MP3s regardless) · no overlay burned in · cleared when reverting to mux/streaming
+- `streamingActive: bool = False` — pre-Slice 4 add-on · controls tier 2 routing · default False (all channels start on mux)
+- `vrchatFallbackUrl: str | None` — pre-Slice 4 add-on · permanent mux MP4 URL · populated by `POST /api/mux/all` · never overwritten by streaming cutover
+
+**Admin controls (pre-Slice 4 add-on, no VPS dependency):**
+- Per-channel streaming toggle: `Live Stream ↔ Mux MP4`
+- Bulk toggle: flip all channels at once (emergency fallback or first activation)
+- Mux refresh: per-channel and all-channels buttons
+- External Stream URL field: paste VRCDN/OBS/.ts URL → sets `liveStreamUrl`
+
+**VRCDN note:** Prior decision "No VRCDN — all streaming self-hosted" applies to WavePalace's own infrastructure. Passthrough of a creator's existing VRCDN URL via `liveStreamUrl` is acceptable — WavePalace consumes their stream, not the VRCDN platform.
+
+When the VPS is provisioned (Slice 4), activation = verify streams → run `POST /api/mux/all` → use bulk toggle. No code changes, no deploy.
 
 ### Slice 9 planning note
 
@@ -148,6 +180,23 @@ All tests must stay green. Add tests for every backend change.
 | `R2_PUBLIC_BASE_URL` | Mux only | Default: `https://stream.wavepalace.live` |
 | `FONT_PATH` | Mux only | Default: `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf` |
 
+### Slice 9 backend additions (not yet active — provisioned at Slice 9)
+
+| Variable | Service | Notes |
+|---|---|---|
+| `DISCORD_BOT_TOKEN` | Render | Discord bot for DM notifications |
+| `DISCORD_CLIENT_ID` | Render | Discord OAuth2 client ID |
+| `VAPID_PUBLIC_KEY` | Render | Web Push API — generate once with `py-vapid` |
+| `VAPID_PRIVATE_KEY` | Render | Web Push API — generate once with `py-vapid` |
+
+**Future (not active — do not add to Render until SMS is activated):**
+
+| Variable | Notes |
+|---|---|
+| `TWILIO_ACCOUNT_SID` | Requires A2P 10DLC carrier registration + TCPA compliance |
+| `TWILIO_AUTH_TOKEN` | Same |
+| `TWILIO_FROM_NUMBER` | Same |
+
 ### Frontend (`apps/frontend/.env.local`)
 
 | Variable | Required | Notes |
@@ -160,7 +209,7 @@ All tests must stay green. Add tests for every backend change.
 
 ```
 [Next.js frontend — Vercel]
-  src/app/                    App Router: / · /channels/[slug] · /submit · /admin/*
+  src/app/                    App Router: / · /channels/[slug] · /submit · /admin/* · /follow/[code] · /follows
   src/presentation/           Pure visual components (AppShell, GlassPanel, …)
   src/features/channels/      Channel browsing + player
     lib/                      Typed API client
@@ -213,13 +262,17 @@ class Channel(BaseModel):
     externalLinks: list[ExternalLink]
     rightsStatus: str
     isPublished: bool
+    # Planned fields (not yet built):
+    liveStreamUrl: str | None = None          # Slice 3 add-on — external passthrough URL
+    streamingActive: bool = False             # Pre-Slice 4 add-on — routes VRChat to live/{slug}.ts
+    vrchatFallbackUrl: str | None = None      # Pre-Slice 4 add-on — permanent mux MP4 URL
 ```
 
 ### Media architecture (current — "mux" approach)
 
 - **Web player:** streams `audioUrl`, cycles `playlist`, shows `visualLoopUrl` or `coverImageUrl` as backdrop
 - **VRChat:** `vrchatPlaybackUrl` → pre-muxed MP4 on R2 — full playlist audio + visual baked in, channel info via `drawtext`
-- **True streaming (Slice 4 + VPS):** AzuraCast + SRS + FFmpeg combiner on Hetzner CPX31; VRChat URL becomes `live/{slug}.ts` — full spec in `docs/FEATURE_SLICES.md`
+- **True streaming (Slice 4 + VPS):** AzuraCast + SRS + FFmpeg combiner on Hetzner CPX32 FSN1; VRChat URL becomes `live/{slug}.ts` — full spec in `docs/FEATURE_SLICES.md`
 
 ---
 
@@ -259,7 +312,17 @@ Full shapes: `docs/API_CONTRACT.md`.
 | Backend API | Render Starter ($7/mo) | Root Dir: `apps/backend`; start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
 | Database | MongoDB Atlas Flex ($8–30/mo) | Set `MONGODB_URI` on Render to leave seed mode |
 | Media storage | Cloudflare R2 (~$0–1/mo) | `stream.wavepalace.live` custom domain |
-| Streaming VPS | Hetzner CPX31 (~$16/mo) | Provisioned at Slice 4 — not yet |
+| Streaming VPS | Hetzner CPX32 FSN1 (~$51/mo with backups) | **DEFERRED** — provision when Slice 4 (live events) becomes priority · 4 vCPU / 8 GB / Ubuntu 22.04 / FSN1 — see `docs/VPS_PROVISIONING.md` |
+
+**Service dependencies (active at Slice 4):**
+- **Hetzner Cloud** — `hetzner.com/cloud`, project `wavepalace`, CPX32 FSN1 (Falkenstein)
+- **AzuraCast** — Docker, self-hosted on VPS; admin access at `azuracast.wavepalace.live` (WavePalace FastAPI proxies all calls — admin never opens AzuraCast directly)
+- **SRS (Simple Realtime Server)** — Docker, self-hosted on VPS; ports 1935 (RTMP in), 1985 (HTTP API), 8080 (HTTP-TS out)
+- **FFmpeg** — systemd services on VPS, one per channel (combines Icecast audio + R2 visual loop → RTMP → SRS)
+
+**DNS (add before Slice 4):**
+- `stream.wavepalace.live` A record → VPS IP, Cloudflare proxy **OFF** (DNS only, grey cloud)
+- HTTP-TS requires direct connection; Cloudflare proxy does not handle it on the free plan; HTTPS termination happens on the VPS
 
 **Note:** Admin auth uses a JWT cookie. The cookie must be set as `Secure; SameSite=Strict`. Because the frontend is on Vercel (`wavepalace.live`) and the API is on Render (`api.wavepalace.live`), both must share the `wavepalace.live` parent domain for same-site cookies — the Render service must be accessed via `api.wavepalace.live` (custom domain), not the default `*.onrender.com` URL.
 
@@ -283,9 +346,13 @@ Full deploy steps: `docs/DEPLOYMENT.md`.
 
 ## Recommended next actions
 
-1. **Slice 4 (Live event streaming)** — full spec in `docs/FEATURE_SLICES.md`. Requires VPS provisioning first (Hetzner CPX31 + Docker Compose: AzuraCast + SRS + FFmpeg). If VPS provisioning is blocked, Slice 5 (media URL validation) has no dependencies.
-2. **VRChat smoke test** — verify muxed MP4s play in an actual VRChat world.
-3. **Keep Slice 9 as planned scope only** until explicitly requested; the current product spec is documentation, not implementation authorization.
+1. **Pre-Slice 4 add-on (Streaming readiness + toggle)** — schema + admin UI, no VPS dep. `streamingActive` + `vrchatFallbackUrl` + per-channel toggle + bulk flip.
+2. **Slice 4 (Live event streaming)** — follows Pre-Slice 4 add-on. Full spec in
+   `docs/FEATURE_SLICES.md`. Requires VPS provisioning (Hetzner CPX32 FSN1 +
+   Docker Compose: AzuraCast + SRS + FFmpeg — see `docs/VPS_PROVISIONING.md`).
+   Build the Event-Sponsorship add-on (QR bridge) alongside it.
+3. **VRChat smoke test** — verify muxed MP4s play in an actual VRChat world.
+4. **Keep Slice 9 as planned scope only** until explicitly requested; the current product spec is documentation, not implementation authorization.
 
 ---
 
@@ -296,9 +363,11 @@ Full deploy steps: `docs/DEPLOYMENT.md`.
 | `AGENTS.md` | Rules for coding agents — read first |
 | `docs/STATUS.md` | Canonical slice status (this is authoritative) |
 | `docs/FEATURE_SLICES.md` | Full spec for every slice, including true streaming architecture |
+| `docs/MONETIZATION_PLAN.md` | Ad/sponsorship inventory, build sequence (Sponsor Primitive before Slice 4), and copy-paste build prompts |
 | `docs/MVP_TO_LAUNCH_ROADMAP.md` | Status table, launch checklist, deployment plan |
 | `docs/ARCHITECTURE.md` | Layer diagram and design rationale |
 | `docs/API_CONTRACT.md` | Full request/response shapes |
 | `docs/DEPLOYMENT.md` | Step-by-step deploy instructions |
+| `docs/VPS_PROVISIONING.md` | Hetzner CPX32 FSN1 VPS setup — AzuraCast + SRS + FFmpeg, smoke test checklist |
 | `docs/CHANGELOG.md` | Version history with rationale |
 | `docs/LICENSING_NOTES.md` | Media rights and seed data notes |

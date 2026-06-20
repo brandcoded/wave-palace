@@ -57,6 +57,22 @@ export async function recordPlay(slug: string): Promise<void> {
   }
 }
 
+export async function recordSponsorImpression(slug: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/channels/${slug}/sponsor/impression`, { method: "POST" });
+  } catch {
+    // fire-and-forget
+  }
+}
+
+export async function recordSponsorClick(slug: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/api/channels/${slug}/sponsor/click`, { method: "POST" });
+  } catch {
+    // fire-and-forget
+  }
+}
+
 export async function getChannelBySlug(
   slug: string,
   signal?: AbortSignal

@@ -70,6 +70,7 @@ export default async function ChannelDetailPage({
             hostName={channel.hostName}
             genre={channel.genre}
             mood={channel.mood}
+            sponsor={channel.sponsor}
           />
 
           <p className="max-w-2xl leading-relaxed text-white/70">
