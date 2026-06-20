@@ -27,7 +27,7 @@ class ChannelService:
 
     @staticmethod
     def _is_valid(channel: dict) -> bool:
-        return bool(channel.get("audioUrl")) and bool(channel.get("vrchatPlaybackUrl"))
+        return bool(channel.get("audioUrl"))
 
     @staticmethod
     def _matches(channel: dict, field: str, value: str | None) -> bool:
