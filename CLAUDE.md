@@ -24,7 +24,7 @@ Full status: `docs/STATUS.md` (canonical) — this file carries a compact copy.
 | 3 add-on | Play count event tracking | ✅ COMPLETE |
 | 3 add-on | External Stream Passthrough (`liveStreamUrl` + admin UI, no VPS) | ⬜ NOT STARTED |
 | 6 | Sponsor Primitive (thin monetization) | ✅ COMPLETE |
-| **Pre-Slice 4 add-on** | **Streaming readiness + mux/stream toggle (schema + admin UI, no VPS dep)** | **🔲 NEXT** |
+| **Pre-Slice 4 add-on** | **Streaming readiness + mux/stream toggle (schema + admin UI, no VPS dep)** | **🔄 IN PROGRESS** |
 | Pre-Slice 4 | Hetzner VPS provisioning (AzuraCast + SRS + FFmpeg) | ⬜ DEFERRED — provision when live events are priority |
 | 4 | Live event streaming — Link-In + ingest keys | ⬜ AFTER Pre-Slice 4 + VPS provisioned |
 | 4 add-on | Event Sponsorship (QR bridge + sponsor frame) | ⬜ WITH Slice 4 |

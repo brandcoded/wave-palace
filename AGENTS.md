@@ -22,7 +22,14 @@ background visuals, with shareable web and VRChat playback links.
    Apple Music, TIDAL, SoundCloud, YouTube, and Mixcloud links are attribution
    ("Listen elsewhere") only. The player uses `webPlaybackUrl`; the VRChat copy
    uses `vrchatPlaybackUrl`.
-6. **Update docs when adding features** (`docs/` + `CHANGELOG.md`).
+6. **Update status and docs when a slice ships.** In this order:
+   - `docs/STATUS.md` — set slice row to COMPLETE, set next slice to NEXT
+   - `CLAUDE.md` — update the compact status table to match
+   - `HANDOFF.md` — update the current-state table
+   - `docs/MVP_TO_LAUNCH_ROADMAP.md` — update Status column
+   - `docs/FEATURE_SLICES.md` — mark slice header COMPLETE
+   - `docs/CHANGELOG.md` — add version entry
+   - `docs/API_CONTRACT.md` — add any new endpoints
 7. **Add backend tests for backend changes** and keep `pytest` green.
 8. **Preserve the WavePalace visual direction:** dark, immersive, cinematic,
    glassy, music-forward. Not a generic SaaS dashboard.

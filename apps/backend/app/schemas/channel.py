@@ -1,5 +1,7 @@
 """Pydantic schemas for the Channel domain (data/transport contract)."""
 
+from datetime import datetime
+
 from pydantic import BaseModel, Field, HttpUrl
 
 from app.schemas.sponsor import Sponsor
@@ -45,6 +47,8 @@ class Channel(BaseModel):
     isPublished: bool = True
     playCount: int = 0
     sponsor: Sponsor | None = None
+    muxOutdated: bool = False
+    muxLastAt: datetime | None = None
 
     model_config = {"populate_by_name": True}
 

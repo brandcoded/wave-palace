@@ -22,6 +22,18 @@ All notable changes to this project are documented here.
 - Directory (`ChannelGrid`): featured active sponsors sorted to top. `ChannelCard`: "Sponsored" badge overlay on cover art when `isFeatured && isActive`.
 - 22 backend tests in `tests/test_sponsor.py` (20 pass, 2 skipped for missing font on CI).
 
+## [Unreleased] — Mux dirty-flag system + cache TTL reduction
+
+- **Mux outdated tracking**: `muxOutdated` and `muxLastAt` fields on Channel
+- **Auto-dirty-flag**: PATCH `/api/admin/channels/{slug}` sets `muxOutdated: true` when overlay-affecting fields (title, hostName, genre, mood, visualLoopUrl, coverImageUrl, playlist) change
+- **Sponsor triggers re-mux**: PATCH `/api/admin/channels/{slug}/sponsor` always sets `muxOutdated: true` (sponsor text in overlay)
+- **Auto-clear after mux**: `POST /api/channels/{slug}/mux` clears `muxOutdated` and sets `muxLastAt` on success
+- **Admin UI warning banner**: Channel detail page shows "VR video is out of date" banner with "Update VR Video" button when `muxOutdated: true`
+- **Channel list badge**: "VR outdated" badge on each channel when `muxOutdated: true`
+- **Bulk update button**: "Update All VR Videos" appears at top of channel list when at least one channel is outdated
+- **Cache TTL reduction**: R2 muxed MP4 cache reduced from 5 min → 60 sec via `cache_control` parameter, so Cloudflare edge picks up updates within ~1 min without manual purge
+- **5 new tests** in `test_mux_outdated.py` covering overlay-field detection, sponsor changes, mux-clear behavior. Suite: 120 pass, 2 skip.
+
 ## [Unreleased] — Image Auto-Resize on Upload
 
 - **Image processing on admin upload** — `POST /api/admin/upload/image` now 

@@ -20,6 +20,7 @@ import math
 import os
 import tempfile
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 from app.core.config import get_settings
@@ -380,9 +381,14 @@ class MuxService:
             await _run_ffmpeg(cmd)
 
             public_url = await asyncio.to_thread(
-                self._r2.upload_file, output_path, r2_key, "video/mp4"
+                self._r2.upload_file, output_path, r2_key, "video/mp4", "public, max-age=60"
             )
 
+        await self._repository.update(slug, {
+            "vrchatPlaybackUrl": public_url,
+            "muxOutdated": False,
+            "muxLastAt": datetime.now(timezone.utc).isoformat(),
+        })
         logger.info("Mux complete for '%s': %s", slug, public_url)
         return public_url
 

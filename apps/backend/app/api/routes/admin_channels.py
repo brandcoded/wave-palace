@@ -19,6 +19,12 @@ from app.services.url_validator import URLCheckResult, validate_urls
 
 router = APIRouter(prefix="/api/admin/channels", tags=["admin-channels"])
 
+# Fields whose changes require a mux update (VRChat video re-encode).
+_OVERLAY_FIELDS = {
+    "title", "hostName", "genre", "mood",
+    "visualLoopUrl", "coverImageUrl", "playlist",
+}
+
 
 def _slugify(title: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
@@ -94,6 +100,8 @@ async def update_channel(
     service: ChannelService = Depends(get_channel_service),
 ) -> dict:
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
+    if patch.keys() & _OVERLAY_FIELDS:
+        patch["muxOutdated"] = True
     updated = await service.update(slug, patch)
     if updated is None:
         raise HTTPException(status_code=404, detail="Channel not found")
@@ -120,7 +128,10 @@ async def update_channel_sponsor(
     service: ChannelService = Depends(get_channel_service),
 ) -> dict:
     sponsor_data = body.model_dump() if body is not None else None
-    updated = await service.update(slug, {"sponsor": sponsor_data})
+    updated = await service.update(slug, {
+        "sponsor": sponsor_data,
+        "muxOutdated": True,  # Sponsor text in overlay always requires re-encode
+    })
     if updated is None:
         raise HTTPException(status_code=404, detail="Channel not found")
     return updated

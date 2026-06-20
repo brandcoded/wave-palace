@@ -31,7 +31,7 @@ import {
 } from "@/features/admin/lib/adminApi";
 import type { AdminChannel, Sponsor, URLCheckResult } from "@/features/admin/types/admin";
 import type { TrackItem } from "@/features/channels/types/channel";
-import { GripVertical, Trash2, Plus, Loader2, CheckCircle, AlertTriangle, XCircle } from "lucide-react";
+import { GripVertical, Trash2, Plus, Loader2, CheckCircle, AlertTriangle, XCircle, AlertCircle } from "lucide-react";
 import Link from "next/link";
 
 const API_BASE =
@@ -192,6 +192,8 @@ export default function ChannelEditPage() {
   const [urlResults, setUrlResults] = useState<URLCheckResult[] | null>(null);
   const [sponsorForm, setSponsorForm] = useState<Sponsor | null>(null);
   const [savingSponsor, setSavingSponsor] = useState(false);
+  const [muxingChannel, setMuxingChannel] = useState(false);
+  const [muxChannelStatus, setMuxChannelStatus] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -262,6 +264,23 @@ export default function ChannelEditPage() {
       setMuxStatus("Mux failed.");
     } finally {
       setMuxing(false);
+    }
+  }
+
+  async function handleMuxChannel() {
+    setMuxingChannel(true);
+    setMuxChannelStatus("Updating VR video…");
+    try {
+      await muxChannel(slug);
+      setMuxChannelStatus("Done — VRChat video updated.");
+      if (channel) {
+        setChannel({ ...channel, muxOutdated: false });
+      }
+      setTimeout(() => setMuxChannelStatus(""), 3000);
+    } catch {
+      setMuxChannelStatus("Update failed.");
+    } finally {
+      setMuxingChannel(false);
     }
   }
 
@@ -343,6 +362,31 @@ export default function ChannelEditPage() {
           </button>
         </div>
       </div>
+
+      {channel.muxOutdated && (
+        <div className="mb-6 rounded-lg border border-amber-400/30 bg-amber-400/5 p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 shrink-0 text-amber-400 mt-0.5" />
+            <div className="flex-1">
+              <p className="font-medium text-amber-100">VR video is out of date</p>
+              <p className="mt-1 text-sm text-amber-100/70">
+                Channel info, tracks, or sponsor changed since the last video update.
+              </p>
+              <button
+                onClick={handleMuxChannel}
+                disabled={muxingChannel}
+                className="mt-3 rounded-lg bg-amber-500/20 px-3 py-1.5 text-sm font-medium text-amber-300 transition hover:bg-amber-500/30 disabled:opacity-50 flex items-center gap-2"
+              >
+                {muxingChannel && <Loader2 className="h-4 w-4 animate-spin" />}
+                {muxingChannel ? "Updating VR Video…" : "Update VR Video"}
+              </button>
+              {muxChannelStatus && (
+                <p className="mt-2 text-sm text-amber-100">{muxChannelStatus}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-8">
         {/* Channel info */}

@@ -35,13 +35,14 @@ class R2Repository:
             region_name="auto",
         )
 
-    def upload_file(self, local_path: Path, r2_key: str, content_type: str = "video/mp4") -> str:
+    def upload_file(
+        self, local_path: Path, r2_key: str, content_type: str = "video/mp4",
+        cache_control: str = "public, max-age=300"
+    ) -> str:
         """Upload *local_path* to *r2_key* and return the public URL.
 
-        A short Cache-Control is set so that when a channel is re-muxed the
-        Cloudflare edge picks up the new file within minutes instead of serving
-        a stale copy indefinitely (objects with no Cache-Control got a long
-        default edge TTL, which served outdated single-track MP4s).
+        cache_control sets the Cache-Control header. Muxed MP4s use 60s TTL
+        so Cloudflare edge picks up updates quickly; other files use 5-min TTL.
         """
         logger.info("Uploading %s → s3://%s/%s", local_path, self._bucket, r2_key)
         self._client.upload_file(
@@ -50,22 +51,28 @@ class R2Repository:
             Key=r2_key,
             ExtraArgs={
                 "ContentType": content_type,
-                "CacheControl": "public, max-age=300",
+                "CacheControl": cache_control,
             },
         )
         public_url = f"{self._public_base}/{r2_key}"
         logger.info("Upload complete: %s", public_url)
         return public_url
 
-    def upload_bytes(self, data: bytes, r2_key: str, content_type: str) -> str:
-        """Upload in-memory bytes to *r2_key* and return the public URL."""
+    def upload_bytes(
+        self, data: bytes, r2_key: str, content_type: str,
+        cache_control: str = "public, max-age=300"
+    ) -> str:
+        """Upload in-memory bytes to *r2_key* and return the public URL.
+
+        cache_control sets the Cache-Control header (default 5-min TTL).
+        """
         logger.info("Uploading bytes → s3://%s/%s", self._bucket, r2_key)
         self._client.put_object(
             Bucket=self._bucket,
             Key=r2_key,
             Body=data,
             ContentType=content_type,
-            CacheControl="public, max-age=300",
+            CacheControl=cache_control,
         )
         public_url = f"{self._public_base}/{r2_key}"
         logger.info("Upload complete: %s", public_url)
