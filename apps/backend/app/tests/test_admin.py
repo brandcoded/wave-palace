@@ -97,7 +97,9 @@ def channels_admin_client() -> TestClient:
 @pytest.fixture()
 def uploads_admin_client() -> TestClient:
     r2 = MagicMock()
-    r2.upload_bytes.return_value = "https://stream.wavepalace.live/media/test.jpg"
+    def upload_side_effect(data: bytes, key: str, content_type: str) -> str:
+        return f"https://stream.wavepalace.live/{key}"
+    r2.upload_bytes.side_effect = upload_side_effect
     app.dependency_overrides[get_r2_repository] = lambda: r2
     client = _make_client(authed=True)
     yield client
@@ -251,13 +253,18 @@ def test_update_channel_404(channels_admin_client):
 
 
 def test_upload_image_valid_jpeg(uploads_admin_client):
-    data = b"\xff\xd8\xff" + b"\x00" * 100
+    from PIL import Image as PILImage
+    img = PILImage.new("RGB", (100, 100), color="blue")
+    img_bytes = io.BytesIO()
+    img.save(img_bytes, format="JPEG")
+    data = img_bytes.getvalue()
     res = uploads_admin_client.post(
         "/api/admin/upload/image",
         files={"file": ("test.jpg", io.BytesIO(data), "image/jpeg")},
     )
     assert res.status_code == 200
     assert "url" in res.json()
+    assert res.json()["url"].endswith(".webp")
 
 
 def test_upload_image_wrong_type(uploads_admin_client):
@@ -284,6 +291,25 @@ def test_upload_video_valid_mp4(uploads_admin_client):
     )
     assert res.status_code == 200
     assert "url" in res.json()
+
+
+def test_upload_image_resizes_and_converts_to_webp(uploads_admin_client):
+    """Verify that images over 1920px are resized and converted to WebP."""
+    from PIL import Image as PILImage
+
+    # Create a 2400×2400 PNG image
+    img = PILImage.new("RGB", (2400, 2400), color="red")
+    img_bytes = io.BytesIO()
+    img.save(img_bytes, format="PNG")
+    img_data = img_bytes.getvalue()
+
+    res = uploads_admin_client.post(
+        "/api/admin/upload/image",
+        files={"file": ("large.png", io.BytesIO(img_data), "image/png")},
+    )
+    assert res.status_code == 200
+    url = res.json()["url"]
+    assert url.endswith(".webp"), f"Expected URL to end in .webp, got {url}"
 
 
 # ---------------------------------------------------------------------------

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import io
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from PIL import Image
 
 from app.api.dependencies import get_r2_repository
 from app.core.auth import get_current_admin
@@ -16,9 +18,31 @@ _IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
 _VIDEO_TYPES = {"video/mp4"}
 _AUDIO_TYPES = {"audio/mpeg", "audio/mp3"}
 
-_IMAGE_MAX_MB = 10
+_IMAGE_MAX_MB = 20
 _VIDEO_MAX_MB = 200
 _AUDIO_MAX_MB = 50
+
+
+def _process_image(data: bytes) -> bytes:
+    """Resize to max 1920×1080, convert to WebP, compress if over 500 KB.
+    Returns image bytes as WebP. Raises on corrupt image."""
+    img = Image.open(io.BytesIO(data))
+    img = img.convert("RGB")
+
+    if img.width > 1920 or img.height > 1080:
+        img.thumbnail((1920, 1080), Image.LANCZOS)
+
+    output = io.BytesIO()
+    quality = 85
+    while quality >= 55:
+        output.seek(0)
+        output.truncate(0)
+        img.save(output, format="WebP", quality=quality)
+        if len(output.getvalue()) <= 500 * 1024:
+            return output.getvalue()
+        quality -= 15
+
+    return output.getvalue()
 
 
 def _check_type(content_type: str | None, allowed: set[str]) -> None:
@@ -65,9 +89,16 @@ async def upload_image(
     r2: R2Repository = Depends(get_r2_repository),
 ) -> dict:
     _check_type(file.content_type, _IMAGE_TYPES)
-    ext = _ext_for(file.content_type)
-    r2_key = f"media/images/{uuid.uuid4()}.{ext}"
-    url = await _upload_stream(file, r2_key, file.content_type, _IMAGE_MAX_MB, r2)
+    max_bytes = _IMAGE_MAX_MB * 1024 * 1024
+    data = await file.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File exceeds {_IMAGE_MAX_MB} MB limit.",
+        )
+    processed = _process_image(data)
+    r2_key = f"media/images/{uuid.uuid4()}.webp"
+    url = r2.upload_bytes(processed, r2_key, "image/webp")
     return {"url": url}
 
 
