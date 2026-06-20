@@ -35,6 +35,13 @@ class ChannelService:
             return True
         return str(channel.get(field, "")).strip().lower() == value.strip().lower()
 
+    @staticmethod
+    def _with_live_sponsor(channel: Channel) -> Channel:
+        """Strip sponsor from the public response unless it is currently live."""
+        if channel.sponsor is not None and not sponsor_is_live(channel.sponsor):
+            return channel.model_copy(update={"sponsor": None})
+        return channel
+
     async def list_published(
         self,
         genre: str | None = None,
@@ -57,14 +64,14 @@ class ChannelService:
                 continue
             if not self._matches(c, "theme", theme):
                 continue
-            result.append(Channel.model_validate(c))
+            result.append(self._with_live_sponsor(Channel.model_validate(c)))
         return result
 
     async def get_published_by_slug(self, slug: str) -> Channel | None:
         channel = await self._repository.get_by_slug(slug)
         if not channel or not channel.get("isPublished") or not self._is_valid(channel):
             return None
-        return Channel.model_validate(channel)
+        return self._with_live_sponsor(Channel.model_validate(channel))
 
     # ------------------------------------------------------------------
     # Admin write

@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [0.9.1] — Slice 6 add-on: public API sponsor filtering
+
+### Added
+- `ChannelService._with_live_sponsor()` — strips `sponsor` from public API responses when `isActive` is false, before `startDate`, or after `endDate`. Applied to both `list_published` and `get_published_by_slug`. Upcoming/expired sponsor details are never exposed to unauthenticated callers.
+- 6 new tests in `test_channels.py` covering: active sponsor included, inactive stripped, before-start stripped, after-end stripped, within-window included, included in list endpoint. Suite: 114 pass, 2 skip.
+
 ## [0.9.0] — Sponsor Primitive (Slice 6)
 
 ### Added
