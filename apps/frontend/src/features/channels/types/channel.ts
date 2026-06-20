@@ -43,6 +43,8 @@ export interface Channel {
   isPublished: boolean;
   playCount: number;
   sponsor?: Sponsor | null;
+  muxOutdated?: boolean;
+  muxLastAt?: string | null;
 }
 
 export interface ChannelFilters {
