@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getOptions, updateOptions } from "@/features/admin/lib/adminApi";
 import type { SubmissionOptions } from "@/features/admin/types/admin";
-import { X, Plus } from "lucide-react";
+import { X, Plus, Loader2 } from "lucide-react";
 
 const FIELDS = ["genre", "mood", "energy", "theme"] as const;
 type Field = (typeof FIELDS)[number];
@@ -19,6 +19,7 @@ function OptionList({
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
 
   function add() {
     const v = input.trim();
@@ -33,10 +34,16 @@ function OptionList({
 
   async function save() {
     setSaving(true);
-    await updateOptions(field, options);
-    setSaved(true);
-    setSaving(false);
-    setTimeout(() => setSaved(false), 2000);
+    setError("");
+    try {
+      await updateOptions(field, options);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setError("Couldn't save. Check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -70,13 +77,17 @@ function OptionList({
           <Plus className="h-4 w-4" /> Add
         </button>
       </div>
-      <button
-        onClick={save}
-        disabled={saving}
-        className="w-fit rounded-lg bg-white/10 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-white/20 disabled:opacity-50"
-      >
-        {saving ? "Saving…" : saved ? "Saved ✓" : "Save"}
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="flex w-fit items-center gap-2 rounded-lg bg-white/10 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-white/20 disabled:opacity-50"
+        >
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+          {saving ? "Saving…" : saved ? "Saved ✓" : "Save"}
+        </button>
+        {error && <span className="text-xs text-red-400">{error}</span>}
+      </div>
     </div>
   );
 }
