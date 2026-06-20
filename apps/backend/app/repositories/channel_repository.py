@@ -144,11 +144,8 @@ class MongoChannelRepository(ChannelRepository):
         return result
 
     async def delete(self, slug: str) -> bool:
-        result = await self._collection.update_one(
-            {"slug": slug},
-            {"$set": {"isPublished": False, "deleted": True}},
-        )
-        return result.matched_count > 0
+        result = await self._collection.delete_many({"slug": slug})
+        return result.deleted_count > 0
 
     async def increment_play_count(self, slug: str) -> bool:
         result = await self._collection.update_one(
