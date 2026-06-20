@@ -22,7 +22,16 @@ All notable changes to this project are documented here.
 - Directory (`ChannelGrid`): featured active sponsors sorted to top. `ChannelCard`: "Sponsored" badge overlay on cover art when `isFeatured && isActive`.
 - 22 backend tests in `tests/test_sponsor.py` (20 pass, 2 skipped for missing font on CI).
 
-## [Unreleased] — Planning / Status Cleanup
+## [Unreleased] — Image Auto-Resize on Upload
+
+- **Image processing on admin upload** — `POST /api/admin/upload/image` now 
+  auto-resizes images over 1920×1080 to 1920×1080 (aspect ratio preserved), 
+  converts to WebP, and compresses if over 500 KB. All formats (JPEG/PNG/WebP) 
+  input; WebP output. Upload limit raised from 10 MB to 20 MB. Transparent to 
+  the client — API surface unchanged. Tests: 115 pass, 2 skip.
+- Submission form upload endpoint and audio/video uploads untouched.
+
+## [Planning / Status Cleanup]
 
 - **Monetization re-sequenced** (Growth/Monetization PM). Added
   `docs/MONETIZATION_PLAN.md` — ad/sponsorship inventory (Tiers 1–4), the
