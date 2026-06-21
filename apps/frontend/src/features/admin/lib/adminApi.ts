@@ -171,3 +171,36 @@ export async function bulkSetStreaming(streamingActive: boolean): Promise<{ upda
   if (!res.ok) throw new Error("Bulk streaming toggle failed");
   return res.json();
 }
+
+// ------------------------------------------------------------------
+// Follow codes (Slice 9)
+// ------------------------------------------------------------------
+
+export interface AdminCode {
+  code: string;
+  channel_slug: string;
+  entity_type: string;
+  entity_id: string;
+  created_at: string;
+  expires_at?: string | null;
+  active: boolean;
+}
+
+export async function createCode(channelSlug: string, entityId: string): Promise<AdminCode> {
+  const res = await apiFetch("/api/admin/codes", {
+    method: "POST",
+    body: JSON.stringify({ channel_slug: channelSlug, entity_type: "channel", entity_id: entityId }),
+  });
+  if (!res.ok) throw new Error("Failed to create code");
+  return res.json();
+}
+
+export async function listCodes(): Promise<AdminCode[]> {
+  const res = await apiFetch("/api/admin/codes");
+  if (!res.ok) throw new Error("Failed to list codes");
+  return res.json();
+}
+
+export async function deactivateCode(code: string): Promise<void> {
+  await apiFetch(`/api/admin/codes/${code}`, { method: "DELETE" });
+}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Disc3 } from "lucide-react";
 import { GradientBackdrop } from "./GradientBackdrop";
 import { RightsNotice } from "@/features/channels/components/RightsNotice";
+import { CodeInput } from "./CodeInput";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
@@ -16,7 +17,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               Wave<span className="text-gradient">Palace</span>
             </span>
           </Link>
-          <nav className="flex items-center gap-2">
+          <nav className="flex items-center gap-3">
+            <CodeInput />
             <Link
               href="/submit"
               className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/10 hover:text-white"

@@ -555,3 +555,122 @@ Use case: emergency fallback when VPS goes down — one API call flips all chann
 > **Existing endpoints updated at Slice 3:**
 > - `POST /api/channels/{slug}/mux` — on completion, also writes `vrchatFallbackUrl` to the channel document
 > - `POST /api/mux/all` — on completion, also writes `vrchatFallbackUrl` for all channels
+
+---
+
+## Slice 9 — Code Capture + Follow Intent + Notifications
+
+### GET /api/codes/{code}
+
+Public. Resolves a 6-character code and returns channel info.
+
+**Response `200`:**
+```json
+{
+  "code": "ABC123",
+  "entity_type": "channel",
+  "entity_id": "late-night-house",
+  "display_name": "Late Night House",
+  "host_name": "DJ Skyy",
+  "genre": ["House"],
+  "mood": ["Late Night"],
+  "cover_image_url": "https://..."
+}
+```
+
+Returns `404` if code does not exist, is inactive, or is expired.
+
+---
+
+### POST /api/codes/{code}/follow
+
+Public. Submit a follow intent for a code. `channel` must be `"discord"` or `"email"`. SMS returns `400`.
+
+**Request:**
+```json
+{ "channel": "email", "email": "listener@example.com" }
+```
+```json
+{ "channel": "discord", "discord_user_id": "123456789", "discord_username": "DJFan" }
+```
+
+**Response `201`:**
+```json
+{ "follow_id": "uuid", "channel": "email", "confirmed": false }
+```
+
+Discord follows are confirmed immediately. Email follows require double opt-in (Resend email sent). Returns `409` if already following.
+
+---
+
+### POST /api/follows/confirm?token=…
+
+Public. Confirms an email follow via signed JWT token (24h TTL).
+
+**Response `200`:**
+```json
+{ "ok": true, "follow_id": "uuid", "channel_slug": "late-night-house" }
+```
+
+Returns `400` on expired or invalid token.
+
+---
+
+### GET /api/follows
+
+Listener-auth required (`wp_listener_discord_id` or `wp_listener_email` cookie). Returns the listener's follows.
+
+**Response `200`:** array of `FollowPublicView` objects.
+
+---
+
+### PATCH /api/follows/{follow_id}
+
+Listener-auth required. Update notification channel preference.
+
+**Request:** `{ "notification_channel": "browser_push" }`
+
+Returns `404` if follow not found or not owned by this identity.
+
+---
+
+### DELETE /api/follows/{follow_id}
+
+Listener-auth required. Unfollow. Returns `204`. `404` if not found or not owned.
+
+---
+
+### GET /api/admin/codes
+
+Admin-auth required. List all codes (active and inactive).
+
+---
+
+### POST /api/admin/codes
+
+Admin-auth required. Generate a new 6-character code.
+
+**Request:**
+```json
+{ "channel_slug": "late-night-house", "entity_type": "channel", "entity_id": "late-night-house", "expires_at": null }
+```
+
+**Response `201`:** `CodeDocument` with generated `code` field.
+
+---
+
+### DELETE /api/admin/codes/{code}
+
+Admin-auth required. Deactivate a code. Returns `204`. `404` if not found.
+
+---
+
+### GET /api/auth/discord/initiate?code={wp_code}
+
+Public. Redirects to Discord OAuth. `code` is the WavePalace follow code (renamed to avoid collision with OAuth `code` param). State is a signed JWT carrying `wp_code`.
+
+---
+
+### GET /api/auth/discord/callback?code=…&state=…
+
+Public (Discord OAuth redirect target). Exchanges OAuth code for user identity, creates a Discord follow, sets `wp_listener_discord_id` cookie (30d), redirects to `/follows`.

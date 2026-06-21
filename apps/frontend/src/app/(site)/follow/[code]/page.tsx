@@ -1,0 +1,50 @@
+import { notFound } from "next/navigation";
+import { resolveCode } from "@/features/follow/lib/followApi";
+import { FollowForm } from "./FollowForm";
+
+interface Props {
+  params: { code: string };
+}
+
+export default async function FollowCodePage({ params }: Props) {
+  const info = await resolveCode(params.code.toUpperCase());
+  if (!info) notFound();
+
+  const API_BASE_URL =
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
+    "http://localhost:8000";
+
+  const discordInitiateUrl = `${API_BASE_URL}/api/auth/discord/initiate?code=${info.code}`;
+
+  return (
+    <div className="mx-auto max-w-lg px-6 py-20">
+      <div className="glass rounded-3xl p-8 text-center">
+        {info.cover_image_url && (
+          <img
+            src={info.cover_image_url}
+            alt={info.display_name}
+            className="mx-auto mb-6 h-28 w-28 rounded-2xl object-cover"
+          />
+        )}
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-wave-400">
+          You scanned a code for
+        </p>
+        <h1 className="mb-1 text-2xl font-bold text-white">{info.display_name}</h1>
+        {info.host_name && (
+          <p className="mb-6 text-sm text-white/50">hosted by {info.host_name}</p>
+        )}
+        {(info.genre?.length || info.mood?.length) && (
+          <p className="mb-8 text-xs text-white/40">
+            {[...(info.genre ?? []), ...(info.mood ?? [])].join(" · ")}
+          </p>
+        )}
+
+        <p className="mb-6 text-sm text-white/60">
+          Follow this channel to get notified about events, guest DJs, and new music.
+        </p>
+
+        <FollowForm code={info.code} discordInitiateUrl={discordInitiateUrl} />
+      </div>
+    </div>
+  );
+}

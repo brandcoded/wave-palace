@@ -29,6 +29,10 @@ import {
   validateChannelUrls,
   updateChannelSponsor,
   getOptions,
+  createCode,
+  deactivateCode,
+  listCodes,
+  type AdminCode,
 } from "@/features/admin/lib/adminApi";
 import type { AdminChannel, Sponsor, URLCheckResult, SubmissionOptions } from "@/features/admin/types/admin";
 import type { TrackItem } from "@/features/channels/types/channel";
@@ -233,6 +237,9 @@ export default function ChannelEditPage() {
   const [muxElapsed, setMuxElapsed] = useState(0);
   const muxIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [codes, setCodes] = useState<AdminCode[]>([]);
+  const [codesBusy, setCodesBusy] = useState(false);
+  const [codeCopied, setCodeCopied] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
   const [urlResults, setUrlResults] = useState<URLCheckResult[] | null>(null);
   const [sponsorForm, setSponsorForm] = useState<Sponsor | null>(null);
@@ -254,6 +261,7 @@ export default function ChannelEditPage() {
       setSponsorForm((ch as AdminChannel & { sponsor?: Sponsor | null }).sponsor ?? null);
     });
     getOptions().then(setChannelOptions).catch(() => {});
+    listCodes().then((all) => setCodes(all.filter((c) => c.channel_slug === slug))).catch(() => {});
   }, [slug]);
 
   function setField<K extends keyof AdminChannel>(key: K, value: AdminChannel[K]) {
@@ -756,6 +764,60 @@ export default function ChannelEditPage() {
                 ))
               )}
             </div>
+          )}
+        </section>
+
+        {/* Follow Codes */}
+        <section className="flex flex-col gap-4 border-t border-white/10 pt-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-white/40">Follow Codes</h2>
+            <button
+              onClick={async () => {
+                setCodesBusy(true);
+                try {
+                  const code = await createCode(slug, slug);
+                  setCodes((prev) => [code, ...prev]);
+                } finally {
+                  setCodesBusy(false);
+                }
+              }}
+              disabled={codesBusy}
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/60 transition hover:bg-white/10 hover:text-white disabled:opacity-40"
+            >
+              {codesBusy ? "Generating…" : "+ Generate code"}
+            </button>
+          </div>
+          {codes.filter((c) => c.active).length === 0 ? (
+            <p className="text-xs text-white/30">No active codes for this channel.</p>
+          ) : (
+            <ul className="space-y-2">
+              {codes.filter((c) => c.active).map((c) => (
+                <li key={c.code} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2">
+                  <span className="font-mono font-bold tracking-widest text-wave-400">{c.code}</span>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(`${window.location.origin}/follow/${c.code}`);
+                        setCodeCopied(c.code);
+                        setTimeout(() => setCodeCopied(null), 2000);
+                      }}
+                      className="text-xs text-white/40 hover:text-white"
+                    >
+                      {codeCopied === c.code ? "Copied!" : "Copy link"}
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await deactivateCode(c.code);
+                        setCodes((prev) => prev.map((x) => x.code === c.code ? { ...x, active: false } : x));
+                      }}
+                      className="text-xs text-red-400/50 hover:text-red-400"
+                    >
+                      Deactivate
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
 

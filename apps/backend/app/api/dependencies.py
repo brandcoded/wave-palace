@@ -53,3 +53,27 @@ def get_r2_repository():
     from app.repositories.r2_repository import R2Repository
 
     return R2Repository(_settings())
+
+
+@lru_cache
+def get_code_repository():
+    from app.repositories.code_repository import build_code_repository
+    return build_code_repository(_settings())
+
+
+@lru_cache
+def get_follow_repository():
+    from app.repositories.follow_repository import build_follow_repository
+    return build_follow_repository(_settings())
+
+
+@lru_cache
+def get_code_service():
+    from app.services.code_service import CodeService
+    return CodeService(get_code_repository(), get_channel_repository())
+
+
+@lru_cache
+def get_follow_service():
+    from app.services.follow_service import FollowService
+    return FollowService(get_follow_repository(), get_code_repository(), get_channel_repository())

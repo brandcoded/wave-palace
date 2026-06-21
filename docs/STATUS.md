@@ -2,7 +2,7 @@
 
 > Single source of truth for slice status. Update this file whenever a slice
 > ships or changes state. `CLAUDE.md` carries a compact copy — keep both in sync.
-> Last updated: 2026-06-21 (Pre-Slice 4 add-on — Streaming readiness toggle complete)
+> Last updated: 2026-06-21 (Slice 9 — Code Capture + Follow Intent + Notification Stack complete)
 
 ---
 
@@ -32,7 +32,7 @@
 | 6B | Full Ad Stack | ⬜ AFTER Slice 4 | Multi-sponsor rotation · web CPM measurement · intro/outro splash · idle card · opt-in audio stings (AzuraCast) · sponsor reporting dashboard · See `MONETIZATION_PLAN.md` |
 | 7 | Production analytics dashboard | ⬜ NOT STARTED | Depends on Slice 3 add-ons |
 | 8 | Play Metrics + Artist Reporting | ⬜ NOT STARTED | PM plan complete · Depends on Slice 3 add-ons + Slice 9 |
-| 9 | Code Capture + Follow Intent + Notification Stack | ⬜ NOT STARTED | PM plan drafted · VRChat listener enters code → Discord/email/push follow intent · SMS explicitly deferred |
+| 9 | Code Capture + Follow Intent + Notification Stack | ✅ COMPLETE | 6-char alphanumeric codes · admin generate/deactivate UI · public `/follow/[code]` landing · Discord OAuth confirmed-instantly · email double opt-in via Resend · browser push schema only · SMS raises NotImplementedError · `/follows` listener page · admin `/admin/codes` page · Follow Codes panel on channel edit page · `CodeInput` pill in site header · `POST/GET /api/admin/codes` · `GET /api/codes/{code}` · `POST /api/codes/{code}/follow` · `POST /api/follows/confirm` · `GET/PATCH/DELETE /api/follows` · Discord OAuth `/api/auth/discord/initiate` + `/callback` · 19 backend tests (146 total) · build clean |
 
 † TrackItem / now-playing shipped in commits `2d3a72c`, `2ee4fa2`, `e2385bc` before Slice 2 was merged; status docs now reflect that it already shipped.
 

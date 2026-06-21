@@ -27,6 +27,15 @@ class Settings:
     admin_secret: str = os.getenv("ADMIN_SECRET", "changeme")
     jwt_secret: str = os.getenv("JWT_SECRET", "dev-jwt-secret-change-me")
 
+    # Slice 9 — Code Capture + Follow Intent + Notifications
+    discord_bot_token: Optional[str] = os.getenv("DISCORD_BOT_TOKEN") or None
+    discord_client_id: Optional[str] = os.getenv("DISCORD_CLIENT_ID") or None
+    discord_client_secret: Optional[str] = os.getenv("DISCORD_CLIENT_SECRET") or None
+    discord_redirect_uri: Optional[str] = os.getenv("DISCORD_REDIRECT_URI") or None
+    vapid_public_key: Optional[str] = os.getenv("VAPID_PUBLIC_KEY") or None
+    vapid_private_key: Optional[str] = os.getenv("VAPID_PRIVATE_KEY") or None
+    resend_api_key: Optional[str] = os.getenv("RESEND_API_KEY") or None
+
     # Path to a TrueType font used by the mux service to burn text overlays
     # into VRChat MP4s. Defaults to DejaVu Sans on Ubuntu (installed via apt
     # in render.yaml). Override with FONT_PATH env var for other environments.

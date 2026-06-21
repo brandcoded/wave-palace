@@ -2,6 +2,35 @@
 
 All notable changes to this project are documented here.
 
+## [0.10.0] — Slice 9: Code Capture + Follow Intent + Notification Stack
+
+### Added
+- **Backend schemas**: `CodeDocument`, `CodeCreateRequest`, `CodePublicResponse` (`schemas/code.py`); `FollowDocument`, `FollowSubmitRequest`, `FollowResponse`, `FollowPublicView` (`schemas/follow.py`).
+- **Repositories**: `CodeRepository` + `SeedCodeRepository` + `MongoCodeRepository` + `build_code_repository()` factory; `FollowRepository` + `SeedFollowRepository` + `MongoFollowRepository` + `build_follow_repository()` factory.
+- **Services**: `CodeService` (generate 6-char alphanumeric code, retry 5× on collision, resolve with channel enrichment, deactivate, list); `FollowService` (submit follow, email double opt-in via Resend, confirm email, list/update/delete listener follows); `NotificationService` (Discord DM, browser push via pywebpush, email via Resend; `_send_sms` raises `NotImplementedError`).
+- **Routes**:
+  - `GET /api/codes/{code}` — public code resolution
+  - `POST /api/codes/{code}/follow` — public follow submission (Discord or email; SMS blocked at route)
+  - `POST /api/admin/codes` — admin: generate code
+  - `GET /api/admin/codes` — admin: list all codes
+  - `DELETE /api/admin/codes/{code}` — admin: deactivate code
+  - `POST /api/follows/confirm?token=…` — email opt-in confirmation
+  - `GET /api/follows` — listener: list my follows (identity via `wp_listener_discord_id` / `wp_listener_email` cookie)
+  - `PATCH /api/follows/{follow_id}` — listener: update notification channel
+  - `DELETE /api/follows/{follow_id}` — listener: unfollow
+  - `GET /api/auth/discord/initiate?code=…` — begin Discord OAuth (state encoded as signed JWT)
+  - `GET /api/auth/discord/callback` — Discord OAuth callback, creates follow + sets `wp_listener_discord_id` cookie
+- **Config**: `DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `RESEND_API_KEY` added to `Settings`.
+- **Dependencies**: `get_code_repository()`, `get_follow_repository()`, `get_code_service()`, `get_follow_service()` factories with `@lru_cache`.
+- **Frontend**: `CodeInput` pill in site header; `/follow/[code]` landing page (server component + `FollowForm` client component — Discord or email); `/follow/confirm` confirmation page; `/follows` listener follows page (empty state + unfollow); `/admin/codes` admin codes page (generate + copy link + deactivate); Follow Codes panel on admin channel edit page.
+- **Tests**: 19 new backend tests in `test_slice9.py` — all passing (146 total, 2 skipped).
+
+### Security
+- Discord OAuth `state` parameter encoded as short-lived signed JWT to prevent CSRF and carry `wp_code` through redirect.
+- Email confirmation token is a signed JWT (`type: email_confirm`, 24h TTL) using existing `JWT_SECRET`.
+- All external API calls (Resend, Discord bot, VAPID) are no-ops when env var not set — tests work without mocking.
+- SMS delivery permanently blocked: route returns 400, `_send_sms` raises `NotImplementedError`.
+
 ## [0.9.1] — Slice 6 add-on: public API sponsor filtering
 
 ### Added
