@@ -10,7 +10,8 @@ respx>=0.22.0
 # JWT auth for admin dashboard
 PyJWT==2.9.0
 # Optional: only needed when running against MongoDB Atlas (set MONGODB_URI).
-pymongo==4.10.1
+# The [srv] extra pulls dnspython, REQUIRED to resolve mongodb+srv:// URIs.
+pymongo[srv]==4.10.1
 # R2 upload for mux service (set R2_* env vars to enable).
 boto3==1.35.99
 # Image resizing and WebP conversion
