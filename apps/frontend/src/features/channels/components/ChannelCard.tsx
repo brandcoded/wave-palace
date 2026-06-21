@@ -30,9 +30,9 @@ export function ChannelCard({ channel }: { channel: Channel }) {
           loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-ink-950 via-ink-950/30 to-transparent" />
-        <div className="absolute bottom-3 left-3 flex gap-2">
-          <span className={tagClass}>{channel.genre}</span>
-          <span className={tagClass}>{channel.mood}</span>
+        <div className="absolute bottom-3 left-3 flex flex-wrap gap-1.5">
+          {channel.genre.map((g) => <span key={g} className={tagClass}>{g}</span>)}
+          {channel.mood.map((m) => <span key={m} className={tagClass}>{m}</span>)}
         </div>
         <div className="absolute right-3 top-3 flex items-center gap-2">
           {featured && (
@@ -56,9 +56,9 @@ export function ChannelCard({ channel }: { channel: Channel }) {
             <User className="h-3.5 w-3.5" />
             {channel.hostName}
           </span>
-          <div className="flex gap-1.5">
-            <span className={tagClass}>{channel.energy}</span>
-            <span className={tagClass}>{channel.theme}</span>
+          <div className="flex flex-wrap gap-1.5">
+            {channel.energy.map((e) => <span key={e} className={tagClass}>{e}</span>)}
+            {channel.theme.map((t) => <span key={t} className={tagClass}>{t}</span>)}
           </div>
         </div>
       </div>

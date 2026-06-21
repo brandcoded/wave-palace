@@ -28,8 +28,9 @@ import {
   muxChannel,
   validateChannelUrls,
   updateChannelSponsor,
+  getOptions,
 } from "@/features/admin/lib/adminApi";
-import type { AdminChannel, Sponsor, URLCheckResult } from "@/features/admin/types/admin";
+import type { AdminChannel, Sponsor, URLCheckResult, SubmissionOptions } from "@/features/admin/types/admin";
 import type { TrackItem } from "@/features/channels/types/channel";
 import { GripVertical, Trash2, Plus, Loader2, CheckCircle, AlertTriangle, XCircle, AlertCircle } from "lucide-react";
 import Link from "next/link";
@@ -141,6 +142,48 @@ function UploadButton({
   );
 }
 
+function MultiSelectChips({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  value: string[];
+  onChange: (values: string[]) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs font-medium text-white/50">{label}</label>
+      <div className="flex flex-wrap gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-2 min-h-[40px]">
+        {options.map((opt) => {
+          const selected = value.includes(opt);
+          return (
+            <button
+              key={opt}
+              type="button"
+              onClick={() =>
+                onChange(selected ? value.filter((v) => v !== opt) : [...value, opt])
+              }
+              className={`rounded-full px-3 py-0.5 text-xs font-medium transition ${
+                selected
+                  ? "bg-cyan-500/30 text-cyan-200 border border-cyan-400/40"
+                  : "bg-white/5 text-white/40 border border-white/10 hover:bg-white/10 hover:text-white/70"
+              }`}
+            >
+              {opt}
+            </button>
+          );
+        })}
+        {options.length === 0 && (
+          <span className="text-xs text-white/20">Loading options…</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Field({
   label,
   name,
@@ -194,6 +237,7 @@ export default function ChannelEditPage() {
   const [urlResults, setUrlResults] = useState<URLCheckResult[] | null>(null);
   const [sponsorForm, setSponsorForm] = useState<Sponsor | null>(null);
   const [savingSponsor, setSavingSponsor] = useState(false);
+  const [channelOptions, setChannelOptions] = useState<SubmissionOptions>({ genre: [], mood: [], energy: [], theme: [] });
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -209,6 +253,7 @@ export default function ChannelEditPage() {
       );
       setSponsorForm((ch as AdminChannel & { sponsor?: Sponsor | null }).sponsor ?? null);
     });
+    getOptions().then(setChannelOptions).catch(() => {});
   }, [slug]);
 
   function setField<K extends keyof AdminChannel>(key: K, value: AdminChannel[K]) {
@@ -393,10 +438,32 @@ export default function ChannelEditPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Title" name="title" form={form} setField={setField} />
             <Field label="Host name" name="hostName" form={form} setField={setField} />
-            <Field label="Genre" name="genre" form={form} setField={setField} />
-            <Field label="Mood" name="mood" form={form} setField={setField} />
-            <Field label="Energy" name="energy" form={form} setField={setField} />
-            <Field label="Theme" name="theme" form={form} setField={setField} />
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <MultiSelectChips
+              label="Genre"
+              options={channelOptions.genre}
+              value={(form.genre as string[]) ?? []}
+              onChange={(vals) => setField("genre", vals as AdminChannel["genre"])}
+            />
+            <MultiSelectChips
+              label="Mood"
+              options={channelOptions.mood}
+              value={(form.mood as string[]) ?? []}
+              onChange={(vals) => setField("mood", vals as AdminChannel["mood"])}
+            />
+            <MultiSelectChips
+              label="Energy"
+              options={channelOptions.energy}
+              value={(form.energy as string[]) ?? []}
+              onChange={(vals) => setField("energy", vals as AdminChannel["energy"])}
+            />
+            <MultiSelectChips
+              label="Theme"
+              options={channelOptions.theme}
+              value={(form.theme as string[]) ?? []}
+              onChange={(vals) => setField("theme", vals as AdminChannel["theme"])}
+            />
           </div>
           <Field label="Description" name="description" rows={3} form={form} setField={setField} />
           <div className="flex flex-col gap-1.5">

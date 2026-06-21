@@ -16,6 +16,21 @@ from app.seed.channels import SEED_CHANNELS
 
 logger = logging.getLogger("wavepalace.repository")
 
+_TAXONOMY_FIELDS = ("genre", "mood", "energy", "theme")
+
+
+def _normalize_taxonomy(doc: dict) -> dict:
+    """Coerce legacy string values for taxonomy fields into single-element lists.
+
+    Old Mongo documents stored genre/mood/energy/theme as plain strings. This
+    ensures they pass Pydantic validation without a destructive migration.
+    """
+    for field in _TAXONOMY_FIELDS:
+        val = doc.get(field)
+        if isinstance(val, str):
+            doc = {**doc, field: [val]}
+    return doc
+
 
 class ChannelRepository(ABC):
     @abstractmethod
@@ -60,13 +75,14 @@ class SeedChannelRepository(ChannelRepository):
         )
 
     async def list_channels(self) -> list[dict]:
-        return [c for c in self._channels if not c.get("deleted")]
+        return [_normalize_taxonomy(c) for c in self._channels if not c.get("deleted")]
 
     async def get_by_slug(self, slug: str) -> dict | None:
-        return next(
+        doc = next(
             (c for c in self._channels if c["slug"] == slug and not c.get("deleted")),
             None,
         )
+        return _normalize_taxonomy(doc) if doc is not None else None
 
     async def create(self, data: dict) -> dict:
         self._channels.append(data)
@@ -137,13 +153,14 @@ class MongoChannelRepository(ChannelRepository):
     async def list_channels(self) -> list[dict]:
         await self._ensure_seeded()
         cursor = self._collection.find({"deleted": {"$ne": True}}, {"_id": 0})
-        return [doc async for doc in cursor]
+        return [_normalize_taxonomy(doc) async for doc in cursor]
 
     async def get_by_slug(self, slug: str) -> dict | None:
         await self._ensure_seeded()
-        return await self._collection.find_one(
+        doc = await self._collection.find_one(
             {"slug": slug, "deleted": {"$ne": True}}, {"_id": 0}
         )
+        return _normalize_taxonomy(doc) if doc is not None else None
 
     async def create(self, data: dict) -> dict:
         await self._collection.insert_one({**data, "_id": data["id"]})

@@ -28,10 +28,10 @@ export interface Channel {
   slug: string;
   title: string;
   description: string;
-  genre: string;
-  mood: string;
-  energy: string;
-  theme: string;
+  genre: string[];
+  mood: string[];
+  energy: string[];
+  theme: string[];
   hostName: string;
   coverImageUrl: string;
   visualLoopUrl?: string | null;

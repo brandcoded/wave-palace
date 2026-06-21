@@ -22,6 +22,16 @@ All notable changes to this project are documented here.
 - Directory (`ChannelGrid`): featured active sponsors sorted to top. `ChannelCard`: "Sponsored" badge overlay on cover art when `isFeatured && isActive`.
 - 22 backend tests in `tests/test_sponsor.py` (20 pass, 2 skipped for missing font on CI).
 
+## [Unreleased] — Multi-value taxonomy (genre / mood / energy / theme)
+
+- `genre`, `mood`, `energy`, `theme` changed from `str` to `list[str]` throughout backend (Pydantic schema, seed data, admin request models) and frontend (TypeScript types, player, cards, admin forms).
+- `ChannelService._matches()` now checks array membership (case-insensitive) instead of exact string equality — `GET /api/channels?genre=House` still returns channels where `"House"` is one element of the genre array.
+- `MongoChannelRepository` and `SeedChannelRepository` normalize legacy string values to single-element lists on read (`_normalize_taxonomy`) — no destructive migration needed for existing Mongo documents.
+- `mux_service._drawtext_overlay()` call site joins list values with `", "` before passing to FFmpeg drawtext.
+- Admin create/edit pages: genre, mood, energy, theme inputs replaced with `MultiSelectChips` component. Options fetched from `GET /api/admin/options` on mount. Chips toggle selection; selected chips show cyan highlight. Free-text entry removed.
+- `ChannelPlayer`, `ChannelCard`: render one tag per element in the array.
+- All 120 backend tests pass; `npm run build` clean.
+
 ## [Unreleased] — VR video progress feedback
 
 - **Single-channel elapsed timer**: Channel edit page consolidates `handleMux` and `handleMuxChannel` into one `handleMuxVideo()`. While muxing, both the warning-banner button and the VRChat mux section button show a live `M:SS` elapsed counter (e.g. "Updating VR Video… 1:24"). A `setInterval` drives the counter; it is cleared on success or error. Success clears the `muxOutdated` banner inline without a page reload.

@@ -32,10 +32,10 @@ class Channel(BaseModel):
     slug: str
     title: str
     description: str
-    genre: str
-    mood: str
-    energy: str
-    theme: str
+    genre: list[str] = Field(default_factory=list)
+    mood: list[str] = Field(default_factory=list)
+    energy: list[str] = Field(default_factory=list)
+    theme: list[str] = Field(default_factory=list)
     hostName: str = Field(..., alias="hostName")
     coverImageUrl: HttpUrl
     visualLoopUrl: str | None = None  # short looping MP4 used as mux visual; falls back to coverImageUrl

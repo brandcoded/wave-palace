@@ -33,7 +33,11 @@ class ChannelService:
     def _matches(channel: dict, field: str, value: str | None) -> bool:
         if not value:
             return True
-        return str(channel.get(field, "")).strip().lower() == value.strip().lower()
+        target = value.strip().lower()
+        field_val = channel.get(field, "")
+        if isinstance(field_val, list):
+            return any(str(v).strip().lower() == target for v in field_val)
+        return str(field_val).strip().lower() == target
 
     @staticmethod
     def _with_live_sponsor(channel: Channel) -> Channel:

@@ -8,7 +8,7 @@ from typing import Any
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.dependencies import get_channel_service
 from app.core.auth import get_current_admin
@@ -33,10 +33,10 @@ def _slugify(title: str) -> str:
 class ChannelCreateRequest(BaseModel):
     title: str
     description: str = ""
-    genre: str = ""
-    mood: str = ""
-    energy: str = ""
-    theme: str = ""
+    genre: list[str] = Field(default_factory=list)
+    mood: list[str] = Field(default_factory=list)
+    energy: list[str] = Field(default_factory=list)
+    theme: list[str] = Field(default_factory=list)
     hostName: str = ""
     coverImageUrl: str = ""
     visualLoopUrl: str | None = None
@@ -50,10 +50,10 @@ class ChannelCreateRequest(BaseModel):
 class ChannelPatchRequest(BaseModel):
     title: str | None = None
     description: str | None = None
-    genre: str | None = None
-    mood: str | None = None
-    energy: str | None = None
-    theme: str | None = None
+    genre: list[str] | None = None
+    mood: list[str] | None = None
+    energy: list[str] | None = None
+    theme: list[str] | None = None
     hostName: str | None = None
     coverImageUrl: str | None = None
     visualLoopUrl: str | None = None

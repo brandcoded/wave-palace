@@ -349,11 +349,14 @@ class MuxService:
                 except Exception:
                     pass
 
+            def _join(val: object) -> str:
+                return ", ".join(str(v) for v in val) if isinstance(val, list) else str(val or "")
+
             overlay = _drawtext_overlay(
-                title=str(channel.get("title", "")),
-                host_name=str(channel.get("hostName", "")),
-                genre=str(channel.get("genre", "")),
-                mood=str(channel.get("mood", "")),
+                title=_join(channel.get("title", "")),
+                host_name=_join(channel.get("hostName", "")),
+                genre=_join(channel.get("genre", "")),
+                mood=_join(channel.get("mood", "")),
                 font_path=settings.font_path,
                 track_times=track_times,
                 sponsor_text=_sponsor_text,

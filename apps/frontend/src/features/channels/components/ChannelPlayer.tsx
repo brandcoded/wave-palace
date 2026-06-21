@@ -12,8 +12,8 @@ interface ChannelPlayerProps {
   slug: string;
   visualLoopUrl?: string | null;
   hostName: string;
-  genre: string;
-  mood: string;
+  genre: string[];
+  mood: string[];
   sponsor?: Sponsor | null;
 }
 
@@ -303,8 +303,8 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
 
           <div className="ml-auto flex items-center gap-2">
             <div className="hidden sm:flex gap-1.5">
-              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">{genre}</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">{mood}</span>
+              {genre.map((g) => <span key={g} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">{g}</span>)}
+              {mood.map((m) => <span key={m} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">{m}</span>)}
             </div>
             {tracks.length > 1 && (
               <span className="text-xs font-medium text-white/50">
