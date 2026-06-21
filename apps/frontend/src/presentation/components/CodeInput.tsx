@@ -13,7 +13,7 @@ export function CodeInput() {
     e.preventDefault();
     const code = value.trim().toUpperCase();
     if (code.length === 0) return;
-    if (!/^[A-Z0-9]{6}$/.test(code)) {
+    if (!/^[A-Z0-9]{4,8}$/.test(code)) {
       setError(true);
       return;
     }
@@ -28,12 +28,12 @@ export function CodeInput() {
         ref={inputRef}
         value={value}
         onChange={(e) => {
-          setValue(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6));
+          setValue(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8));
           setError(false);
         }}
-        maxLength={6}
+        maxLength={8}
         placeholder="ENTER CODE"
-        aria-label="Enter 6-character channel code"
+        aria-label="Enter channel code"
         className={[
           "w-28 rounded-full border bg-white/5 px-3 py-1.5 text-center text-xs font-mono font-semibold tracking-widest text-white/80 outline-none transition placeholder:text-white/30",
           error
