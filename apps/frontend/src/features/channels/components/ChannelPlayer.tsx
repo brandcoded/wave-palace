@@ -5,23 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { Play, Pause, Volume2, VolumeX, AlertTriangle, User, X } from "lucide-react";
 import type { Sponsor, TrackItem } from "@/features/channels/types/channel";
 import { recordPlay, recordSponsorImpression, recordSponsorClick } from "@/features/channels/lib/channelApi";
-
-function _channelPrefix(slug: string): string {
-  const initials = slug.split("-").filter(Boolean).map((w) => w[0].toUpperCase()).join("");
-  if (initials.length >= 2) return initials.slice(0, 2);
-  const clean = slug.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-  return (clean + "XX").slice(0, 2);
-}
-
-function _trackPrefix(title: string, idx: number): string {
-  const clean = title.replace(/[^A-Z0-9]/gi, "").toUpperCase();
-  if (clean.length >= 4) return clean.slice(0, 4);
-  return (clean + `T${String(idx).padStart(3, "0")}`).slice(0, 4);
-}
-
-function makeFollowCode(slug: string, title: string, idx: number): string {
-  return _channelPrefix(slug) + _trackPrefix(title, idx);
-}
+import { makeFollowCode } from "@/features/channels/lib/followCode";
 
 interface ChannelPlayerProps {
   tracks: TrackItem[];
@@ -333,7 +317,7 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
                 className="rounded-full border border-wave-400/40 bg-wave-400/10 px-2.5 py-0.5 font-mono text-xs font-semibold text-wave-300 transition hover:bg-wave-400/20"
                 title="Follow this channel"
               >
-                follow {followCode}
+                follow
               </Link>
             )}
             {tracks.length > 1 && (

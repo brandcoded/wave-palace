@@ -82,7 +82,7 @@ def _drawtext_overlay(
       Row 3 left (y=618): Artist — Track — time-windowed per track
       Row 3 right (y=618): genre · mood — static
       Row 4 left (y=648): Sponsor text — static (optional)
-      Row 4 right (y=660): follow LNPROJ  wavepalace.live — time-windowed per track
+      Row 4 right (y=660): LNPROJ  ·  wavepalace.live  follow code — time-windowed per track
 
     Returns an empty string when the font file is not present so the mux still
     succeeds without text overlay.
@@ -137,9 +137,9 @@ def _drawtext_overlay(
             f":x=24:y=618:fontsize=22:fontcolor=white@0.90:{shadow}"
         )
 
-    # Row 4 right: per-track "follow CODE · wavepalace.live" — bold, right-aligned, time-windowed.
+    # Row 4 right: per-track "CODE · wavepalace.live  follow code" — bold, right-aligned, time-windowed.
     for start, end, code in track_codes:
-        label = _escape_drawtext(f"follow {code}  wavepalace.live")
+        label = _escape_drawtext(f"{code}  ·  wavepalace.live  follow code")
         parts.append(
             f"drawtext=fontfile={bold}:text={label}"
             f":enable='between(t,{start:.3f},{end:.3f})'"

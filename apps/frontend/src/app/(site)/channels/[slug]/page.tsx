@@ -7,6 +7,7 @@ import { CopyLinkButton } from "@/features/channels/components/CopyLinkButton";
 import { CompatibilityNotice } from "@/features/channels/components/CompatibilityNotice";
 import { RightsNotice } from "@/features/channels/components/RightsNotice";
 import { GlassPanel } from "@/presentation/components/GlassPanel";
+import { makeFollowCode } from "@/features/channels/lib/followCode";
 import type { Channel } from "@/features/channels/types/channel";
 
 
@@ -96,6 +97,28 @@ export default async function ChannelDetailPage({
               successMessage="VRChat link copied"
               variant="primary"
             />
+
+            {(() => {
+              const firstTrack = channel.playlist?.[0];
+              const code = firstTrack
+                ? makeFollowCode(channel.slug, firstTrack.title, 0)
+                : null;
+              return code ? (
+                <Link
+                  href={`/follow/${code}`}
+                  className="flex w-full flex-col gap-1 rounded-2xl border border-wave-400/20 bg-wave-400/5 px-4 py-3 transition hover:bg-wave-400/10"
+                >
+                  <span className="text-xs font-semibold uppercase tracking-widest text-wave-400/70">
+                    Follow this channel
+                  </span>
+                  <span className="text-sm text-white/65">
+                    Enter code{" "}
+                    <code className="font-mono font-bold text-wave-300">{code}</code>
+                    {" "}at wavepalace.live
+                  </span>
+                </Link>
+              ) : null;
+            })()}
 
             {channel.externalLinks.length > 0 && (
               <div className="border-t border-white/10 pt-4">
