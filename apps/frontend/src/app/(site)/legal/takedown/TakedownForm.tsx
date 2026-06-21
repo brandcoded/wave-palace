@@ -23,9 +23,14 @@ export function TakedownForm() {
     organization: "",
     email: "",
     role: "" as Role | "",
+    song_name: "",
+    artist_name: "",
+    song_release_date: "",
+    channel_name: "",
     infringing_url: "",
     description: "",
     proof: "",
+    electronic_signature: "",
     good_faith: false,
     accuracy: false,
   });
@@ -52,6 +57,9 @@ export function TakedownForm() {
         body: JSON.stringify({
           ...fields,
           organization: fields.organization || undefined,
+          song_release_date: fields.song_release_date || undefined,
+          channel_name: fields.channel_name || undefined,
+          infringing_url: fields.infringing_url || undefined,
           proof: fields.proof || undefined,
         }),
       });
@@ -127,9 +135,46 @@ export function TakedownForm() {
           Claim Details
         </h2>
 
-        <Field label="Infringing content URL *">
+        <Field label="Song name *">
           <input
             required
+            value={fields.song_name}
+            onChange={(e) => set("song_name", e.target.value)}
+            placeholder="e.g. Projections"
+            className={inputCls}
+          />
+        </Field>
+
+        <Field label="Artist name *">
+          <input
+            required
+            value={fields.artist_name}
+            onChange={(e) => set("artist_name", e.target.value)}
+            placeholder="e.g. DJ Skyy"
+            className={inputCls}
+          />
+        </Field>
+
+        <Field label="Song release date" hint="Optional — year or full date">
+          <input
+            value={fields.song_release_date}
+            onChange={(e) => set("song_release_date", e.target.value)}
+            placeholder="e.g. 2023 or March 2023"
+            className={inputCls}
+          />
+        </Field>
+
+        <Field label="Which WavePalace channel played this song?" hint="Optional">
+          <input
+            value={fields.channel_name}
+            onChange={(e) => set("channel_name", e.target.value)}
+            placeholder="e.g. Late Night House"
+            className={inputCls}
+          />
+        </Field>
+
+        <Field label="Infringing content URL" hint="Optional">
+          <input
             type="url"
             value={fields.infringing_url}
             onChange={(e) => set("infringing_url", e.target.value)}
@@ -144,12 +189,15 @@ export function TakedownForm() {
             rows={4}
             value={fields.description}
             onChange={(e) => set("description", e.target.value)}
-            placeholder="I own the rights to [song] by [artist], released on [date]…"
+            placeholder="Describe your original work and how you own the rights to it…"
             className={inputCls}
           />
         </Field>
 
-        <Field label="Proof of ownership" hint="ISRC, registration number, release link, etc. — optional">
+        <Field
+          label="Proof of ownership"
+          hint="ISRC, UPC, copyright registration number, release link — optional"
+        >
           <textarea
             rows={3}
             value={fields.proof}
@@ -193,6 +241,27 @@ export function TakedownForm() {
             of the owner of an exclusive right that is allegedly infringed. *
           </span>
         </label>
+      </div>
+
+      {/* Electronic signature */}
+      <div className="glass rounded-2xl p-6 flex flex-col gap-3">
+        <h2 className="text-sm font-semibold uppercase tracking-widest text-white/50">
+          Electronic Signature
+        </h2>
+        <p className="text-xs text-white/40 leading-relaxed">
+          By typing your full legal name below, you are signing this notice
+          electronically under penalty of perjury, in accordance with{" "}
+          <span className="text-white/60">17 U.S.C. § 512(c)(3)</span>.
+        </p>
+        <Field label="Full legal name *">
+          <input
+            required
+            value={fields.electronic_signature}
+            onChange={(e) => set("electronic_signature", e.target.value)}
+            placeholder="Jane Doe"
+            className={inputCls}
+          />
+        </Field>
       </div>
 
       {error && (

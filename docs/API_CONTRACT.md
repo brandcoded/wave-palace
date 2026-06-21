@@ -690,15 +690,22 @@ Public. Submit a copyright takedown request.
   "organization": "Doe Music Group",
   "email": "jane@example.com",
   "role": "artist",
+  "song_name": "Projections",
+  "artist_name": "DJ Skyy",
+  "song_release_date": "2022",
+  "channel_name": "Late Night House",
   "infringing_url": "https://wavepalace.live/channels/late-night-house",
-  "description": "I own the rights to Projections by ...",
+  "description": "I own the rights to Projections by DJ Skyy.",
   "proof": "ISRC: USRC17607839",
+  "electronic_signature": "Jane Doe",
   "good_faith": true,
   "accuracy": true
 }
 ```
 
-`good_faith` and `accuracy` must be `true` or validation fails with `422`.
+Required: `claimant_name`, `email`, `role`, `song_name`, `artist_name`, `description`, `electronic_signature`, `good_faith` (must be `true`), `accuracy` (must be `true`).
+
+Optional: `organization`, `song_release_date`, `channel_name`, `infringing_url`, `proof`.
 
 **Response `201`:**
 ```json

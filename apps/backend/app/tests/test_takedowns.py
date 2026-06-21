@@ -15,9 +15,14 @@ _VALID_BODY = {
     "organization": "Doe Music Group",
     "email": "jane@example.com",
     "role": "artist",
+    "song_name": "Projections",
+    "artist_name": "DJ Skyy",
+    "song_release_date": "2022",
+    "channel_name": "Late Night House",
     "infringing_url": "https://wavepalace.live/channels/late-night-house",
     "description": "I own rights to 'Projections' by DJ Skyy.",
     "proof": "ISRC: USRC17607839",
+    "electronic_signature": "Jane Doe",
     "good_faith": True,
     "accuracy": True,
 }
@@ -53,7 +58,7 @@ def test_submit_saves_record(takedown_client):
     assert res.json()[0]["claimant_name"] == "Jane Doe"
 
 
-def test_submit_missing_required_field_returns_422(takedown_client):
+def test_submit_missing_claimant_name_returns_422(takedown_client):
     body = {**_VALID_BODY}
     del body["claimant_name"]
     res = takedown_client.post("/api/takedowns", json=body)
@@ -63,6 +68,27 @@ def test_submit_missing_required_field_returns_422(takedown_client):
 def test_submit_missing_email_returns_422(takedown_client):
     body = {**_VALID_BODY}
     del body["email"]
+    res = takedown_client.post("/api/takedowns", json=body)
+    assert res.status_code == 422
+
+
+def test_submit_missing_song_name_returns_422(takedown_client):
+    body = {**_VALID_BODY}
+    del body["song_name"]
+    res = takedown_client.post("/api/takedowns", json=body)
+    assert res.status_code == 422
+
+
+def test_submit_missing_artist_name_returns_422(takedown_client):
+    body = {**_VALID_BODY}
+    del body["artist_name"]
+    res = takedown_client.post("/api/takedowns", json=body)
+    assert res.status_code == 422
+
+
+def test_submit_missing_electronic_signature_returns_422(takedown_client):
+    body = {**_VALID_BODY}
+    del body["electronic_signature"]
     res = takedown_client.post("/api/takedowns", json=body)
     assert res.status_code == 422
 
@@ -80,9 +106,28 @@ def test_accuracy_false_returns_422(takedown_client):
 
 
 def test_optional_fields_absent_is_valid(takedown_client):
-    body = {k: v for k, v in _VALID_BODY.items() if k not in ("organization", "proof")}
+    body = {
+        k: v for k, v in _VALID_BODY.items()
+        if k not in ("organization", "proof", "infringing_url", "song_release_date", "channel_name")
+    }
     res = takedown_client.post("/api/takedowns", json=body)
     assert res.status_code == 201
+
+
+def test_infringing_url_optional(takedown_client):
+    body = {**_VALID_BODY}
+    del body["infringing_url"]
+    res = takedown_client.post("/api/takedowns", json=body)
+    assert res.status_code == 201
+
+
+def test_new_fields_stored(takedown_client):
+    takedown_client.post("/api/takedowns", json=_VALID_BODY)
+    items = takedown_client.get("/api/takedowns").json()
+    assert items[0]["song_name"] == "Projections"
+    assert items[0]["artist_name"] == "DJ Skyy"
+    assert items[0]["electronic_signature"] == "Jane Doe"
+    assert items[0]["channel_name"] == "Late Night House"
 
 
 # ---------------------------------------------------------------------------

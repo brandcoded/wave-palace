@@ -18,9 +18,14 @@ class TakedownDocument(BaseModel):
     organization: Optional[str] = None
     email: str
     role: TakedownRole
-    infringing_url: str
+    song_name: str
+    artist_name: str
+    song_release_date: Optional[str] = None
+    channel_name: Optional[str] = None
+    infringing_url: Optional[str] = None
     description: str
     proof: Optional[str] = None
+    electronic_signature: str
     good_faith: bool
     accuracy: bool
     status: TakedownStatus = "pending"
@@ -33,9 +38,14 @@ class TakedownSubmitRequest(BaseModel):
     organization: Optional[str] = None
     email: str
     role: TakedownRole
-    infringing_url: str
+    song_name: str
+    artist_name: str
+    song_release_date: Optional[str] = None
+    channel_name: Optional[str] = None
+    infringing_url: Optional[str] = None
     description: str
     proof: Optional[str] = None
+    electronic_signature: str
     good_faith: bool
     accuracy: bool
 
