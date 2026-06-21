@@ -2,6 +2,18 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.0] — Slice 7: Production Analytics Dashboard
+
+### Added
+- **`GET /api/admin/analytics`** — admin-auth required; aggregates total plays, total confirmed follows, channel count, published count, channels with active sponsor, follow breakdown by notification channel, and per-channel leaderboard sorted by playCount descending
+- **`/admin/analytics`** — admin dashboard page with 4 summary stat cards, follow-channel breakdown pills (Discord / Email / Browser Push), full channel leaderboard table; unpublished channels shown muted at bottom; generated-at footer
+- **"Analytics" nav link** in admin sidebar
+- **`get_all_follows()`** added to `FollowRepository` ABC, `SeedFollowRepository`, and `MongoFollowRepository` for cross-channel follow aggregation
+- **14 backend tests** covering totals, confirmed-only follows, breakdown accuracy, leaderboard order, PII exclusion, and 401 guard
+- No new event collection — aggregates existing `playCount`, follows, and codes data only
+
+---
+
 ## [0.11.0] — DMCA / Copyright Takedown Form
 
 ### Added

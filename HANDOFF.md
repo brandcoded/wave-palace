@@ -1,7 +1,7 @@
 # WavePalace — Agent Handoff Document
 
 > For seamless handoffs between **Claude Code** and **Codex**. Read this before touching any code.
-> Last updated: 2026-06-19
+> Last updated: 2026-06-21
 
 ---
 
@@ -50,24 +50,26 @@ wave-palace/
 | 3 add-on | Play count event tracking (`POST /api/channels/{slug}/play`) | v0.7.0 |
 | 3 | Admin UI mobile parity | `88a40a5` |
 | 5 | Media URL validation & compatibility checker — `POST /api/admin/channels/{slug}/validate-urls` | v0.8.0 |
+| 6 | Sponsor Primitive — `sponsor` object on Channel, admin panel, web player overlays, VRChat drawtext parity, impression/click tracking | v0.9.0 |
+| Pre-Slice 4 add-on | Streaming readiness + mux/stream toggle — `streamingActive` + `vrchatFallbackUrl` schema, admin toggle, bulk endpoint | `f34b343` |
+| 9 | Code Capture + Follow Intent + Notification Stack — 6-char codes, `/follow/[code]`, Discord OAuth, email double opt-in, `/follows`, admin `/admin/codes`, 19 backend tests | `459e67d` |
+| 9 add-on | Per-track mux codes burned into VRChat overlay | `94a0f49` |
+| Legal | DMCA Takedown Form — public `/legal/takedown`, admin queue `/admin/takedowns`, SMTP email, 20 backend tests | `3104e62` |
+| Infra | MongoDB Atlas connected — `MONGODB_URI` set on Render, `pymongo[srv]` pinned, idempotent seed | `9574d94` |
 
-### What is NOT STARTED
+### What is NOT STARTED / DEFERRED
 
 | Slice | Feature | Depends on |
 |---|---|---|
 | 3 add-on | External Stream Passthrough (`liveStreamUrl` + admin UI) | Slice 3 ✅ — no VPS |
-| Pre-Slice 4 add-on | Streaming readiness + mux/stream toggle | Slice 3 ✅ — no VPS dep |
-| 6 | Sponsor Primitive (thin monetization) | ✅ COMPLETE (v0.9.0) |
-| Pre-Slice 4 | Hetzner CPX32 FSN1 VPS provisioning | Deferred — provision when live events are priority |
+| Pre-Slice 4 | Hetzner CPX32 FSN1 VPS provisioning | ⬜ DEFERRED — provision when live events are priority |
 | 4 | Live event streaming — Link-In + Ingest Keys | Slice 3 ✅ + VPS provisioned |
 | 4 add-on | Event Sponsorship (QR bridge + sponsor frame) | Slice 6 `sponsor` object + Slice 4 streaming path |
 | 6B | Full Ad Stack (rotation, CPM, audio stings, reporting) | Slice 4 ✅ (AzuraCast for audio stings) |
-| 7 | Production analytics dashboard | Slice 3 add-ons ✅ |
-| 8 | Play Metrics + Artist Reporting | Slice 3 add-ons ✅ + Slice 9 |
-| 9 | Code Capture + Follow Intent + Notification Stack | ✅ COMPLETE |
-| Legal | DMCA Takedown Form | ✅ COMPLETE |
+| 7 | Production analytics dashboard | ✅ COMPLETE |
+| 8 | Play Metrics + Artist Reporting | Slice 3 add-ons ✅ + Slice 9 ✅ |
 
-**Slice 6 (Sponsor Primitive) is complete.** The next build is the **Pre-Slice 4 streaming readiness add-on** (toggle schema + admin UI, no VPS dep), then **Slice 4** (live event streaming, requires VPS). The **Full Ad Stack (Slice 6B)** comes after Slice 4. Rationale + copy-paste build prompts: `docs/MONETIZATION_PLAN.md`.
+**Slices 6, 7, Pre-Slice 4 add-on, 9, and DMCA are all complete.** The next build options are: **External Stream Passthrough** (small, no VPS), **Slice 8 artist reporting**, or **provision Hetzner VPS → Slice 4 live events**. Rationale + copy-paste build prompts: `docs/MONETIZATION_PLAN.md`.
 
 **Build one slice at a time. Do not start a slice until the previous one is merged and smoke-tested.**
 
@@ -98,13 +100,9 @@ meaningful ongoing cost before the product generates revenue.
 
 When the VPS is provisioned (Slice 4), activation = verify streams → run `POST /api/mux/all` → use bulk toggle. No code changes, no deploy.
 
-### Slice 9 planning note
+### Slice 9 — shipped
 
-The Slice 9 product spec is drafted in `docs/FEATURE_SLICES.md`: code capture
-for VRChat listeners, follow intent, Discord-first notification delivery,
-browser push secondary, email fallback via Resend, and VRChat username as
-attribution only. SMS/Twilio is explicitly future-only; do not build SMS UI or
-API paths in Slice 9.
+Slice 9 is complete. Code capture (`CodeInput` pill in site header), `/follow/[code]` landing page, Discord OAuth + bot DM, Resend email double opt-in, `/follows` listener preferences page, admin `/admin/codes` page, Follow Codes panel on channel edit, per-track codes burned into VRChat overlay. 19 backend tests. SMS/Twilio remains permanently deferred (`NotImplementedError`).
 
 ### Local-only / worktree notes
 
@@ -181,7 +179,7 @@ All tests must stay green. Add tests for every backend change.
 | `R2_PUBLIC_BASE_URL` | Mux only | Default: `https://stream.wavepalace.live` |
 | `FONT_PATH` | Mux only | Default: `/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf` |
 
-### Slice 9 backend additions (not yet active — provisioned at Slice 9)
+### Slice 9 backend additions (active — added to Render at Slice 9)
 
 | Variable | Service | Notes |
 |---|---|---|

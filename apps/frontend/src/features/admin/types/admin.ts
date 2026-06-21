@@ -1,5 +1,29 @@
 import type { Channel } from "@/features/channels/types/channel";
 
+export interface ChannelStat {
+  slug: string;
+  title: string;
+  host_name: string;
+  play_count: number;
+  follow_count: number;
+  follow_breakdown: { discord: number; email: number; browser_push: number };
+  active_code_count: number;
+  is_published: boolean;
+  streaming_active: boolean;
+  mux_last_at: string | null;
+}
+
+export interface AnalyticsSummary {
+  total_plays: number;
+  total_follows: number;
+  total_channels: number;
+  published_channels: number;
+  channels_with_sponsor: number;
+  follow_breakdown: { discord: number; email: number; browser_push: number };
+  top_channels: ChannelStat[];
+  generated_at: string;
+}
+
 export interface AdminSubmission {
   id: string;
   submitter_name: string;

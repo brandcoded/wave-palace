@@ -40,6 +40,9 @@ class FollowRepository(ABC):
         email: str | None,
     ) -> bool: ...
 
+    @abstractmethod
+    async def get_all_follows(self) -> list[FollowDocument]: ...
+
 
 class SeedFollowRepository(FollowRepository):
     def __init__(self) -> None:
@@ -95,6 +98,9 @@ class SeedFollowRepository(FollowRepository):
             if email and f.email == email:
                 return True
         return False
+
+    async def get_all_follows(self) -> list[FollowDocument]:
+        return [f for f in self._follows if f.confirmed]
 
 
 class MongoFollowRepository(FollowRepository):
@@ -155,6 +161,10 @@ class MongoFollowRepository(FollowRepository):
         elif email:
             query["email"] = email
         return await self._col.find_one(query) is not None
+
+    async def get_all_follows(self) -> list[FollowDocument]:
+        cursor = self._col.find({"confirmed": True}, {"_id": 0})
+        return [FollowDocument(**d) async for d in cursor]
 
 
 def build_follow_repository(settings) -> FollowRepository:

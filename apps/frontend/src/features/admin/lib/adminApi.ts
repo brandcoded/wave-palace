@@ -1,4 +1,4 @@
-import type { AdminChannel, AdminSubmission, AdminTakedown, Sponsor, SubmissionOptions, URLCheckResult } from "@/features/admin/types/admin";
+import type { AdminChannel, AdminSubmission, AdminTakedown, AnalyticsSummary, Sponsor, SubmissionOptions, URLCheckResult } from "@/features/admin/types/admin";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8000";
@@ -231,5 +231,15 @@ export async function updateTakedownStatus(
     body: JSON.stringify({ status, notes: notes ?? null }),
   });
   if (!res.ok) throw new Error("Failed to update status");
+  return res.json();
+}
+
+// ------------------------------------------------------------------
+// Analytics
+// ------------------------------------------------------------------
+
+export async function getAnalytics(): Promise<AnalyticsSummary> {
+  const res = await apiFetch("/api/admin/analytics");
+  if (!res.ok) throw new Error("Failed to load analytics");
   return res.json();
 }

@@ -89,3 +89,9 @@ def get_takedown_repository():
 def get_takedown_service():
     from app.services.takedown_service import TakedownService
     return TakedownService(get_takedown_repository(), _settings())
+
+
+@lru_cache
+def get_analytics_service():
+    from app.services.analytics_service import AnalyticsService
+    return AnalyticsService(get_channel_repository(), get_follow_repository(), get_code_repository())

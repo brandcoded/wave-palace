@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Music2, Users, Settings, LogOut, Menu, X, AlertTriangle, Flag } from "lucide-react";
+import { Music2, Users, Settings, LogOut, Menu, X, AlertTriangle, Flag, BarChart2 } from "lucide-react";
 import { AdminAuthProvider, useAdminAuth } from "@/features/admin/lib/adminAuth";
 
 const NAV = [
   { href: "/admin/submissions", label: "Submissions", icon: Users },
   { href: "/admin/channels",    label: "Channels",    icon: Music2 },
+  { href: "/admin/analytics",   label: "Analytics",   icon: BarChart2 },
   { href: "/admin/takedowns",   label: "Takedowns",   icon: Flag },
   { href: "/admin/options",     label: "Options",     icon: Settings },
 ];

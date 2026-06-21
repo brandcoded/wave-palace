@@ -30,7 +30,7 @@ Full status: `docs/STATUS.md` (canonical) — this file carries a compact copy.
 | 4 add-on | Event Sponsorship (QR bridge + sponsor frame) | ⬜ WITH Slice 4 |
 | 5 | Media URL validation & compatibility checker | ✅ COMPLETE |
 | 6B | Full Ad Stack (rotation, CPM, audio stings, reporting) | ⬜ AFTER Slice 4 |
-| 7 | Production analytics dashboard | ⬜ NOT STARTED |
+| 7 | Production analytics dashboard | ✅ COMPLETE |
 | 8 | Play Metrics + Artist Reporting | ⬜ NOT STARTED |
 | 9 | Code Capture + Follow Intent + Notification Stack | ✅ COMPLETE |
 | Legal | DMCA Takedown Form (`/legal/takedown` + admin queue) | ✅ COMPLETE |

@@ -742,3 +742,40 @@ Admin-auth required. Update status (and optional notes).
 `status` must be one of: `pending`, `reviewed`, `actioned`, `dismissed`.
 
 **Response `200`:** Updated `TakedownDocument`.
+
+---
+
+## Analytics
+
+### GET /api/admin/analytics
+
+Admin-auth required. Returns aggregated analytics over all channels.
+
+**Response `200`:**
+```json
+{
+  "total_plays": 12847,
+  "total_follows": 341,
+  "total_channels": 10,
+  "published_channels": 8,
+  "channels_with_sponsor": 3,
+  "follow_breakdown": { "discord": 214, "email": 89, "browser_push": 38 },
+  "generated_at": "2026-06-21T12:00:00Z",
+  "top_channels": [
+    {
+      "slug": "late-night-house",
+      "title": "Late Night House",
+      "host_name": "DJ Nova",
+      "play_count": 4218,
+      "follow_count": 87,
+      "follow_breakdown": { "discord": 61, "email": 20, "browser_push": 6 },
+      "active_code_count": 2,
+      "is_published": true,
+      "streaming_active": false,
+      "mux_last_at": null
+    }
+  ]
+}
+```
+
+No PII (email addresses, Discord user IDs) is included in the response. Returns `401` without admin auth.

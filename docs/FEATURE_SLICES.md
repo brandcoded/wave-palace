@@ -1004,3 +1004,26 @@ DMCA-compliant copyright takedown intake form, admin review queue, and SMTP noti
 - MongoDB-backed `TakedownRepository` + `SeedTakedownRepository` fallback
 - "Takedowns" nav item in admin sidebar
 - 15 backend tests
+
+---
+
+## Slice 7 — Production Analytics Dashboard — COMPLETE
+
+### Scope
+
+Read-only admin analytics page aggregating existing data: channel play counts, confirmed follows (by notification channel), and active follow codes. No new event collection — Slice 8 adds event-level tracking.
+
+### What shipped
+
+- `GET /api/admin/analytics` — admin-auth required; returns `AnalyticsSummaryResponse` with:
+  - `total_plays` — sum of all channel `playCount` values
+  - `total_follows` — confirmed follows only
+  - `total_channels` / `published_channels` / `channels_with_sponsor`
+  - `follow_breakdown` — totals by `discord` / `email` / `browser_push`
+  - `top_channels` — all channels sorted by `play_count` descending; each includes per-channel follow breakdown + active code count
+  - `generated_at` timestamp
+- **No PII** — individual email addresses, Discord user IDs, and Discord usernames are never returned
+- `/admin/analytics` — dashboard page: 4 stat cards · follow breakdown pills · full channel leaderboard table (unpublished channels shown muted)
+- "Analytics" nav link in admin sidebar
+- `get_all_follows()` added to `FollowRepository` ABC + both implementations for cross-channel aggregation
+- 14 backend tests

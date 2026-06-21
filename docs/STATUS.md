@@ -2,7 +2,7 @@
 
 > Single source of truth for slice status. Update this file whenever a slice
 > ships or changes state. `CLAUDE.md` carries a compact copy — keep both in sync.
-> Last updated: 2026-06-21 (DMCA Takedown Form complete)
+> Last updated: 2026-06-21 (Slice 7 — Production Analytics Dashboard complete)
 
 ---
 
@@ -30,7 +30,7 @@
 | 4 add-on | Event Sponsorship (QR bridge + sponsor frame) | ⬜ WITH Slice 4 | Event-sponsor intro frame + QR-code bridge baked into the live MP4 · Depends on Slice 6 `sponsor` object + Slice 4 streaming path |
 | 5 | Media URL validation & compatibility checker | ✅ COMPLETE (v0.8.0) | `POST /api/admin/channels/{slug}/validate-urls` · HTTPS/reachability/content-type/VRChat-compat checks · "Check URLs" button in admin channel edit |
 | 6B | Full Ad Stack | ⬜ AFTER Slice 4 | Multi-sponsor rotation · web CPM measurement · intro/outro splash · idle card · opt-in audio stings (AzuraCast) · sponsor reporting dashboard · See `MONETIZATION_PLAN.md` |
-| 7 | Production analytics dashboard | ⬜ NOT STARTED | Depends on Slice 3 add-ons |
+| 7 | Production analytics dashboard | ✅ COMPLETE | `GET /api/admin/analytics` · admin-auth required · total plays/follows/channels/sponsors summary cards · follow breakdown by channel (Discord/Email/Push) · channel leaderboard sorted by playCount desc · unpublished channels shown muted · no PII exposed · 14 backend tests · `/admin/analytics` page |
 | 8 | Play Metrics + Artist Reporting | ⬜ NOT STARTED | PM plan complete · Depends on Slice 3 add-ons + Slice 9 |
 | Legal | DMCA Takedown Form (`/legal/takedown` + admin queue) | ✅ COMPLETE | Public form → `POST /api/takedowns` · admin queue `/admin/takedowns` · status flow pending→reviewed→actioned/dismissed · best-effort SMTP email to `ADMIN_EMAIL` · MongoDB-backed with seed fallback · 15 backend tests · `/legal` index page |
 | 9 | Code Capture + Follow Intent + Notification Stack | ✅ COMPLETE | 6-char alphanumeric codes · admin generate/deactivate UI · public `/follow/[code]` landing · Discord OAuth confirmed-instantly · email double opt-in via Resend · browser push schema only · SMS raises NotImplementedError · `/follows` listener page · admin `/admin/codes` page · Follow Codes panel on channel edit page · `CodeInput` pill in site header · `POST/GET /api/admin/codes` · `GET /api/codes/{code}` · `POST /api/codes/{code}/follow` · `POST /api/follows/confirm` · `GET/PATCH/DELETE /api/follows` · Discord OAuth `/api/auth/discord/initiate` + `/callback` · 19 backend tests (146 total) · build clean |

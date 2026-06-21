@@ -30,12 +30,12 @@ Add slices one at a time per `FEATURE_SLICES.md`. Slice order:
 | 5 | Media URL validation & compatibility checker | ✅ COMPLETE (v0.8.0) — `POST /api/admin/channels/{slug}/validate-urls` | None |
 | 3 add-on | External Stream Passthrough (`liveStreamUrl` + admin UI) | 🔲 NOT STARTED | Slice 3 admin dashboard · no VPS · admin pastes VRCDN/OBS/.ts URL · VRChat-only passthrough · interim path before Slice 4 Link-In |
 | 6 | Sponsor Primitive (thin monetization) | ✅ COMPLETE (v0.9.0) | Slice 3 ✅ (admin) — no VPS dep |
-| **Pre-Slice 4 add-on** | **Streaming readiness + mux/stream toggle** | **🔲 NEXT** | `streamingActive` + `vrchatFallbackUrl` schema · player logic · admin per-channel toggle + bulk toggle + mux refresh · no VPS dep · activation = flag flip |
+| **Pre-Slice 4 add-on** | **Streaming readiness + mux/stream toggle** | **✅ COMPLETE** | `streamingActive` + `vrchatFallbackUrl` schema · admin per-channel toggle + bulk toggle · no VPS dep · activation = flag flip |
 | Pre-Slice 4 | Hetzner VPS provisioning (AzuraCast + SRS + FFmpeg) | ⬜ DEFERRED | ~2–3 hrs · CPX32 FSN1 ~$51/mo with backups · see `docs/VPS_PROVISIONING.md` · provision when live events are priority |
 | 4 | Live event streaming — Link-In and Ingest Keys | 🔲 NOT STARTED — after Slice 6 | Slice 3 ✅ + VPS provisioned (Hetzner CPX32 FSN1) · toggle infra ships pre-Slice 4, no frontend work at activation · External Stream Passthrough (Slice 3 add-on) covers no-VPS interim path |
 | 4 add-on | Event Sponsorship (QR bridge + sponsor frame) | 🔲 WITH Slice 4 | Slice 6 `sponsor` object + Slice 4 streaming path |
 | 6B | Full Ad Stack (rotation, CPM, audio stings, reporting) | 🔲 NOT STARTED — after Slice 4 | Slice 4 (AzuraCast for audio stings) · see `MONETIZATION_PLAN.md` |
-| 7 | Production analytics dashboard | 🔲 NOT STARTED | Slice 3 add-ons ✅ (play count + track metadata both shipped) |
+| 7 | Production analytics dashboard | ✅ COMPLETE | `GET /api/admin/analytics` · summary stat cards · follow breakdown · channel leaderboard · 14 tests |
 | 8 | Play Metrics + Artist Reporting | 🔲 NOT STARTED | Slice 3 add-ons + Code Capture (Slice 9) for follow/contact data |
 | 9 | Code Capture + Follow Intent + Notification Stack | ✅ COMPLETE | 6-char codes · admin generate/deactivate · `/follow/[code]` landing · Discord OAuth · Resend email opt-in · browser push schema · SMS raises NotImplementedError |
 | Legal | DMCA Takedown Form | ✅ COMPLETE | `/legal/takedown` form · `/admin/takedowns` queue · 4 API endpoints · SMTP notification · 15 tests |
@@ -44,15 +44,7 @@ Each slice ships with UI, API, tests, and docs.
 
 ## 3. Production hardening
 
-- **[PRIORITY — active data loss] Switch from seed mode to MongoDB Atlas
-  (`MONGODB_URI`).** The production backend currently runs in **seed mode**
-  (no `MONGODB_URI`), so all admin-managed data — created/edited channels,
-  sponsors, and `muxOutdated`/`muxLastAt` state — lives only in memory and is
-  **wiped on every Render restart or redeploy**. Now that the admin dashboard is
-  live and in use, this is a blocker, not a someday task: provision Atlas and set
-  `MONGODB_URI` before relying on the admin to manage real channels. The repo
-  already has `MongoChannelRepository` behind the same interface, so it's a
-  config switch (see `ARCHITECTURE.md` and `DEPLOYMENT.md`).
+- **[✅ DONE] MongoDB Atlas connected.** `MONGODB_URI` is set on Render. `pymongo[srv]` pinned so `mongodb+srv://` URIs resolve. Atlas seeded idempotently. Admin data persists across restarts. (`9574d94`, `e80ed77`)
 - Add request logging, error monitoring, and rate limiting.
 - Introduce auth before any dashboard/submission write paths (mux endpoints first).
 - Validate and sanitize all media URLs (HTTPS-only).
