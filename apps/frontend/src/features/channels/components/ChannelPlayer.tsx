@@ -333,7 +333,7 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
                 className="rounded-full border border-wave-400/40 bg-wave-400/10 px-2.5 py-0.5 font-mono text-xs font-semibold text-wave-300 transition hover:bg-wave-400/20"
                 title="Follow this channel"
               >
-                {followCode}
+                follow {followCode}
               </Link>
             )}
             {tracks.length > 1 && (
