@@ -7,12 +7,16 @@ import type { Sponsor, TrackItem } from "@/features/channels/types/channel";
 import { recordPlay, recordSponsorImpression, recordSponsorClick } from "@/features/channels/lib/channelApi";
 
 function _channelPrefix(slug: string): string {
-  return slug.split("-").filter(Boolean).map((w) => w[0].toUpperCase()).join("").slice(0, 4);
+  const initials = slug.split("-").filter(Boolean).map((w) => w[0].toUpperCase()).join("");
+  if (initials.length >= 2) return initials.slice(0, 2);
+  const clean = slug.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  return (clean + "XX").slice(0, 2);
 }
 
 function _trackPrefix(title: string, idx: number): string {
-  const clean = title.replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 4);
-  return clean || `T${idx}`;
+  const clean = title.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  if (clean.length >= 4) return clean.slice(0, 4);
+  return (clean + `T${String(idx).padStart(3, "0")}`).slice(0, 4);
 }
 
 function makeFollowCode(slug: string, title: string, idx: number): string {

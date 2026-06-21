@@ -40,44 +40,47 @@ def test_normalize_code(raw, expected):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("slug,expected", [
-    ("late-night-house",   "LNH"),
-    ("afro-future-lounge", "AFL"),
+    ("late-night-house",   "LN"),
+    ("afro-future-lounge", "AF"),
     ("neon-afterhours",    "NA"),
     ("deep-house",         "DH"),
-    ("single",             "S"),
+    ("single",             "SI"),  # 1 word → first 2 chars of slug
 ])
 def test_channel_prefix(slug, expected):
     assert _channel_prefix(slug) == expected
 
 
 # ---------------------------------------------------------------------------
-# _track_prefix
+# _track_prefix — always exactly 4 chars
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("title,idx,expected", [
     ("Projections", 3, "PROJ"),
     ("Come Thru",   0, "COME"),
-    ("",            2, "T2"),
-    ("!!!###",      1, "T1"),
+    ("",            2, "T002"),  # empty → T + zero-padded index
+    ("!!!###",      1, "T001"),  # no alphanum → T + zero-padded index
     ("Day Trips",   4, "DAYT"),
     ("Happier",     0, "HAPP"),
+    ("Hi",          5, "HIT0"),  # 2 chars + T005 → slice to 4
 ])
 def test_track_prefix(title, idx, expected):
     assert _track_prefix(title, idx) == expected
 
 
 # ---------------------------------------------------------------------------
-# make_mux_code
+# make_mux_code — always exactly 6 chars
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("slug,title,idx,expected", [
-    ("late-night-house",   "Projections",   3, "LNHPROJ"),
-    ("afro-future-lounge", "Can't Explain", 0, "AFLCANT"),
+    ("late-night-house",   "Projections",   3, "LNPROJ"),
+    ("afro-future-lounge", "Can't Explain", 0, "AFCANT"),
     ("neon-afterhours",    "Akira",         0, "NAAKIR"),
-    ("late-night-house",   "",              2, "LNHT2"),
+    ("late-night-house",   "",              2, "LNT002"),
 ])
 def test_make_mux_code(slug, title, idx, expected):
-    assert make_mux_code(slug, title, idx) == expected
+    code = make_mux_code(slug, title, idx)
+    assert code == expected
+    assert len(code) == 6, f"mux codes must be exactly 6 chars, got {len(code)}: {code}"
 
 
 # ---------------------------------------------------------------------------
@@ -99,15 +102,15 @@ def _make_stored_code(code: str) -> CodeDocument:
     )
 
 
-@pytest.mark.parametrize("query", ["lnh proj", "LNH-PROJ", "lnh.proj", "LNHPROJ"])
+@pytest.mark.parametrize("query", ["ln proj", "LN-PROJ", "ln.proj", "LNPROJ"])
 def test_resolve_normalizes_before_lookup(query):
     code_repo = SeedCodeRepository()
     channel_repo = SeedChannelRepository()
-    asyncio.run(code_repo.upsert(_make_stored_code("LNHPROJ")))
+    asyncio.run(code_repo.upsert(_make_stored_code("LNPROJ")))
 
     svc = CodeService(code_repo, channel_repo)
     result = asyncio.run(svc.resolve_code(query))
-    assert result.code == "LNHPROJ"
+    assert result.code == "LNPROJ"
     assert result.track_title == "Projections"
     assert result.track_artist == "DJ Skyy"
     assert result.display_name == "Late Night House"
@@ -127,10 +130,10 @@ def test_upsert_mux_code_idempotent():
 
     codes = asyncio.run(code_repo.list_all())
     # Should have exactly one code for this track, not two
-    lnhproj = [c for c in codes if c.code == "LNHPROJ"]
-    assert len(lnhproj) == 1
-    assert lnhproj[0].source == "mux"
-    assert lnhproj[0].track_index == 3
+    lnproj = [c for c in codes if c.code == "LNPROJ"]
+    assert len(lnproj) == 1
+    assert lnproj[0].source == "mux"
+    assert lnproj[0].track_index == 3
 
 
 # ---------------------------------------------------------------------------
@@ -140,10 +143,10 @@ def test_upsert_mux_code_idempotent():
 def test_resolve_returns_track_info():
     code_repo = SeedCodeRepository()
     channel_repo = SeedChannelRepository()
-    asyncio.run(code_repo.upsert(_make_stored_code("LNHPROJ")))
+    asyncio.run(code_repo.upsert(_make_stored_code("LNPROJ")))
 
     svc = CodeService(code_repo, channel_repo)
-    result = asyncio.run(svc.resolve_code("LNHPROJ"))
+    result = asyncio.run(svc.resolve_code("LNPROJ"))
     assert result.track_title == "Projections"
     assert result.track_artist == "DJ Skyy"
 

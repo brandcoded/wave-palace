@@ -21,24 +21,43 @@ def _random_code() -> str:
 
 
 def normalize_code(raw: str) -> str:
-    """Strip separators and uppercase — 'lnh proj', 'LNH-PROJ', 'lnh.proj' → 'LNHPROJ'."""
+    """Strip separators and uppercase — 'ln proj', 'LN-PROJ', 'ln.proj' → 'LNPROJ'."""
     return re.sub(r"[^A-Z0-9]", "", raw.upper())
 
 
 def _channel_prefix(channel_slug: str) -> str:
-    """late-night-house → LNH (first letter of each hyphen-word, max 4)."""
+    """Return exactly 2 uppercase chars from the channel slug.
+
+    Takes the first initial of each hyphen-word and uses the first two.
+    If the slug has only one word, falls back to the first two alphanum chars
+    of that word.
+    """
     words = channel_slug.replace("-", " ").split()
-    return "".join(w[0].upper() for w in words if w)[:4]
+    initials = "".join(w[0].upper() for w in words if w)
+    if len(initials) >= 2:
+        return initials[:2]
+    clean = re.sub(r"[^A-Z0-9]", "", channel_slug.upper())
+    return (clean + "XX")[:2]
 
 
 def _track_prefix(track_title: str, track_index: int) -> str:
-    """Projections → PROJ (first 4 uppercase alphanum chars). Falls back to T{index}."""
+    """Return exactly 4 uppercase chars from the track title.
+
+    Takes the first four alphanum chars of the title. If the title has fewer
+    than four, pads with T + zero-padded index to reach exactly 4 chars.
+    """
     clean = re.sub(r"[^A-Z0-9]", "", track_title.upper())
-    return clean[:4] if clean else f"T{track_index}"
+    if len(clean) >= 4:
+        return clean[:4]
+    return (clean + f"T{track_index:03d}")[:4]
 
 
 def make_mux_code(channel_slug: str, track_title: str, track_index: int) -> str:
-    """Deterministic mux code: channel prefix + track prefix. e.g. 'LNHPROJ'."""
+    """Deterministic 6-char mux code: 2-char channel prefix + 4-char track prefix.
+
+    Examples: late-night-house + Projections → LNPROJ
+              neon-afterhours + Akira → NAAKIR
+    """
     return _channel_prefix(channel_slug) + _track_prefix(track_title, track_index)
 
 
