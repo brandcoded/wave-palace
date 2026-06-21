@@ -30,3 +30,17 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_REDIRECT_URI
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
