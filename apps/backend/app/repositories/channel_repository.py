@@ -121,11 +121,26 @@ class MongoChannelRepository(ChannelRepository):
         self._client = AsyncMongoClient(uri)
         self._collection = self._client[database]["channels"]
 
+    async def _ensure_seeded(self) -> None:
+        """Populate an empty collection with the base seed channels once.
+
+        Checks the RAW document count (not the deleted-filtered view) so a
+        collection where every channel was intentionally deleted is NOT
+        re-seeded. Mirrors the self-seeding behaviour of the options repo.
+        """
+        if await self._collection.count_documents({}, limit=1) == 0:
+            await self._collection.insert_many(
+                [{**c, "_id": c["id"]} for c in SEED_CHANNELS]
+            )
+            logger.info("Seeded empty Mongo 'channels' collection with base channels.")
+
     async def list_channels(self) -> list[dict]:
+        await self._ensure_seeded()
         cursor = self._collection.find({"deleted": {"$ne": True}}, {"_id": 0})
         return [doc async for doc in cursor]
 
     async def get_by_slug(self, slug: str) -> dict | None:
+        await self._ensure_seeded()
         return await self._collection.find_one(
             {"slug": slug, "deleted": {"$ne": True}}, {"_id": 0}
         )
