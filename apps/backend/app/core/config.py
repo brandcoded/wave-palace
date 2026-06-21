@@ -36,6 +36,13 @@ class Settings:
     vapid_private_key: Optional[str] = os.getenv("VAPID_PRIVATE_KEY") or None
     resend_api_key: Optional[str] = os.getenv("RESEND_API_KEY") or None
 
+    # DMCA takedown email notification — all optional; email skips silently if absent.
+    admin_email: Optional[str] = os.getenv("ADMIN_EMAIL") or None
+    smtp_host: Optional[str] = os.getenv("SMTP_HOST") or None
+    smtp_port: int = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user: Optional[str] = os.getenv("SMTP_USER") or None
+    smtp_pass: Optional[str] = os.getenv("SMTP_PASS") or None
+
     # Path to a TrueType font used by the mux service to burn text overlays
     # into VRChat MP4s. Defaults to DejaVu Sans on Ubuntu (installed via apt
     # in render.yaml). Override with FONT_PATH env var for other environments.

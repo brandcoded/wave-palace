@@ -2,6 +2,23 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.0] — DMCA / Copyright Takedown Form
+
+### Added
+- **Public takedown form** at `/legal/takedown` — claimant name, org, email, role dropdown, infringing URL, description, proof, good-faith + accuracy checkboxes; client-side validation; redirects to `/legal/takedown/submitted` on success
+- **Confirmation page** at `/legal/takedown/submitted`
+- **Legal index** at `/legal` linking to takedown form, with placeholder links for Privacy Policy and Terms of Service
+- **`POST /api/takedowns`** — saves claim, fires best-effort SMTP email to `ADMIN_EMAIL`, returns `{ id, submitted_at }`
+- **`GET /api/takedowns`** / **`GET /api/takedowns/{id}`** — admin list and detail
+- **`PATCH /api/takedowns/{id}/status`** — updates status (`pending → reviewed → actioned | dismissed`) + optional notes
+- **Admin queue** at `/admin/takedowns` — table with date/claimant/URL/status; click-row drawer with full fields, status dropdown, notes textarea, save
+- **"Takedowns" nav link** added to admin sidebar
+- **SMTP email notification** on submission via `ADMIN_EMAIL` / `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` env vars (all optional, fails silently)
+- **15 backend tests** covering submission, validation, list/get, status PATCH
+- **MongoDB-backed** `TakedownRepository` with in-memory seed fallback
+
+---
+
 ## [0.10.0] — Slice 9: Code Capture + Follow Intent + Notification Stack
 
 ### Added

@@ -674,3 +674,64 @@ Public. Redirects to Discord OAuth. `code` is the WavePalace follow code (rename
 ### GET /api/auth/discord/callback?code=…&state=…
 
 Public (Discord OAuth redirect target). Exchanges OAuth code for user identity, creates a Discord follow, sets `wp_listener_discord_id` cookie (30d), redirects to `/follows`.
+
+---
+
+## Takedowns
+
+### POST /api/takedowns
+
+Public. Submit a copyright takedown request.
+
+**Request:**
+```json
+{
+  "claimant_name": "Jane Doe",
+  "organization": "Doe Music Group",
+  "email": "jane@example.com",
+  "role": "artist",
+  "infringing_url": "https://wavepalace.live/channels/late-night-house",
+  "description": "I own the rights to Projections by ...",
+  "proof": "ISRC: USRC17607839",
+  "good_faith": true,
+  "accuracy": true
+}
+```
+
+`good_faith` and `accuracy` must be `true` or validation fails with `422`.
+
+**Response `201`:**
+```json
+{ "id": "abc123", "submitted_at": "2026-06-21T00:00:00Z" }
+```
+
+---
+
+### GET /api/takedowns
+
+Admin-auth required. List all takedown requests, newest first.
+
+**Response `200`:** Array of `TakedownDocument`.
+
+---
+
+### GET /api/takedowns/{id}
+
+Admin-auth required. Get a single takedown by ID.
+
+**Response `200`:** `TakedownDocument`. `404` if not found.
+
+---
+
+### PATCH /api/takedowns/{id}/status
+
+Admin-auth required. Update status (and optional notes).
+
+**Request:**
+```json
+{ "status": "reviewed", "notes": "Confirmed valid claim." }
+```
+
+`status` must be one of: `pending`, `reviewed`, `actioned`, `dismissed`.
+
+**Response `200`:** Updated `TakedownDocument`.

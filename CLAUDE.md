@@ -33,6 +33,7 @@ Full status: `docs/STATUS.md` (canonical) — this file carries a compact copy.
 | 7 | Production analytics dashboard | ⬜ NOT STARTED |
 | 8 | Play Metrics + Artist Reporting | ⬜ NOT STARTED |
 | 9 | Code Capture + Follow Intent + Notification Stack | ✅ COMPLETE |
+| Legal | DMCA Takedown Form (`/legal/takedown` + admin queue) | ✅ COMPLETE |
 
 **Always update this table and `docs/STATUS.md` when a slice ships.**
 

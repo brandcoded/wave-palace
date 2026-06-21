@@ -37,7 +37,8 @@ Add slices one at a time per `FEATURE_SLICES.md`. Slice order:
 | 6B | Full Ad Stack (rotation, CPM, audio stings, reporting) | 🔲 NOT STARTED — after Slice 4 | Slice 4 (AzuraCast for audio stings) · see `MONETIZATION_PLAN.md` |
 | 7 | Production analytics dashboard | 🔲 NOT STARTED | Slice 3 add-ons ✅ (play count + track metadata both shipped) |
 | 8 | Play Metrics + Artist Reporting | 🔲 NOT STARTED | Slice 3 add-ons + Code Capture (Slice 9) for follow/contact data |
-| 9 | Code Capture + Follow Intent + Notification Stack | 🔲 NOT STARTED — product spec drafted | Slice 3 ✅ (admin dashboard satisfied) + Slice 8 Phase 1–2 (event tracking) · Discord DM primary → browser push secondary → Resend email fallback · SMS/Twilio deferred (A2P 10DLC required) |
+| 9 | Code Capture + Follow Intent + Notification Stack | ✅ COMPLETE | 6-char codes · admin generate/deactivate · `/follow/[code]` landing · Discord OAuth · Resend email opt-in · browser push schema · SMS raises NotImplementedError |
+| Legal | DMCA Takedown Form | ✅ COMPLETE | `/legal/takedown` form · `/admin/takedowns` queue · 4 API endpoints · SMTP notification · 15 tests |
 
 Each slice ships with UI, API, tests, and docs.
 

@@ -64,7 +64,8 @@ wave-palace/
 | 6B | Full Ad Stack (rotation, CPM, audio stings, reporting) | Slice 4 ✅ (AzuraCast for audio stings) |
 | 7 | Production analytics dashboard | Slice 3 add-ons ✅ |
 | 8 | Play Metrics + Artist Reporting | Slice 3 add-ons ✅ + Slice 9 |
-| 9 | Code Capture + Follow Intent + Notification Stack | Slice 3 ✅ + Slice 8 Phase 1–2 |
+| 9 | Code Capture + Follow Intent + Notification Stack | ✅ COMPLETE |
+| Legal | DMCA Takedown Form | ✅ COMPLETE |
 
 **Slice 6 (Sponsor Primitive) is complete.** The next build is the **Pre-Slice 4 streaming readiness add-on** (toggle schema + admin UI, no VPS dep), then **Slice 4** (live event streaming, requires VPS). The **Full Ad Stack (Slice 6B)** comes after Slice 4. Rationale + copy-paste build prompts: `docs/MONETIZATION_PLAN.md`.
 

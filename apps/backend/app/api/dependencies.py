@@ -77,3 +77,15 @@ def get_code_service():
 def get_follow_service():
     from app.services.follow_service import FollowService
     return FollowService(get_follow_repository(), get_code_repository(), get_channel_repository())
+
+
+@lru_cache
+def get_takedown_repository():
+    from app.repositories.takedown_repository import build_takedown_repository
+    return build_takedown_repository(_settings())
+
+
+@lru_cache
+def get_takedown_service():
+    from app.services.takedown_service import TakedownService
+    return TakedownService(get_takedown_repository(), _settings())

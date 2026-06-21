@@ -983,3 +983,24 @@ Code generation rules:
 - [ ] All backend paths have pytest coverage
 
 **Do not build future slices until explicitly requested.**
+
+---
+
+## Legal / DMCA Takedown Form — COMPLETE
+
+### Scope
+
+DMCA-compliant copyright takedown intake form, admin review queue, and SMTP notification.
+
+### What shipped
+
+- `/legal` — legal index page (takedown, privacy placeholder, terms placeholder)
+- `/legal/takedown` — public DMCA form with all required DMCA fields (claimant, org, email, role, infringing URL, description, proof, good-faith + accuracy checkboxes)
+- `/legal/takedown/submitted` — confirmation page
+- `/admin/takedowns` — admin queue: table view + drawer (status dropdown, notes, save)
+- `POST /api/takedowns` — public submission; Pydantic validators enforce `good_faith=True`, `accuracy=True`; fires best-effort SMTP email to `ADMIN_EMAIL`
+- `GET /api/takedowns` / `GET /api/takedowns/{id}` / `PATCH /api/takedowns/{id}/status` — admin endpoints
+- Status flow: `pending → reviewed → actioned | dismissed`
+- MongoDB-backed `TakedownRepository` + `SeedTakedownRepository` fallback
+- "Takedowns" nav item in admin sidebar
+- 15 backend tests

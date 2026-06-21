@@ -1,4 +1,4 @@
-import type { AdminChannel, AdminSubmission, Sponsor, SubmissionOptions, URLCheckResult } from "@/features/admin/types/admin";
+import type { AdminChannel, AdminSubmission, AdminTakedown, Sponsor, SubmissionOptions, URLCheckResult } from "@/features/admin/types/admin";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8000";
@@ -203,4 +203,33 @@ export async function listCodes(): Promise<AdminCode[]> {
 
 export async function deactivateCode(code: string): Promise<void> {
   await apiFetch(`/api/admin/codes/${code}`, { method: "DELETE" });
+}
+
+// ------------------------------------------------------------------
+// Takedowns
+// ------------------------------------------------------------------
+
+export async function listTakedowns(): Promise<AdminTakedown[]> {
+  const res = await apiFetch("/api/takedowns");
+  if (!res.ok) throw new Error("Failed to list takedowns");
+  return res.json();
+}
+
+export async function getTakedown(id: string): Promise<AdminTakedown> {
+  const res = await apiFetch(`/api/takedowns/${id}`);
+  if (!res.ok) throw new Error("Failed to fetch takedown");
+  return res.json();
+}
+
+export async function updateTakedownStatus(
+  id: string,
+  status: AdminTakedown["status"],
+  notes?: string,
+): Promise<AdminTakedown> {
+  const res = await apiFetch(`/api/takedowns/${id}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status, notes: notes ?? null }),
+  });
+  if (!res.ok) throw new Error("Failed to update status");
+  return res.json();
 }

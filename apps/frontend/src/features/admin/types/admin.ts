@@ -38,6 +38,22 @@ export interface URLCheckResult {
   checked_at: string;
 }
 
+export interface AdminTakedown {
+  id: string;
+  claimant_name: string;
+  organization: string | null;
+  email: string;
+  role: "artist" | "label" | "attorney" | "other";
+  infringing_url: string;
+  description: string;
+  proof: string | null;
+  good_faith: boolean;
+  accuracy: boolean;
+  status: "pending" | "reviewed" | "actioned" | "dismissed";
+  submitted_at: string;
+  notes: string | null;
+}
+
 export interface Sponsor {
   name: string;
   logoUrl: string | null;
