@@ -82,8 +82,8 @@ def _drawtext_overlay(
       Row 3 left (y=618): Artist — Track — time-windowed per track
       Row 3 right (y=618): genre · mood — static
       Row 4 left (y=648): Sponsor text — static (optional)
-      Row 4 right (y=682): LNHPROJ — time-windowed per track
-      Row 5 right (y=700): wavepalace.live/follow — static
+      Row 4 right (y=650): LNHPROJ — time-windowed per track (fontsize=28)
+      Row 5 right (y=692): wavepalace.live/follow — static
 
     Returns an empty string when the font file is not present so the mux still
     succeeds without text overlay.
@@ -115,9 +115,9 @@ def _drawtext_overlay(
         f"drawtext=fontfile={fp}:text={h}:x=24:y=578:fontsize=26:fontcolor=white@0.80:{shadow}",
         # Row 3 right: genre · mood pill — always visible.
         f"drawtext=fontfile={fp}:text={gm}:x=w-tw-24:y=618:fontsize=22:fontcolor=white@0.70:{shadow}",
-        # Row 5 right: URL label — static.
-        f"drawtext=fontfile={fp}:text=wavepalace.live\\/follow"
-        f":x=w-tw-24:y=700:fontsize=16:fontcolor=white@0.45:{shadow}",
+        # Row 5 right: URL label — static, below code row.
+        f"drawtext=fontfile={fp}:text=wavepalace.live/follow"
+        f":x=w-tw-24:y=692:fontsize=16:fontcolor=white@0.45:{shadow}",
     ]
 
     # Row 4 left: sponsor lower-third — small, low-opacity.
@@ -142,11 +142,12 @@ def _drawtext_overlay(
         )
 
     # Row 4 right: per-track code — bold, right-aligned, time-windowed.
+    # Larger font (28) and positioned at y=650 so it sits clearly above the URL label.
     for start, end, code in track_codes:
         parts.append(
             f"drawtext=fontfile={bold}:text={_escape_drawtext(code)}"
             f":enable='between(t,{start:.3f},{end:.3f})'"
-            f":x=w-tw-24:y=682:fontsize=22:fontcolor=white@0.90:{shadow}"
+            f":x=w-tw-24:y=650:fontsize=28:fontcolor=white@0.95:{shadow}"
         )
 
     return ",".join(parts)

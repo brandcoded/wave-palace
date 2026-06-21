@@ -1,9 +1,23 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Play, Pause, Volume2, VolumeX, AlertTriangle, User, X } from "lucide-react";
 import type { Sponsor, TrackItem } from "@/features/channels/types/channel";
 import { recordPlay, recordSponsorImpression, recordSponsorClick } from "@/features/channels/lib/channelApi";
+
+function _channelPrefix(slug: string): string {
+  return slug.split("-").filter(Boolean).map((w) => w[0].toUpperCase()).join("").slice(0, 4);
+}
+
+function _trackPrefix(title: string, idx: number): string {
+  const clean = title.replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 4);
+  return clean || `T${idx}`;
+}
+
+function makeFollowCode(slug: string, title: string, idx: number): string {
+  return _channelPrefix(slug) + _trackPrefix(title, idx);
+}
 
 interface ChannelPlayerProps {
   tracks: TrackItem[];
@@ -136,6 +150,9 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
 
   const currentTrack = tracks[currentIndex];
   const trackSrc = currentTrack?.url ?? "";
+  const followCode = currentTrack?.title
+    ? makeFollowCode(slug, currentTrack.title, currentIndex)
+    : null;
   const showBug = sponsorActive && sponsor!.placement === "bug" && sponsor!.logoUrl;
   const showLowerThird = sponsorActive && sponsor!.placement !== "bug";
   const showTakeover = sponsorActive && !playing && !sponsorDismissed;
@@ -306,9 +323,18 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
               {genre.map((g) => <span key={g} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">{g}</span>)}
               {mood.map((m) => <span key={m} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">{m}</span>)}
             </div>
+            {followCode && (
+              <Link
+                href={`/follow/${followCode}`}
+                className="rounded-full border border-wave-400/40 bg-wave-400/10 px-2.5 py-0.5 font-mono text-xs font-semibold text-wave-300 transition hover:bg-wave-400/20"
+                title="Follow this channel"
+              >
+                {followCode}
+              </Link>
+            )}
             {tracks.length > 1 && (
               <span className="text-xs font-medium text-white/50">
-                Track {currentIndex + 1} of {tracks.length}
+                {currentIndex + 1}/{tracks.length}
               </span>
             )}
           </div>
