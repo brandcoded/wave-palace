@@ -71,20 +71,25 @@ def _drawtext_overlay(
     font_path: str,
     track_times: list[tuple[float, float, str, str]] = (),
     sponsor_text: str = "",
+    track_codes: list[tuple[float, float, str]] = (),
 ) -> str:
     """Return a comma-joined FFmpeg filter chain that burns channel info and
     per-track now-playing text into the bottom portion of a 1280×720 frame.
 
-    Layout (bottom-up, inside a dark band):
-      - Channel title (bold, 40 px) — static
-      - "Hosted by …" (26 px) — static
-      - "Artist — Track" (22 px, left) / "genre · mood" (22 px, right) — bottom row;
-        now-playing switches per track via enable='between(t,start,end)'
+    Layout (bottom band, y=520–720):
+      Row 1 (y=528): Channel title — static
+      Row 2 (y=578): Hosted by … — static
+      Row 3 left (y=618): Artist — Track — time-windowed per track
+      Row 3 right (y=618): genre · mood — static
+      Row 4 left (y=648): Sponsor text — static (optional)
+      Row 4 right (y=682): LNHPROJ — time-windowed per track
+      Row 5 right (y=700): wavepalace.live/follow — static
 
     Returns an empty string when the font file is not present so the mux still
     succeeds without text overlay.
 
     track_times: list of (start_secs, end_secs, track_title, track_artist)
+    track_codes: list of (start_secs, end_secs, code_string)
     """
     regular = Path(font_path)
     if not regular.exists():
@@ -102,21 +107,24 @@ def _drawtext_overlay(
     shadow = "shadowx=1:shadowy=1:shadowcolor=black@0.80"
 
     parts = [
-        # Dark band — tall enough for 4 text rows.
-        "drawbox=x=0:y=548:w=1280:h=172:color=black@0.50:t=fill",
+        # Dark band — 200px tall for 5 text rows.
+        "drawbox=x=0:y=520:w=1280:h=200:color=black@0.50:t=fill",
         # Row 1: channel title.
-        f"drawtext=fontfile={bold}:text={t}:x=24:y=558:fontsize=40:fontcolor=white:{shadow}",
+        f"drawtext=fontfile={bold}:text={t}:x=24:y=528:fontsize=40:fontcolor=white:{shadow}",
         # Row 2: host credit.
-        f"drawtext=fontfile={fp}:text={h}:x=24:y=608:fontsize=26:fontcolor=white@0.80:{shadow}",
+        f"drawtext=fontfile={fp}:text={h}:x=24:y=578:fontsize=26:fontcolor=white@0.80:{shadow}",
         # Row 3 right: genre · mood pill — always visible.
-        f"drawtext=fontfile={fp}:text={gm}:x=w-tw-24:y=648:fontsize=22:fontcolor=white@0.70:{shadow}",
+        f"drawtext=fontfile={fp}:text={gm}:x=w-tw-24:y=618:fontsize=22:fontcolor=white@0.70:{shadow}",
+        # Row 5 right: URL label — static.
+        f"drawtext=fontfile={fp}:text=wavepalace.live\\/follow"
+        f":x=w-tw-24:y=700:fontsize=16:fontcolor=white@0.45:{shadow}",
     ]
 
-    # Row 4: sponsor lower-third — small, low-opacity, below genre·mood row.
+    # Row 4 left: sponsor lower-third — small, low-opacity.
     if sponsor_text:
         s = _escape_drawtext(sponsor_text)
         parts.append(
-            f"drawtext=fontfile={fp}:text={s}:x=24:y=676:fontsize=18:fontcolor=white@0.55:{shadow}"
+            f"drawtext=fontfile={fp}:text={s}:x=24:y=648:fontsize=18:fontcolor=white@0.55:{shadow}"
         )
 
     # Row 3 left: per-track now-playing — one entry per track, time-windowed.
@@ -130,7 +138,15 @@ def _drawtext_overlay(
         parts.append(
             f"drawtext=fontfile={fp}:text={now_playing}"
             f":enable='between(t,{start:.3f},{end:.3f})'"
-            f":x=24:y=648:fontsize=22:fontcolor=white@0.90:{shadow}"
+            f":x=24:y=618:fontsize=22:fontcolor=white@0.90:{shadow}"
+        )
+
+    # Row 4 right: per-track code — bold, right-aligned, time-windowed.
+    for start, end, code in track_codes:
+        parts.append(
+            f"drawtext=fontfile={bold}:text={_escape_drawtext(code)}"
+            f":enable='between(t,{start:.3f},{end:.3f})'"
+            f":x=w-tw-24:y=682:fontsize=22:fontcolor=white@0.90:{shadow}"
         )
 
     return ",".join(parts)
@@ -266,9 +282,11 @@ class MuxService:
         self,
         repository: ChannelRepository,
         r2: R2Repository,
+        code_service=None,
     ) -> None:
         self._repository = repository
         self._r2 = r2
+        self._code_service = code_service
 
     async def mux_channel(self, slug: str) -> str:
         """Mux cover + audio for *slug* and return the public MP4 URL."""
@@ -338,6 +356,23 @@ class MuxService:
             if total_duration <= 0:
                 raise RuntimeError(f"Could not determine audio duration for '{slug}'")
 
+            # Generate and store one deterministic code per track.
+            track_codes: list[tuple[float, float, str]] = []
+            if self._code_service is not None:
+                from app.services.code_service import make_mux_code
+                for idx, (start, end, t_title, t_artist) in enumerate(track_times):
+                    code = make_mux_code(slug, t_title, idx)
+                    track_codes.append((start, end, code))
+                    try:
+                        await self._code_service.upsert_mux_code(
+                            channel_slug=slug,
+                            track_title=t_title,
+                            track_artist=t_artist,
+                            track_index=idx,
+                        )
+                    except Exception as exc:
+                        logger.warning("Code upsert failed for %s track %d: %s", slug, idx, exc)
+
             # Resolve sponsor text for the drawtext overlay.
             _sp_raw = channel.get("sponsor")
             _sponsor_text = ""
@@ -360,6 +395,7 @@ class MuxService:
                 font_path=settings.font_path,
                 track_times=track_times,
                 sponsor_text=_sponsor_text,
+                track_codes=track_codes,
             )
 
             if cover_path.suffix.lower() in _VIDEO_EXTS:

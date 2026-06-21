@@ -27,6 +27,9 @@ class CodeRepository(ABC):
     @abstractmethod
     async def code_exists_active(self, code: str) -> bool: ...
 
+    @abstractmethod
+    async def upsert(self, doc: CodeDocument) -> CodeDocument: ...
+
 
 class SeedCodeRepository(CodeRepository):
     def __init__(self) -> None:
@@ -51,6 +54,14 @@ class SeedCodeRepository(CodeRepository):
 
     async def code_exists_active(self, code: str) -> bool:
         return any(c.code == code and c.active for c in self._codes)
+
+    async def upsert(self, doc: CodeDocument) -> CodeDocument:
+        for i, c in enumerate(self._codes):
+            if c.code == doc.code:
+                self._codes[i] = doc
+                return doc
+        self._codes.append(doc)
+        return doc
 
 
 class MongoCodeRepository(CodeRepository):
@@ -77,6 +88,14 @@ class MongoCodeRepository(CodeRepository):
     async def code_exists_active(self, code: str) -> bool:
         doc = await self._col.find_one({"code": code, "active": True})
         return doc is not None
+
+    async def upsert(self, doc: CodeDocument) -> CodeDocument:
+        await self._col.update_one(
+            {"code": doc.code},
+            {"$set": {**doc.model_dump(), "_id": doc.code}},
+            upsert=True,
+        )
+        return doc
 
 
 def build_code_repository(settings) -> CodeRepository:

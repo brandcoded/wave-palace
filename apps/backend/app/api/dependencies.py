@@ -38,7 +38,7 @@ def get_channel_service() -> ChannelService:
 def get_mux_service() -> MuxService:
     from app.repositories.r2_repository import R2Repository
 
-    return MuxService(get_channel_repository(), R2Repository(_settings()))
+    return MuxService(get_channel_repository(), R2Repository(_settings()), get_code_service())
 
 
 @lru_cache

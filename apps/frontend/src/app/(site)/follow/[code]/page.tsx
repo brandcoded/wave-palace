@@ -31,7 +31,19 @@ export default async function FollowCodePage({ params }: Props) {
         </p>
         <h1 className="mb-1 text-2xl font-bold text-white">{info.display_name}</h1>
         {info.host_name && (
-          <p className="mb-6 text-sm text-white/50">hosted by {info.host_name}</p>
+          <p className="mb-2 text-sm text-white/50">hosted by {info.host_name}</p>
+        )}
+        {(info.track_title || info.track_artist) && (
+          <p className="mb-4 text-sm text-white/70">
+            You were listening to{" "}
+            {info.track_title && (
+              <span className="font-semibold text-white">{info.track_title}</span>
+            )}
+            {info.track_title && info.track_artist && " by "}
+            {info.track_artist && (
+              <span className="font-semibold text-white">{info.track_artist}</span>
+            )}
+          </p>
         )}
         {(info.genre?.length || info.mood?.length) && (
           <p className="mb-8 text-xs text-white/40">
@@ -40,7 +52,9 @@ export default async function FollowCodePage({ params }: Props) {
         )}
 
         <p className="mb-6 text-sm text-white/60">
-          Follow this channel to get notified about events, guest DJs, and new music.
+          {info.track_artist
+            ? `Follow this channel and never miss when ${info.track_artist} drops new music or goes live.`
+            : "Follow this channel to get notified about events, guest DJs, and new music."}
         </p>
 
         <FollowForm code={info.code} discordInitiateUrl={discordInitiateUrl} />

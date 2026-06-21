@@ -16,6 +16,10 @@ class CodeDocument(BaseModel):
     created_at: datetime
     expires_at: Optional[datetime] = None
     active: bool = True
+    track_title: Optional[str] = None
+    track_artist: Optional[str] = None
+    track_index: Optional[int] = None
+    source: str = "manual"  # "manual" | "mux" | "stream"
 
 
 class CodeCreateRequest(BaseModel):
@@ -34,3 +38,5 @@ class CodePublicResponse(BaseModel):
     genre: Optional[list[str]] = None
     mood: Optional[list[str]] = None
     cover_image_url: Optional[str] = None
+    track_title: Optional[str] = None
+    track_artist: Optional[str] = None

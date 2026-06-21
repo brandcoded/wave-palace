@@ -11,6 +11,8 @@ export interface CodeInfo {
   genre?: string[] | null;
   mood?: string[] | null;
   cover_image_url?: string | null;
+  track_title?: string | null;
+  track_artist?: string | null;
 }
 
 export interface FollowResult {

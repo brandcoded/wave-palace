@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import secrets
 import string
 from datetime import datetime, timezone
@@ -17,6 +18,28 @@ _ALPHABET = string.ascii_uppercase + string.digits
 
 def _random_code() -> str:
     return "".join(secrets.choice(_ALPHABET) for _ in range(6))
+
+
+def normalize_code(raw: str) -> str:
+    """Strip separators and uppercase — 'lnh proj', 'LNH-PROJ', 'lnh.proj' → 'LNHPROJ'."""
+    return re.sub(r"[^A-Z0-9]", "", raw.upper())
+
+
+def _channel_prefix(channel_slug: str) -> str:
+    """late-night-house → LNH (first letter of each hyphen-word, max 4)."""
+    words = channel_slug.replace("-", " ").split()
+    return "".join(w[0].upper() for w in words if w)[:4]
+
+
+def _track_prefix(track_title: str, track_index: int) -> str:
+    """Projections → PROJ (first 4 uppercase alphanum chars). Falls back to T{index}."""
+    clean = re.sub(r"[^A-Z0-9]", "", track_title.upper())
+    return clean[:4] if clean else f"T{track_index}"
+
+
+def make_mux_code(channel_slug: str, track_title: str, track_index: int) -> str:
+    """Deterministic mux code: channel prefix + track prefix. e.g. 'LNHPROJ'."""
+    return _channel_prefix(channel_slug) + _track_prefix(track_title, track_index)
 
 
 class CodeService:
@@ -41,7 +64,7 @@ class CodeService:
         raise HTTPException(status_code=409, detail="Could not generate a unique code — try again.")
 
     async def resolve_code(self, code: str) -> CodePublicResponse:
-        doc = await self._code_repo.get(code.upper())
+        doc = await self._code_repo.get(normalize_code(code))
         if doc is None or not doc.active:
             raise HTTPException(
                 status_code=404,
@@ -73,7 +96,32 @@ class CodeService:
             genre=genre,
             mood=mood,
             cover_image_url=str(cover_image_url) if cover_image_url else None,
+            track_title=doc.track_title,
+            track_artist=doc.track_artist,
         )
+
+    async def upsert_mux_code(
+        self,
+        channel_slug: str,
+        track_title: str,
+        track_artist: str,
+        track_index: int,
+    ) -> CodeDocument:
+        """Generate deterministic mux code and upsert. Idempotent on re-mux."""
+        code = make_mux_code(channel_slug, track_title, track_index)
+        doc = CodeDocument(
+            code=code,
+            channel_slug=channel_slug,
+            entity_type="track_channel",
+            entity_id=channel_slug,
+            track_title=track_title,
+            track_artist=track_artist,
+            track_index=track_index,
+            source="mux",
+            created_at=datetime.now(tz=timezone.utc),
+            active=True,
+        )
+        return await self._code_repo.upsert(doc)
 
     async def deactivate_code(self, code: str) -> None:
         found = await self._code_repo.deactivate(code.upper())
