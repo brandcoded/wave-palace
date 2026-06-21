@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from app.core.auth import create_token, get_current_admin, verify_secret
+from app.core.config import get_settings
 
 router = APIRouter(prefix="/api/admin", tags=["admin-auth"])
 
@@ -68,4 +69,6 @@ async def logout(response: Response) -> dict:
 
 @router.get("/me")
 async def me(_: dict = Depends(get_current_admin)) -> dict:
-    return {"ok": True}
+    # seedMode=True means no database is configured, so all admin data
+    # (channels, codes, options, follows) is in-memory and lost on restart.
+    return {"ok": True, "seedMode": get_settings().use_seed_mode}

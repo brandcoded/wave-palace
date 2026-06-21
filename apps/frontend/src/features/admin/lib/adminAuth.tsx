@@ -7,25 +7,29 @@ import { checkSession, logout as apiLogout } from "./adminApi";
 interface AuthState {
   checked: boolean;
   authed: boolean;
+  seedMode: boolean;
   logout: () => Promise<void>;
 }
 
 const AdminAuthContext = createContext<AuthState>({
   checked: false,
   authed: false,
+  seedMode: false,
   logout: async () => {},
 });
 
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [checked, setChecked] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [seedMode, setSeedMode] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
     checkSession()
-      .then(() => {
+      .then((res) => {
         setAuthed(true);
+        setSeedMode(Boolean((res as { seedMode?: boolean }).seedMode));
         setChecked(true);
       })
       .catch(() => {
@@ -44,7 +48,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AdminAuthContext.Provider value={{ checked, authed, logout }}>
+    <AdminAuthContext.Provider value={{ checked, authed, seedMode, logout }}>
       {children}
     </AdminAuthContext.Provider>
   );

@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Music2, Users, Settings, LogOut, Menu, X } from "lucide-react";
+import { Music2, Users, Settings, LogOut, Menu, X, AlertTriangle } from "lucide-react";
 import { AdminAuthProvider, useAdminAuth } from "@/features/admin/lib/adminAuth";
 
 const NAV = [
@@ -38,7 +38,7 @@ function NavLinks({ pathname, onClick }: { pathname: string; onClick?: () => voi
 }
 
 function AdminShell({ children }: { children: React.ReactNode }) {
-  const { checked, authed, logout } = useAdminAuth();
+  const { checked, authed, seedMode, logout } = useAdminAuth();
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -124,6 +124,22 @@ function AdminShell({ children }: { children: React.ReactNode }) {
 
       {/* Main content — offset top on mobile to clear the sticky top bar */}
       <main className="flex-1 overflow-auto p-4 pt-[calc(4rem+env(safe-area-inset-top))] lg:p-8">
+        {seedMode && (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />
+            <div className="text-sm">
+              <p className="font-semibold text-amber-200">
+                No database connected — changes are temporary
+              </p>
+              <p className="mt-0.5 text-amber-100/80">
+                The backend is running in seed mode (<code className="text-amber-200">MONGODB_URI</code> not set).
+                Channels, codes, options, and follows live in memory and are <strong>lost on every
+                restart or redeploy</strong>. Set <code className="text-amber-200">MONGODB_URI</code> on
+                the backend to persist admin data.
+              </p>
+            </div>
+          </div>
+        )}
         {children}
       </main>
     </div>
