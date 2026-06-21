@@ -22,6 +22,18 @@ All notable changes to this project are documented here.
 - Directory (`ChannelGrid`): featured active sponsors sorted to top. `ChannelCard`: "Sponsored" badge overlay on cover art when `isFeatured && isActive`.
 - 22 backend tests in `tests/test_sponsor.py` (20 pass, 2 skipped for missing font on CI).
 
+## [Unreleased] — Pre-Slice 4 add-on: streaming readiness + mux/stream toggle
+
+- `streamingActive: bool` (default `False`) and `vrchatFallbackUrl: str | None` added to Channel schema.
+- `PATCH /api/admin/channels/{slug}` accepts both fields via `ChannelPatchRequest`. Neither field triggers `muxOutdated`.
+- `POST /api/admin/channels/streaming/bulk` — admin-auth endpoint; flips `streamingActive` on all channels at once. Returns `{ updated: N, streamingActive: bool }`. Registered before `/{slug}` routes to avoid FastAPI slug capture.
+- Admin channel edit page: new streaming sub-section in "VRChat — mux & streaming" — checkbox to toggle `streamingActive`, text field for `vrchatFallbackUrl`. Fields save via existing "Save" button.
+- Admin channels list: "Activate Streaming" / "Deactivate Streaming" bulk-toggle button in the action bar; label reflects whether any channel is currently streaming-active.
+- `Channel` TypeScript interface updated with `streamingActive?: boolean` and `vrchatFallbackUrl?: string | null`.
+- Fixed genre/mood display in admin channels list table and mobile cards (join array with ", ").
+- 7 new backend tests in `test_streaming_toggle.py`; 127 total pass.
+- No VPS dependency — activation = flag flip after VPS smoke test.
+
 ## [Unreleased] — Multi-value taxonomy (genre / mood / energy / theme)
 
 - `genre`, `mood`, `energy`, `theme` changed from `str` to `list[str]` throughout backend (Pydantic schema, seed data, admin request models) and frontend (TypeScript types, player, cards, admin forms).

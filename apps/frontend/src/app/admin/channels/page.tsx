@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { listAdminChannels, updateChannel } from "@/features/admin/lib/adminApi";
+import { listAdminChannels, updateChannel, bulkSetStreaming } from "@/features/admin/lib/adminApi";
 import type { AdminChannel } from "@/features/admin/types/admin";
 import { Plus, Eye, EyeOff, Loader2, Clock, CheckCircle, XCircle } from "lucide-react";
 
@@ -18,6 +18,7 @@ export default function AdminChannelsPage() {
   const [muxingAll, setMuxingAll] = useState(false);
   const [muxStatus, setMuxStatus] = useState("");
   const [muxJob, setMuxJob] = useState<MuxJobStatus | null>(null);
+  const [streamingBusy, setStreamingBusy] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -64,7 +65,20 @@ export default function AdminChannelsPage() {
     }
   }
 
+  async function handleStreamingToggle() {
+    const anyActive = channels.some((ch) => ch.streamingActive);
+    setStreamingBusy(true);
+    try {
+      await bulkSetStreaming(!anyActive);
+      const updated = await listAdminChannels();
+      setChannels(updated);
+    } finally {
+      setStreamingBusy(false);
+    }
+  }
+
   const hasOutdated = channels.some((ch) => ch.muxOutdated);
+  const anyStreaming = channels.some((ch) => ch.streamingActive);
 
   return (
     <div>
@@ -81,6 +95,18 @@ export default function AdminChannelsPage() {
               Update All VR Videos
             </button>
           )}
+          <button
+            onClick={handleStreamingToggle}
+            disabled={streamingBusy || loading}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:opacity-50 ${
+              anyStreaming
+                ? "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30"
+                : "bg-white/10 text-white/70 hover:bg-white/15"
+            }`}
+          >
+            {streamingBusy && <Loader2 className="h-4 w-4 animate-spin" />}
+            {anyStreaming ? "Deactivate Streaming" : "Activate Streaming"}
+          </button>
           <Link
             href="/admin/channels/new"
             className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-sm font-medium text-white transition hover:bg-white/20"
@@ -170,8 +196,8 @@ export default function AdminChannelsPage() {
                       )}
                     </div>
                   </td>
-                  <td className="py-3 pr-4 text-white/60">{ch.genre}</td>
-                  <td className="py-3 pr-4 text-white/60">{ch.mood}</td>
+                  <td className="py-3 pr-4 text-white/60">{Array.isArray(ch.genre) ? ch.genre.join(", ") : ch.genre}</td>
+                  <td className="py-3 pr-4 text-white/60">{Array.isArray(ch.mood) ? ch.mood.join(", ") : ch.mood}</td>
                   <td className="py-3 pr-4 text-right text-white/60">{ch.playCount ?? 0}</td>
                   <td className="py-3 text-center">
                     <button
@@ -225,8 +251,8 @@ export default function AdminChannelsPage() {
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-white/50">
-                  {ch.genre && <span>{ch.genre}</span>}
-                  {ch.mood && <span>{ch.mood}</span>}
+                  {ch.genre?.length > 0 && <span>{Array.isArray(ch.genre) ? ch.genre.join(", ") : ch.genre}</span>}
+                  {ch.mood?.length > 0 && <span>{Array.isArray(ch.mood) ? ch.mood.join(", ") : ch.mood}</span>}
                   <span>{ch.playCount ?? 0} plays</span>
                 </div>
                 <Link

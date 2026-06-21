@@ -45,6 +45,8 @@ export interface Channel {
   sponsor?: Sponsor | null;
   muxOutdated?: boolean;
   muxLastAt?: string | null;
+  streamingActive?: boolean;
+  vrchatFallbackUrl?: string | null;
 }
 
 export interface ChannelFilters {

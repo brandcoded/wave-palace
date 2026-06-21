@@ -49,6 +49,8 @@ class Channel(BaseModel):
     sponsor: Sponsor | None = None
     muxOutdated: bool = False
     muxLastAt: datetime | None = None
+    streamingActive: bool = False
+    vrchatFallbackUrl: str | None = None
 
     model_config = {"populate_by_name": True}
 

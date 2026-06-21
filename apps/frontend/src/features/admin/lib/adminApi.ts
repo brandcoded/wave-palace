@@ -158,3 +158,16 @@ export async function updateOptions(field: string, options: string[]): Promise<v
   });
   if (!res.ok) throw new Error("Failed to update options");
 }
+
+// ------------------------------------------------------------------
+// Streaming toggle
+// ------------------------------------------------------------------
+
+export async function bulkSetStreaming(streamingActive: boolean): Promise<{ updated: number; streamingActive: boolean }> {
+  const res = await apiFetch("/api/admin/channels/streaming/bulk", {
+    method: "POST",
+    body: JSON.stringify({ streamingActive }),
+  });
+  if (!res.ok) throw new Error("Bulk streaming toggle failed");
+  return res.json();
+}

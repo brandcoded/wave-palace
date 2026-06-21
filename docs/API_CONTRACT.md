@@ -67,7 +67,9 @@ Returns a single published channel by slug.
   "vrchatPlaybackUrl": "https://stream.wavepalace.live/muxed/late-night-house.mp4",
   "externalLinks": [{ "label": "Listen elsewhere", "url": "https://example.com" }],
   "rightsStatus": "owned_or_cleared",
-  "isPublished": true
+  "isPublished": true,
+  "streamingActive": false,
+  "vrchatFallbackUrl": null
 }
 ```
 
@@ -86,13 +88,18 @@ Returns a single published channel by slug.
 3. default              → return vrchatFallbackUrl  (mux MP4 on R2)
 ```
 
-**Admin-only schema fields (not exposed on public channel API):**
+**Streaming fields (Pre-Slice 4 add-on):**
 
 | Field | Type | Notes |
 |---|---|---|
-| `liveStreamUrl` | `string \| null` | Slice 3 add-on · settable via `PATCH /api/admin/channels/{slug}` · when set, routes VRChat players directly to this URL · VRChat-only (web player uses `playlist` regardless) · validated: must be reachable HTTPS URL ending in `.ts`, `.mp4`, or `.m3u8` · reuses Slice 5 media validation service |
-| `streamingActive` | `bool` | Pre-Slice 4 add-on · set via `PATCH /api/admin/channels/{slug}/streaming-mode` · default `false` |
-| `vrchatFallbackUrl` | `string \| null` | Pre-Slice 4 add-on · populated by mux endpoints on completion · never overwritten by streaming cutover |
+| `streamingActive` | `bool` | Default `false`. When `true`, signals VRChat should use `vrchatFallbackUrl` (the live stream) instead of the muxed MP4. Set per-channel via `PATCH /api/admin/channels/{slug}` or in bulk via `POST /api/admin/channels/streaming/bulk`. |
+| `vrchatFallbackUrl` | `string \| null` | The HLS/RTMP/TS live stream URL for VRChat (e.g. `https://…/live.m3u8`). Set by the admin; not overwritten by the mux service. |
+
+**Planned field (not yet implemented):**
+
+| Field | Type | Notes |
+|---|---|---|
+| `liveStreamUrl` | `string \| null` | Slice 3 add-on (External Stream Passthrough) · settable via `PATCH /api/admin/channels/{slug}` · when set, routes VRChat players directly to an external VRCDN/OBS stream URL · NOT YET BUILT |
 
 ## Submission endpoints
 

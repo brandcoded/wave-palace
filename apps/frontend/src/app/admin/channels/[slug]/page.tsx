@@ -548,9 +548,32 @@ export default function ChannelEditPage() {
           />
         </section>
 
-        {/* VRChat mux */}
+        {/* VRChat mux & streaming */}
         <section className="flex flex-col gap-3">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-white/30">VRChat mux</h2>
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white/30">VRChat — mux &amp; streaming</h2>
+
+          {/* Streaming toggle */}
+          <label className="flex items-center gap-2 text-sm text-white/60">
+            <input
+              type="checkbox"
+              checked={(form.streamingActive as boolean) ?? false}
+              onChange={(e) => setField("streamingActive", e.target.checked)}
+              className="accent-cyan-400"
+            />
+            Streaming active (VRChat uses live stream URL)
+          </label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-white/50">Live stream URL for VRChat</label>
+            <input
+              type="text"
+              value={(form.vrchatFallbackUrl as string) ?? ""}
+              onChange={(e) => setField("vrchatFallbackUrl", e.target.value)}
+              placeholder="https://…/live.m3u8 or .ts"
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none focus:border-white/30"
+            />
+          </div>
+
+          {/* Mux controls */}
           <p className="text-xs text-white/40">Re-mux after changing tracks, cover image, or visual loop.</p>
           <div className="flex items-center gap-3">
             <button

@@ -2,7 +2,7 @@
 
 > Single source of truth for slice status. Update this file whenever a slice
 > ships or changes state. `CLAUDE.md` carries a compact copy — keep both in sync.
-> Last updated: 2026-06-19 (Slice 6 — Sponsor Primitive shipped as v0.9.0)
+> Last updated: 2026-06-21 (Pre-Slice 4 add-on — Streaming readiness toggle complete)
 
 ---
 
@@ -22,10 +22,10 @@
 | 3 | Music director admin dashboard | ✅ COMPLETE (v0.7.0) | JWT cookie auth · Submission review queue · Channel CRUD + drag-to-reorder tracks · R2 media uploads · Options management |
 | 3 add-on | Play count event tracking | ✅ COMPLETE (v0.7.0) | `POST /api/channels/{slug}/play` · in-memory rate limit · sessionStorage gate on web player |
 | 3 add-on | External Stream Passthrough | ⬜ NOT STARTED | `liveStreamUrl` field · admin pastes VRCDN/OBS/.ts URL → VRChat players hit external stream directly · no VPS · VRChat-only (web player uses playlist MP3s) · no overlay burned in · tradeoffs: no uptime control, URL tied to creator's infra |
-| Pre-Slice 4 add-on | Streaming readiness + mux/stream toggle | ⬜ NOT STARTED | `streamingActive` + `vrchatFallbackUrl` schema · player switching logic · admin per-channel toggle + bulk toggle + mux refresh controls · no VPS required · activation = flag flip after VPS smoke test |
+| Pre-Slice 4 add-on | Streaming readiness + mux/stream toggle | ✅ COMPLETE | `streamingActive` + `vrchatFallbackUrl` on Channel schema · `PATCH /api/admin/channels/{slug}` accepts both fields · `POST /api/admin/channels/streaming/bulk` flips all channels · admin edit page: streaming toggle + live stream URL field in VRChat section · admin channels list: "Activate / Deactivate Streaming" bulk button · public API exposes both fields · 7 new backend tests · no VPS required |
 | **6** | **Sponsor Primitive (thin monetization)** | **✅ COMPLETE (v0.9.0)** | `sponsor` object on Channel · admin PATCH endpoint + edit-page panel (name, logo, text, CTA URL, placement, date window, active/featured toggles, impression/click counters) · web player overlays (logo bug, lower-third text, pause-screen takeover) · directory featured-pin + "Sponsored" badge · VRChat parity (sponsor text burned into drawtext) · impression/click tracking with 30-min TTL rate limit · 22 backend tests · No VPS dep |
 | Pre-Slice 4 | Hetzner VPS provisioning | ⬜ DEFERRED | CPX32 FSN1 · 4 vCPU / 8 GB · Ubuntu 22.04 · ~$42/mo base (~$51 with backups) · AzuraCast + SRS + FFmpeg · provision when live events become priority · see `docs/VPS_PROVISIONING.md` |
-| **Pre-Slice 4 add-on** | **Streaming readiness + mux/stream toggle** | **🔄 IN PROGRESS** | Mux dirty flag + cache TTL reduction ✅; remaining: `streamingActive` + `vrchatFallbackUrl` schema · player switching logic · admin toggles + bulk flip · no VPS required |
+| **Pre-Slice 4 add-on** | **Streaming readiness + mux/stream toggle** | **✅ COMPLETE** | Schema + admin toggle + bulk endpoint + 7 tests — see row above |
 | 4 | Live event streaming — Link-In + ingest keys | ⬜ AFTER Pre-Slice 4 | OBS push · HLS/RTMP/SRT pull · AzuraCast DJ mode · Requires VPS provisioned · toggle infra ships pre-Slice 4 so no frontend work needed here |
 | 4 add-on | Event Sponsorship (QR bridge + sponsor frame) | ⬜ WITH Slice 4 | Event-sponsor intro frame + QR-code bridge baked into the live MP4 · Depends on Slice 6 `sponsor` object + Slice 4 streaming path |
 | 5 | Media URL validation & compatibility checker | ✅ COMPLETE (v0.8.0) | `POST /api/admin/channels/{slug}/validate-urls` · HTTPS/reachability/content-type/VRChat-compat checks · "Check URLs" button in admin channel edit |

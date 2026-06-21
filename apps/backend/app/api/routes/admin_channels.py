@@ -62,6 +62,12 @@ class ChannelPatchRequest(BaseModel):
     externalLinks: list[dict] | None = None
     rightsStatus: str | None = None
     isPublished: bool | None = None
+    streamingActive: bool | None = None
+    vrchatFallbackUrl: str | None = None
+
+
+class StreamingBulkRequest(BaseModel):
+    streamingActive: bool
 
 
 @router.get("", response_model=list[dict])
@@ -90,6 +96,22 @@ async def create_channel(
         **body.model_dump(exclude_none=False),
     }
     return await service.create(data)
+
+
+@router.post("/streaming/bulk", response_model=dict)
+async def bulk_set_streaming(
+    body: StreamingBulkRequest,
+    _: dict = Depends(get_current_admin),
+    service: ChannelService = Depends(get_channel_service),
+) -> dict:
+    """Flip streamingActive on all channels at once."""
+    channels = await service.list_all()
+    count = 0
+    for ch in channels:
+        updated = await service.update(ch["slug"], {"streamingActive": body.streamingActive})
+        if updated is not None:
+            count += 1
+    return {"updated": count, "streamingActive": body.streamingActive}
 
 
 @router.patch("/{slug}", response_model=dict)
