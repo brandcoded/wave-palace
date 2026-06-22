@@ -11,6 +11,16 @@
 :root {
   --font-sans: "Inter", system-ui, sans-serif;
   --font-display: "Inter", system-ui, sans-serif;
+
+  --wp-black: #0D0B14;
+  --wp-s1: #161320;
+  --wp-s2: #1E1A2E;
+  --wp-violet: #7C3AED;
+  --wp-violet2: #4B2D8C;
+  --wp-amber: #D97706;
+  --wp-white: #F8F7FF;
+  --wp-muted: #9B8EC4;
+  --wp-border: rgba(124, 58, 237, 0.2);
 }
 
 html {
