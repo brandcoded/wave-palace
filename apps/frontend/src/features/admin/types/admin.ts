@@ -1,5 +1,28 @@
 import type { Channel } from "@/features/channels/types/channel";
 
+export type UserRole = "admin" | "music_director";
+
+export interface CurrentUser {
+  id: string;
+  display_name: string;
+  email: string | null;
+  avatar_url: string | null;
+  roles: UserRole[];
+  seedMode: boolean;
+}
+
+export interface AdminUser {
+  id: string;
+  display_name: string;
+  email: string | null;
+  avatar_url: string | null;
+  roles: UserRole[];
+  is_active: boolean;
+  discord_user_id: string | null;
+  created_at: string;
+  last_login_at: string | null;
+}
+
 export interface ChannelStat {
   slug: string;
   title: string;

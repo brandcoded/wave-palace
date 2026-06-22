@@ -39,6 +39,9 @@ Add slices one at a time per `FEATURE_SLICES.md`. Slice order:
 | 8 | Play Metrics + Artist Reporting | 🔲 NOT STARTED | Slice 3 add-ons + Code Capture (Slice 9) for follow/contact data |
 | 9 | Code Capture + Follow Intent + Notification Stack | ✅ COMPLETE | 6-char codes · admin generate/deactivate · `/follow/[code]` landing · Discord OAuth · Resend email opt-in · browser push schema · SMS raises NotImplementedError |
 | Legal | DMCA Takedown Form | ✅ COMPLETE | `/legal/takedown` form · `/admin/takedowns` queue · 4 API endpoints · SMTP notification · 15 tests |
+| **10** | **Identity & Roles (auth foundation)** | ✅ COMPLETE | Opaque sessions (`wp_session`) · `UserDocument`/`SessionDocument` schemas · `AuthService` · Discord + email magic link + password login · `require_roles` guards · `get_current_admin` shim (no lockout) · `/admin/users` page · 26 tests |
+| 11 | Host Onboarding & Ownership | 🔲 NOT STARTED — PLANNED | Slice 10 · `Channel.owner_ids` · invite links · host application = upgraded Slice 2 submission · per-host `auto_publish` flag |
+| 12 | Host Dashboard | 🔲 NOT STARTED — PLANNED | Slice 11 · scoped `/host` area: own channels, tracks, analytics, edits |
 
 Each slice ships with UI, API, tests, and docs.
 

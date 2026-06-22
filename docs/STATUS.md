@@ -2,7 +2,7 @@
 
 > Single source of truth for slice status. Update this file whenever a slice
 > ships or changes state. `CLAUDE.md` carries a compact copy — keep both in sync.
-> Last updated: 2026-06-21 (Slice 7 — Production Analytics Dashboard complete)
+> Last updated: 2026-06-22 (Slice 10 — Identity & Roles complete)
 >
 > **Hours worked** column counts all time on a slice: PM prep, prompt writing,
 > build sessions, debugging, testing, and deploy. Pre-column-add slices show `—`.
@@ -35,6 +35,9 @@
 | 6B | Full Ad Stack | ⬜ AFTER Slice 4 | — | Multi-sponsor rotation · web CPM measurement · intro/outro splash · idle card · opt-in audio stings (AzuraCast) · sponsor reporting dashboard · See `MONETIZATION_PLAN.md` |
 | 7 | Production analytics dashboard | ✅ COMPLETE | 11 | `GET /api/admin/analytics` · admin-auth required · total plays/follows/channels/sponsors summary cards · follow breakdown by channel (Discord/Email/Push) · channel leaderboard sorted by playCount desc · unpublished channels shown muted · no PII exposed · 14 backend tests · `/admin/analytics` page |
 | 8 | Play Metrics + Artist Reporting | ⬜ NOT STARTED | — | PM plan complete · Depends on Slice 3 add-ons + Slice 9 |
+| **10** | **Identity & Roles (auth foundation)** | **✅ COMPLETE** | 8 | Opaque server-side sessions (`wp_session` cookie, 30-day TTL) · `UserDocument` + `SessionDocument` + `EmailLoginTokenDocument` schemas · `SeedUserRepository` + `MongoUserRepository` + `SeedSessionRepository` + `MongoSessionRepository` · `AuthService`: bootstrap admin, session issue/revoke, Discord upsert, email magic link (Resend), password bcrypt · `get_current_user` FastAPI dep (wp_session + grace-period JWT fallback) · `require_roles(*roles)` factory · `get_current_admin` shim (no lockout) · `POST /api/admin/login` now issues `wp_session` · `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/auth/email/request`, `GET /api/auth/email/verify`, `POST /api/auth/register`, `POST /api/auth/login` · `GET/PATCH /api/admin/users` · `POST /api/auth/discord/initiate?intent=login`, generalized callback · admin login page: Discord + email-link + secret tabs · `SignInPanel.tsx` component · `/admin/users` management page (role editor, activate/deactivate) · Users nav item (admin-only) · `displayName` in sidebar · 26 backend tests · TS clean |
+| 11 | Host Onboarding & Ownership | ⬜ NOT STARTED — PLANNED | — | After Slice 10 · `Channel.owner_ids` · invite links · host application = upgraded Slice 2 submission · per-host `auto_publish` flag |
+| 12 | Host Dashboard | ⬜ NOT STARTED — PLANNED | — | After Slice 11 · scoped `/host` area: own channels, tracks, analytics, edits |
 | Legal | DMCA Takedown Form (`/legal/takedown` + admin queue) | ✅ COMPLETE | 13 | Public form → `POST /api/takedowns` · admin queue `/admin/takedowns` · status flow pending→reviewed→actioned/dismissed · best-effort SMTP email to `ADMIN_EMAIL` · MongoDB-backed with seed fallback · 15 backend tests · `/legal` index page |
 | 9 | Code Capture + Follow Intent + Notification Stack | ✅ COMPLETE | 26 | 6-char alphanumeric codes · admin generate/deactivate UI · public `/follow/[code]` landing · Discord OAuth confirmed-instantly · email double opt-in via Resend · browser push schema only · SMS raises NotImplementedError · `/follows` listener page · admin `/admin/codes` page · Follow Codes panel on channel edit page · `CodeInput` pill in site header · `POST/GET /api/admin/codes` · `GET /api/codes/{code}` · `POST /api/codes/{code}/follow` · `POST /api/follows/confirm` · `GET/PATCH/DELETE /api/follows` · Discord OAuth `/api/auth/discord/initiate` + `/callback` · 19 backend tests (146 total) · build clean |
 

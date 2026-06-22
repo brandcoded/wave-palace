@@ -3,21 +3,25 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Music2, Users, Settings, LogOut, Menu, X, AlertTriangle, Flag, BarChart2 } from "lucide-react";
+import { Music2, Users, Settings, LogOut, Menu, X, AlertTriangle, Flag, BarChart2, ShieldCheck } from "lucide-react";
 import { AdminAuthProvider, useAdminAuth } from "@/features/admin/lib/adminAuth";
 
-const NAV = [
-  { href: "/admin/submissions", label: "Submissions", icon: Users },
-  { href: "/admin/channels",    label: "Channels",    icon: Music2 },
-  { href: "/admin/analytics",   label: "Analytics",   icon: BarChart2 },
-  { href: "/admin/takedowns",   label: "Takedowns",   icon: Flag },
-  { href: "/admin/options",     label: "Options",     icon: Settings },
+const NAV_ALL = [
+  { href: "/admin/submissions", label: "Submissions", icon: Users,       roles: null },
+  { href: "/admin/channels",    label: "Channels",    icon: Music2,      roles: null },
+  { href: "/admin/analytics",   label: "Analytics",   icon: BarChart2,   roles: null },
+  { href: "/admin/takedowns",   label: "Takedowns",   icon: Flag,        roles: null },
+  { href: "/admin/options",     label: "Options",     icon: Settings,    roles: null },
+  { href: "/admin/users",       label: "Users",       icon: ShieldCheck, roles: ["admin"] as string[] },
 ];
 
-function NavLinks({ pathname, onClick }: { pathname: string; onClick?: () => void }) {
+function NavLinks({ pathname, userRoles, onClick }: { pathname: string; userRoles: string[]; onClick?: () => void }) {
+  const visible = NAV_ALL.filter(
+    ({ roles }) => roles === null || roles.some((r) => userRoles.includes(r))
+  );
   return (
     <>
-      {NAV.map(({ href, label, icon: Icon }) => {
+      {visible.map(({ href, label, icon: Icon }) => {
         const active = pathname.startsWith(href);
         return (
           <Link
@@ -40,11 +44,10 @@ function NavLinks({ pathname, onClick }: { pathname: string; onClick?: () => voi
 }
 
 function AdminShell({ children }: { children: React.ReactNode }) {
-  const { checked, authed, seedMode, logout } = useAdminAuth();
+  const { checked, authed, seedMode, roles, displayName, logout } = useAdminAuth();
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  // Close drawer on navigation
   useEffect(() => { setDrawerOpen(false); }, [pathname]);
 
   if (!checked) {
@@ -60,23 +63,28 @@ function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen">
-      {/* Desktop sidebar — hidden below lg */}
+      {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-56 shrink-0 flex-col border-r border-white/10 bg-black/60 px-3 py-6">
         <p className="mb-6 px-3 text-xs font-bold uppercase tracking-widest text-white/30">
           WavePalace Admin
         </p>
         <nav className="flex flex-col gap-1">
-          <NavLinks pathname={pathname} />
+          <NavLinks pathname={pathname} userRoles={roles} />
         </nav>
-        <button
-          onClick={logout}
-          className="mt-auto flex items-center gap-2 px-3 py-2 text-xs text-white/30 hover:text-white/60 transition"
-        >
-          <LogOut className="h-3.5 w-3.5" /> Sign out
-        </button>
+        <div className="mt-auto flex flex-col gap-1 px-3">
+          {displayName && (
+            <p className="text-xs text-white/30 truncate">{displayName}</p>
+          )}
+          <button
+            onClick={logout}
+            className="flex items-center gap-2 py-2 text-xs text-white/30 hover:text-white/60 transition"
+          >
+            <LogOut className="h-3.5 w-3.5" /> Sign out
+          </button>
+        </div>
       </aside>
 
-      {/* Mobile top bar — visible below lg */}
+      {/* Mobile top bar */}
       <div className="fixed inset-x-0 top-0 z-40 flex items-center justify-between border-b border-white/10 bg-black/80 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] backdrop-blur-sm lg:hidden">
         <p className="text-xs font-bold uppercase tracking-widest text-white/40">
           WavePalace Admin
@@ -93,12 +101,10 @@ function AdminShell({ children }: { children: React.ReactNode }) {
       {/* Mobile drawer overlay */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/60"
             onClick={() => setDrawerOpen(false)}
           />
-          {/* Drawer panel */}
           <aside className="absolute inset-y-0 left-0 flex w-64 flex-col border-r border-white/10 bg-black/95 px-3 pb-6 pt-[calc(1.5rem+env(safe-area-inset-top))] backdrop-blur-xl">
             <div className="mb-6 flex items-center justify-between px-3">
               <p className="text-xs font-bold uppercase tracking-widest text-white/30">
@@ -112,19 +118,24 @@ function AdminShell({ children }: { children: React.ReactNode }) {
               </button>
             </div>
             <nav className="flex flex-col gap-1">
-              <NavLinks pathname={pathname} onClick={() => setDrawerOpen(false)} />
+              <NavLinks pathname={pathname} userRoles={roles} onClick={() => setDrawerOpen(false)} />
             </nav>
-            <button
-              onClick={() => { setDrawerOpen(false); logout(); }}
-              className="mt-auto flex items-center gap-2 px-3 py-2 text-xs text-white/30 hover:text-white/60 transition"
-            >
-              <LogOut className="h-3.5 w-3.5" /> Sign out
-            </button>
+            <div className="mt-auto flex flex-col gap-1 px-3">
+              {displayName && (
+                <p className="text-xs text-white/30 truncate">{displayName}</p>
+              )}
+              <button
+                onClick={() => { setDrawerOpen(false); logout(); }}
+                className="flex items-center gap-2 py-2 text-xs text-white/30 hover:text-white/60 transition"
+              >
+                <LogOut className="h-3.5 w-3.5" /> Sign out
+              </button>
+            </div>
           </aside>
         </div>
       )}
 
-      {/* Main content — offset top on mobile to clear the sticky top bar */}
+      {/* Main content */}
       <main className="flex-1 overflow-auto p-4 pt-[calc(4rem+env(safe-area-inset-top))] lg:p-8">
         {seedMode && (
           <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4">

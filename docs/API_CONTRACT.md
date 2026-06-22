@@ -253,6 +253,72 @@ Response `200`:
 
 Per-channel `state` is one of `pending`, `running`, `done`, `error`.
 
+---
+
+## Slice 10 — Identity & Roles
+
+### POST /api/admin/login
+Break-glass login via `ADMIN_SECRET`. Issues `wp_session` cookie.
+```json
+{ "secret": "…" }
+```
+Response: `{ "ok": true }` + `Set-Cookie: wp_session=<uuid>; HttpOnly; SameSite=None; Secure`
+
+### GET /api/auth/me
+Returns the current authenticated user. Requires `wp_session` (or legacy `wp_admin_token` JWT).
+```json
+{ "id": "…", "display_name": "…", "roles": ["admin"], "avatar_url": null, "email": null, "seedMode": false }
+```
+
+### POST /api/auth/logout
+Revokes session, clears cookies. Returns `{ "ok": true }`.
+
+### POST /api/auth/email/request
+Sends a magic sign-in link. Always returns 200 (no email enumeration).
+```json
+{ "email": "user@example.com" }
+```
+
+### GET /api/auth/email/verify?token=…
+Validates token, issues session, redirects `307` to `{FRONTEND_ORIGIN}/admin/submissions`.
+
+### POST /api/auth/register
+```json
+{ "email": "…", "password": "…", "display_name": "…" }
+```
+Response: `201` `{ "id": "…", "display_name": "…", "roles": [] }` + session cookie.
+
+### POST /api/auth/login
+```json
+{ "email": "…", "password": "…" }
+```
+Response: `200` `{ "id": "…", "display_name": "…", "roles": [] }` + session cookie.
+
+### GET /api/auth/discord/initiate?intent=login
+Redirects to Discord OAuth. Also accepts `intent=follow&code=<wp_code>` (Slice 9 behaviour preserved).
+
+### GET /api/admin/users
+Admin-only. Returns list of `UserPublic` objects.
+```json
+[{ "id": "…", "display_name": "…", "email": null, "avatar_url": null, "roles": ["admin"], "is_active": true, "discord_user_id": null, "created_at": "…", "last_login_at": null }]
+```
+
+### PATCH /api/admin/users/{id}/roles
+Admin-only. Update stackable roles.
+```json
+{ "roles": ["music_director"] }
+```
+Response: updated `UserPublic`.
+
+### PATCH /api/admin/users/{id}/active
+Admin-only. Activate or deactivate a user.
+```json
+{ "is_active": false }
+```
+Response: updated `UserPublic`.
+
+---
+
 ## Error states
 
 - Missing channel → `404`.

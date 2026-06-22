@@ -95,3 +95,21 @@ def get_takedown_service():
 def get_analytics_service():
     from app.services.analytics_service import AnalyticsService
     return AnalyticsService(get_channel_repository(), get_follow_repository(), get_code_repository())
+
+
+@lru_cache
+def get_user_repository():
+    from app.repositories.user_repository import build_user_repository
+    return build_user_repository(_settings())
+
+
+@lru_cache
+def get_session_repository():
+    from app.repositories.session_repository import build_session_repository
+    return build_session_repository(_settings())
+
+
+@lru_cache
+def get_auth_service():
+    from app.services.auth_service import AuthService
+    return AuthService(get_user_repository(), get_session_repository(), _settings())

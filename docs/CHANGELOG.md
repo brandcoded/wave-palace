@@ -2,6 +2,40 @@
 
 All notable changes to this project are documented here.
 
+## [0.13.0] — Slice 10: Identity & Roles
+
+### Added
+- **Opaque server-side sessions** — `wp_session` UUID cookie (30-day TTL), stored in `SessionRepository`; revocable on logout
+- **`UserDocument` / `SessionDocument` / `EmailLoginTokenDocument`** Pydantic schemas in `schemas/user.py`
+- **`UserRepository`** and **`SessionRepository`** — ABC + Seed (in-memory) + Mongo implementations
+- **`AuthService`** — bootstrap admin upsert, session issue/revoke, Discord find-or-create, email magic link (Resend, silent fallback), bcrypt password hash/verify
+- **`require_roles(*roles)`** factory returning a FastAPI `Depends` callable; **`get_current_admin`** shim unchanged (no lockout for existing sessions)
+- **`get_current_user`** dependency — checks `wp_session` first, falls back to legacy `wp_admin_token` JWT during grace period
+- **`POST /api/admin/login`** — secret login now issues `wp_session` instead of JWT cookie
+- **`GET /api/auth/me`** — returns `{ id, display_name, roles, avatar_url, email, seedMode }`
+- **`POST /api/auth/logout`** — revokes session, clears both cookies
+- **`POST /api/auth/email/request`** — sends Resend magic link (always 200 — no email enumeration)
+- **`GET /api/auth/email/verify`** — validates token, issues session, redirects to admin
+- **`POST /api/auth/register`** / **`POST /api/auth/login`** — password auth with bcrypt
+- **`GET /api/auth/discord/initiate?intent=login`** — Discord OAuth for identity (generalised from follow-only)
+- **`GET /api/admin/users`** — admin-only user list
+- **`PATCH /api/admin/users/{id}/roles`** — update stackable roles
+- **`PATCH /api/admin/users/{id}/active`** — activate / deactivate user
+- **`SignInPanel.tsx`** — three-tab login UI: Discord OAuth button, email magic-link, break-glass secret
+- **Admin login page** updated to use `SignInPanel`
+- **`/admin/users`** management page — user table with role editor, activate/deactivate toggle, last-login column
+- **Users nav item** in admin sidebar (admin-only)
+- **Display name** shown in sidebar footer
+- **26 backend tests** — all existing 209 tests still pass (235 total, 2 skipped)
+
+### Changed
+- `adminAuth.tsx` context now exposes `roles: UserRole[]` and `displayName: string`
+- `checkSession()` now calls `/api/auth/me` (was `/api/admin/me`)
+- `logout()` now calls `/api/auth/logout`
+- `bcrypt` added to `requirements.txt` (replaces `passlib` — cleaner bcrypt 4.x compat)
+
+---
+
 ## [0.12.0] — Slice 7: Production Analytics Dashboard
 
 ### Added

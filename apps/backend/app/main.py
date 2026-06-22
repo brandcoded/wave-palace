@@ -10,6 +10,7 @@ from app.api.routes import admin_auth, admin_channels, admin_submissions, admin_
 from app.api.routes import codes, follows, auth_discord, admin_codes
 from app.api.routes import takedowns
 from app.api.routes import admin_analytics
+from app.api.routes import auth_user, admin_users
 from app.core.config import get_settings
 
 logging.basicConfig(level=logging.INFO)
@@ -54,6 +55,10 @@ app.include_router(takedowns.router)
 
 # Slice 7 — Production Analytics Dashboard
 app.include_router(admin_analytics.router)
+
+# Slice 10 — Identity & Roles
+app.include_router(auth_user.router)
+app.include_router(admin_users.router)
 
 
 @app.get("/", tags=["system"])

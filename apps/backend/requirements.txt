@@ -9,6 +9,8 @@ pytest-asyncio==0.24.0
 respx>=0.22.0
 # JWT auth for admin dashboard
 PyJWT==2.9.0
+# Password hashing for Slice 10 identity
+bcrypt==4.3.0
 # Optional: only needed when running against MongoDB Atlas (set MONGODB_URI).
 # The [srv] extra pulls dnspython, REQUIRED to resolve mongodb+srv:// URIs.
 pymongo[srv]==4.10.1

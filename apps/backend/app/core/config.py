@@ -23,9 +23,10 @@ class Settings:
     r2_bucket_name: str = os.getenv("R2_BUCKET_NAME", "wavepalace-media")
     r2_public_base_url: str = os.getenv("R2_PUBLIC_BASE_URL", "https://stream.wavepalace.live")
 
-    # Admin dashboard — single-secret auth with JWT sessions.
+    # Admin dashboard auth — single-secret bootstrap + Slice 10 opaque sessions.
     admin_secret: str = os.getenv("ADMIN_SECRET", "changeme")
     jwt_secret: str = os.getenv("JWT_SECRET", "dev-jwt-secret-change-me")
+    session_ttl_days: int = int(os.getenv("SESSION_TTL_DAYS", "30"))
 
     # Slice 9 — Code Capture + Follow Intent + Notifications
     discord_bot_token: Optional[str] = os.getenv("DISCORD_BOT_TOKEN") or None

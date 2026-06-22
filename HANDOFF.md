@@ -56,6 +56,7 @@ wave-palace/
 | 9 add-on | Per-track mux codes burned into VRChat overlay | `94a0f49` |
 | Legal | DMCA Takedown Form — public `/legal/takedown`, admin queue `/admin/takedowns`, SMTP email, 20 backend tests | `3104e62` |
 | Infra | MongoDB Atlas connected — `MONGODB_URI` set on Render, `pymongo[srv]` pinned, idempotent seed | `9574d94` |
+| **10** | **Identity & Roles** — opaque `wp_session` cookie, `UserDocument`/`SessionDocument`, Discord+email-link+password auth, `require_roles` guards, `/admin/users` page, 26 tests | main |
 
 ### What is NOT STARTED / DEFERRED
 
@@ -68,8 +69,13 @@ wave-palace/
 | 6B | Full Ad Stack (rotation, CPM, audio stings, reporting) | Slice 4 ✅ (AzuraCast for audio stings) |
 | 7 | Production analytics dashboard | ✅ COMPLETE |
 | 8 | Play Metrics + Artist Reporting | Slice 3 add-ons ✅ + Slice 9 ✅ |
+| 10 | Identity & Roles (auth foundation) | ⬜ PLANNED — `User`/`Session` schema, stackable roles, Discord/email-code/password login, migrates Slice 3 admin JWT · full spec in `docs/FEATURE_SLICES.md` |
+| 11 | Host Onboarding & Ownership | ⬜ PLANNED — Slice 10 · `Channel.owner_ids`, invite links, host application = upgraded Slice 2 submission, `auto_publish` flag |
+| 12 | Host Dashboard | ⬜ PLANNED — Slice 11 · scoped `/host` area |
 
-**Slices 6, 7, Pre-Slice 4 add-on, 9, and DMCA are all complete.** The next build options are: **External Stream Passthrough** (small, no VPS), **Slice 8 artist reporting**, or **provision Hetzner VPS → Slice 4 live events**. Rationale + copy-paste build prompts: `docs/MONETIZATION_PLAN.md`.
+**Slices 6, 7, Pre-Slice 4 add-on, 9, and DMCA are all complete.** The next build options are: **Slice 10 — Identity & Roles** (auth foundation; prerequisite for the host program in Slices 11–12 — full spec in `docs/FEATURE_SLICES.md`), **External Stream Passthrough** (small, no VPS), **Slice 8 artist reporting**, or **provision Hetzner VPS → Slice 4 live events**. Rationale + copy-paste build prompts: `docs/MONETIZATION_PLAN.md`.
+
+> **Note on auth:** "Introduce auth before dashboard/submission write paths" (roadmap §3) is delivered by **Slice 10**, which replaces the current single-secret admin login with real user identity + stackable roles. The host program (Slices 11–12) depends on it.
 
 **Build one slice at a time. Do not start a slice until the previous one is merged and smoke-tested.**
 

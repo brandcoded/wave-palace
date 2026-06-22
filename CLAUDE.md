@@ -33,6 +33,9 @@ Full status: `docs/STATUS.md` (canonical) — this file carries a compact copy.
 | 7 | Production analytics dashboard | ✅ COMPLETE |
 | 8 | Play Metrics + Artist Reporting | ⬜ NOT STARTED |
 | 9 | Code Capture + Follow Intent + Notification Stack | ✅ COMPLETE |
+| **10** | **Identity & Roles** (auth foundation: User/Session, stackable roles, Discord/email-code/password login, migrates admin JWT) | ✅ COMPLETE |
+| 11 | Host Onboarding & Ownership (`Channel.owner_ids`, invite links, `auto_publish`) | ⬜ NOT STARTED — PLANNED |
+| 12 | Host Dashboard (scoped `/host` area) | ⬜ NOT STARTED — PLANNED |
 | Legal | DMCA Takedown Form (`/legal/takedown` + admin queue) | ✅ COMPLETE |
 
 **Always update this table and `docs/STATUS.md` when a slice ships.**

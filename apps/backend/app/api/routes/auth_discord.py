@@ -1,4 +1,4 @@
-"""Discord OAuth routes for listener identity (Slice 9)."""
+"""Discord OAuth routes — follow intent (Slice 9) and login intent (Slice 10)."""
 
 from __future__ import annotations
 
@@ -12,8 +12,9 @@ import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 
-from app.api.dependencies import get_follow_service
+from app.api.dependencies import get_auth_service, get_follow_service
 from app.schemas.follow import FollowSubmitRequest
+from app.services.auth_service import AuthService
 from app.services.follow_service import FollowService
 
 router = APIRouter(prefix="/api/auth/discord", tags=["auth-discord"])
@@ -23,19 +24,19 @@ logger = logging.getLogger("wavepalace.auth.discord")
 _ALGORITHM = "HS256"
 _STATE_TTL_MINUTES = 10
 _LISTENER_COOKIE_DAYS = 30
+_SESSION_COOKIE = "wp_session"
 
 
 def _jwt_secret() -> str:
     return os.getenv("JWT_SECRET", "dev-jwt-secret-change-me")
 
 
-def _make_state_token(wp_code: str) -> str:
+def _make_state_token(intent: str, wp_code: str | None = None) -> str:
     exp = datetime.now(tz=timezone.utc) + timedelta(minutes=_STATE_TTL_MINUTES)
-    return jwt.encode(
-        {"wp_code": wp_code, "type": "discord_state", "exp": exp},
-        _jwt_secret(),
-        algorithm=_ALGORITHM,
-    )
+    payload: dict = {"intent": intent, "type": "discord_state", "exp": exp}
+    if wp_code:
+        payload["wp_code"] = wp_code
+    return jwt.encode(payload, _jwt_secret(), algorithm=_ALGORITHM)
 
 
 def _decode_state_token(token: str) -> dict:
@@ -48,15 +49,30 @@ def _decode_state_token(token: str) -> dict:
         raise HTTPException(status_code=400, detail="Invalid or expired OAuth state")
 
 
-@router.get("/initiate")
-async def discord_initiate(
-    code: str = Query(..., alias="code"),
-) -> RedirectResponse:
+def _get_discord_config():
     client_id = os.getenv("DISCORD_CLIENT_ID")
     redirect_uri = os.getenv("DISCORD_REDIRECT_URI")
+    client_secret = os.getenv("DISCORD_CLIENT_SECRET")
     if not client_id or not redirect_uri:
         raise HTTPException(status_code=503, detail="Discord OAuth is not configured")
-    state = _make_state_token(code)
+    return client_id, redirect_uri, client_secret
+
+
+@router.get("/initiate")
+async def discord_initiate(
+    code: str = Query(default=None, alias="code"),
+    intent: str = Query(default="follow"),
+) -> RedirectResponse:
+    """
+    Start Discord OAuth flow.
+    - intent=follow (default): requires wp_code follow code
+    - intent=login: admin/user login
+    """
+    if intent == "follow" and not code:
+        raise HTTPException(status_code=400, detail="Follow intent requires a channel code")
+
+    client_id, redirect_uri, _ = _get_discord_config()
+    state = _make_state_token(intent, wp_code=code)
     params = urlencode({
         "client_id": client_id,
         "redirect_uri": redirect_uri,
@@ -72,14 +88,14 @@ async def discord_callback(
     code: str = Query(...),
     state: str = Query(...),
     follow_svc: FollowService = Depends(get_follow_service),
+    auth_svc: AuthService = Depends(get_auth_service),
 ) -> RedirectResponse:
     state_data = _decode_state_token(state)
-    wp_code = state_data["wp_code"]
+    intent = state_data.get("intent", "follow")
+    wp_code = state_data.get("wp_code")
 
-    client_id = os.getenv("DISCORD_CLIENT_ID")
-    client_secret = os.getenv("DISCORD_CLIENT_SECRET")
-    redirect_uri = os.getenv("DISCORD_REDIRECT_URI")
-    if not client_id or not client_secret or not redirect_uri:
+    client_id, redirect_uri, client_secret = _get_discord_config()
+    if not client_secret:
         raise HTTPException(status_code=503, detail="Discord OAuth is not configured")
 
     async with httpx.AsyncClient() as client:
@@ -104,10 +120,41 @@ async def discord_callback(
         )
         if me_res.status_code != 200:
             raise HTTPException(status_code=400, detail="Discord user fetch failed")
-        me = me_res.json()
+        me_data = me_res.json()
 
-    discord_user_id = me["id"]
-    discord_username = me["username"]
+    discord_user_id = me_data["id"]
+    discord_username = me_data["username"]
+    avatar_hash = me_data.get("avatar")
+    avatar_url = (
+        f"https://cdn.discordapp.com/avatars/{discord_user_id}/{avatar_hash}.png"
+        if avatar_hash else None
+    )
+
+    frontend_origin = (
+        os.getenv("FRONTEND_ORIGIN", "http://localhost:3000").split(",")[0].strip()
+    )
+
+    if intent == "login":
+        # Identity + session for admin/user login
+        user = await auth_svc.find_or_create_by_discord(
+            discord_user_id, discord_username, avatar_url
+        )
+        session_id = await auth_svc.issue_session(user)
+        response = RedirectResponse(url=f"{frontend_origin}/admin/submissions")
+        response.set_cookie(
+            _SESSION_COOKIE,
+            session_id,
+            httponly=True,
+            max_age=30 * 86400,
+            samesite="none",
+            secure=True,
+            path="/",
+        )
+        return response
+
+    # intent == "follow" (Slice 9 behaviour preserved)
+    if not wp_code:
+        raise HTTPException(status_code=400, detail="Missing follow code")
 
     try:
         await follow_svc.submit_follow(
@@ -120,11 +167,8 @@ async def discord_callback(
         )
     except HTTPException as exc:
         if exc.status_code != 409:
-            raise  # Already following is OK — just set cookie and continue
+            raise
 
-    frontend_origin = (
-        os.getenv("FRONTEND_ORIGIN", "http://localhost:3000").split(",")[0].strip()
-    )
     response = RedirectResponse(url=f"{frontend_origin}/follows")
     response.set_cookie(
         "wp_listener_discord_id",

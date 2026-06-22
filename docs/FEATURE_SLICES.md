@@ -1027,3 +1027,190 @@ Read-only admin analytics page aggregating existing data: channel play counts, c
 - "Analytics" nav link in admin sidebar
 - `get_all_follows()` added to `FollowRepository` ABC + both implementations for cross-channel aggregation
 - 14 backend tests
+
+---
+
+## Slice 10 — Identity & Roles — COMPLETE
+
+**Type:** Foundation slice — no host-facing UX yet. Slices 11 (Host Onboarding & Ownership)
+and 12 (Host Dashboard) build directly on it.
+
+**Goal:** Replace the single shared-secret admin login with a real user-identity system that
+supports multiple login methods and stackable roles, and migrate the existing admin onto it
+without running two auth systems side by side.
+
+### Role model (locked)
+
+- Global roles live on the `User`: `roles: list["music_director" | "admin"]` (empty = plain listener).
+- **"Host" is NOT a global role** — it is derived from channel ownership (`Channel.owner_ids`,
+  added in Slice 11). A label managing 10 channels is one user listed as owner on 10 channels.
+  "Host + Music Director" is just `roles: ["music_director"]` plus owning a channel.
+- Admin grants/revokes roles. Music Director manages content; **Admin manages people.**
+
+### Capability matrix
+
+| Capability | Listener | Host | Music Director | Admin |
+|---|:---:|:---:|:---:|:---:|
+| Play channels (no login) | ✅ | ✅ | ✅ | ✅ |
+| Follow channels / save across devices | ✅ (opt-in login) | ✅ | ✅ | ✅ |
+| Edit **own** channel content + metadata | — | ✅ | ✅ | ✅ |
+| View **own** channel analytics | — | ✅ | ✅ | ✅ |
+| See/manage **all** channels + submissions | — | — | ✅ | ✅ |
+| Invite a host (link) | — | — | ✅ | ✅ |
+| Toggle a host/channel's approval requirement | — | — | ✅ | ✅ |
+| Grant/revoke roles, manage accounts | — | — | — | ✅ |
+
+(Host and host-onboarding rows are delivered in Slices 11–12; the matrix is the target end state.)
+
+### What exists today (reuse vs. replace)
+
+| Current piece | File | Fate in Slice 10 |
+|---|---|---|
+| Single-secret admin login (`ADMIN_SECRET` → `wp_admin_token` JWT cookie) | `core/auth.py`, `routes/admin_auth.py` | **Replaced** — becomes a seeded admin *user*; secret kept only as a bootstrap fallback |
+| `get_current_admin` Depends guard | `core/auth.py` | **Generalized** → `get_current_user` + `require_roles(...)` |
+| Discord OAuth (listener-only, ties to follow codes) | `routes/auth_discord.py` | **Generalized** — same flow now also issues a login session, not just a follow |
+| Resend email sender | `services/notification_service.py` | **Reused** for email-code (magic link) login |
+| Frontend admin auth | `features/admin/lib/adminAuth.tsx`, `adminApi.ts`, `/admin/login` | **Migrated** to the new session + role-aware client |
+
+### Data model
+
+```python
+class User(BaseModel):
+    id: str
+    email: str | None = None          # null for Discord-only accounts until linked
+    email_verified: bool = False
+    display_name: str
+    avatar_url: str | None = None
+    roles: list[Literal["music_director", "admin"]] = []   # empty = plain listener
+    password_hash: str | None = None       # bcrypt; null if no password set
+    discord_user_id: str | None = None     # links to Slice 9 Discord identity
+    created_at: datetime
+    last_login_at: datetime | None = None
+    is_active: bool = True
+
+class Session(BaseModel):
+    id: str                # opaque uuid stored in the cookie (NOT a JWT)
+    user_id: str
+    created_at: datetime
+    expires_at: datetime
+    revoked: bool = False
+
+class EmailLoginToken(BaseModel):
+    token_hash: str        # store only a hash of the emailed token
+    email: str
+    expires_at: datetime   # 15 min
+    consumed: bool = False
+```
+
+**Session decision (locked): opaque server-side sessions, not stateless JWT.** Revocation
+(admin deactivates a user, user logs out everywhere) is required the moment roles exist, and
+stateless JWTs can't revoke cleanly. Cookie holds a random session id; the server looks it up.
+30-day TTL with sliding refresh.
+
+### Login methods (ship in this order)
+
+1. **Discord OAuth** — generalize `auth_discord.py`; find-or-create `User` by `discord_user_id`,
+   issue a session. Existing follow-binding behavior preserved when a `wp_code` is present in state.
+2. **Email code / magic link** — `POST /api/auth/email/request` emails a one-time link via Resend;
+   `GET /api/auth/email/verify?token=...` find-or-creates a `User` by verified email, issues session.
+3. **Email + password** — `register` / `login` with bcrypt. Lowest priority; password reset reuses
+   the email-code flow.
+
+All three converge on one helper: `issue_session(user) -> sets wp_session cookie`.
+
+### API endpoints
+
+```
+GET  /api/auth/discord/initiate        # supports login intent, not just follow
+GET  /api/auth/discord/callback        # find-or-create user, issue session
+POST /api/auth/email/request           # { email } -> sends link, always 200 (no enumeration)
+GET  /api/auth/email/verify            # ?token=... -> issue session, redirect
+POST /api/auth/register                # { email, password, display_name }
+POST /api/auth/login                   # { email, password }
+GET  /api/auth/me                      # { id, display_name, roles, avatar_url } or 401
+POST /api/auth/logout                  # revoke current session
+GET   /api/admin/users                 # admin-only — list users
+PATCH /api/admin/users/{id}/roles      # admin-only — { roles: [...] }
+PATCH /api/admin/users/{id}/active     # admin-only — { is_active }
+```
+
+Legacy `POST /api/admin/login` (secret) stays alive as a **bootstrap fallback** only.
+
+### Authorization guards (`core/auth.py`)
+
+```python
+get_current_user(...) -> User             # 401 if no valid session
+require_roles("admin")                    # 403 if user lacks the role
+require_roles("admin", "music_director")  # passes if user has ANY listed role
+```
+
+- `admin_channels`, `admin_submissions`, `admin_options`, `admin_codes`, `admin_uploads`,
+  `admin_analytics`, `takedowns` → `require_roles("admin", "music_director")`
+- New `admin/users` routes → `require_roles("admin")`
+- `get_current_admin` kept as a thin shim aliasing `require_roles("admin", "music_director")`
+  so existing route files change minimally.
+
+### Migration plan (the load-bearing risk — design up front)
+
+1. **Seed a bootstrap admin user.** If no user has `admin` and `ADMIN_SECRET` is set, the legacy
+   `POST /api/admin/login` still works — but on success resolves to (or lazily creates) a single
+   seeded admin `User` and issues the **new** `wp_session` cookie instead of `wp_admin_token`.
+2. **Dual-cookie grace period.** `get_current_user` accepts a valid `wp_session` *or* a legacy
+   valid `wp_admin_token` (treated as the seeded admin) so in-flight sessions survive deploy.
+3. **Frontend:** `adminAuth.tsx` switches from cookie-presence to calling `GET /api/auth/me` and
+   reading `roles`. `/admin/login` keeps the secret field (bootstrap) and gains Discord + email-link.
+4. **Remove `wp_admin_token` issuance** once the seeded admin has logged in via the new flow at
+   least once. `ADMIN_SECRET` stays only as break-glass bootstrap.
+
+Seed mode: in-memory `SeedUserRepository` + a single seeded admin (`admin@wavepalace.local`,
+no password, login via secret) so the dashboard works with zero DB config.
+
+### New repositories / services / config
+
+- `UserRepository` + `MongoUserRepository` + `SeedUserRepository`
+- `SessionRepository` (Mongo + seed/in-memory)
+- `AuthService` — find-or-create, session issue/revoke, email-token issue/verify, password hash/verify
+- `requirements.txt`: add `passlib[bcrypt]` (Discord/JWT/Resend already present)
+- New env var (optional): `SESSION_TTL_DAYS=30`
+
+### Frontend changes
+
+- `useCurrentUser()` hook → `GET /api/auth/me`; exposes `roles` for conditional rendering
+- `/admin/login` → Discord button + email-link field + secret field (bootstrap)
+- `/admin/layout.tsx` → gate on `roles.includes("admin") || roles.includes("music_director")`
+- New `/admin/users` page (admin-only): user table + role checkboxes + active toggle
+- Reusable `<SignInPanel />` (Discord + email-link) — Slices 11/12 reuse it for host login
+
+### Out of scope (deferred to Slices 11–12)
+
+- `Channel.owner_ids` + host-derived permissions → Slice 11
+- Invite links, host application flow, `auto_publish` flag → Slice 11
+- `/host` dashboard → Slice 12
+- Listener follow-history adoption on login → bridge in Slice 11 or later
+- MFA, "log out everywhere" UI, account-settings page
+
+### Tests (pytest)
+
+- Discord callback creates a user + session; second login reuses the same user
+- Email-code: request → verify creates/reuses user, issues session; expired/consumed token → 400;
+  request for any email always returns 200 (no enumeration)
+- Password register + login; wrong password → 401; bcrypt hash never stored plaintext
+- `require_roles` allows/denies across role combinations; deactivated user → 403 with valid session
+- `GET /api/auth/me` returns roles; 401 when no session
+- Admin user-management: grant/revoke roles, deactivate; music_director → 403 on `/admin/users`
+- **Migration:** legacy secret login issues a new session + resolves to seeded admin; legacy
+  `wp_admin_token` still accepted during grace period
+- Seed-mode parity for all of the above
+
+### Definition of Done
+
+- [ ] `User` + `Session` schemas; User/Session repositories (Mongo + seed)
+- [ ] `AuthService` + generalized `core/auth.py` (`get_current_user`, `require_roles`)
+- [ ] Discord, email-code, and password login all issue sessions
+- [ ] All existing `admin_*` routes gated by `require_roles`, behavior unchanged for current admin
+- [ ] `/admin/users` page + role/active management endpoints
+- [ ] Legacy secret login migrated to bootstrap fallback; no lockout across deploy
+- [ ] Frontend admin gate reads `roles` from `/api/auth/me`
+- [ ] All tests pass; seed-mode parity verified
+- [ ] Docs updated (`STATUS.md`, `CLAUDE.md`, `FEATURE_SLICES.md`, `MVP_TO_LAUNCH_ROADMAP.md`,
+      `CHANGELOG.md`, `API_CONTRACT.md`, `HANDOFF.md`)

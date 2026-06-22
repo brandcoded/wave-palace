@@ -1,4 +1,4 @@
-import type { AdminChannel, AdminSubmission, AdminTakedown, AnalyticsSummary, Sponsor, SubmissionOptions, URLCheckResult } from "@/features/admin/types/admin";
+import type { AdminChannel, AdminSubmission, AdminTakedown, AdminUser, AnalyticsSummary, CurrentUser, Sponsor, SubmissionOptions, URLCheckResult, UserRole } from "@/features/admin/types/admin";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8000";
@@ -26,12 +26,52 @@ export async function login(secret: string): Promise<{ ok: boolean }> {
 }
 
 export async function logout(): Promise<void> {
-  await apiFetch("/api/admin/logout", { method: "POST" });
+  await apiFetch("/api/auth/logout", { method: "POST" });
 }
 
-export async function checkSession(): Promise<{ ok: boolean }> {
-  const res = await apiFetch("/api/admin/me");
+export async function checkSession(): Promise<CurrentUser> {
+  const res = await apiFetch("/api/auth/me");
   if (!res.ok) throw new Error("Not authenticated");
+  return res.json();
+}
+
+export async function requestEmailLink(email: string): Promise<void> {
+  const res = await apiFetch("/api/auth/email/request", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) throw new Error("Failed to send magic link");
+}
+
+export function discordLoginUrl(): string {
+  return `${API_BASE}/api/auth/discord/initiate?intent=login`;
+}
+
+// ------------------------------------------------------------------
+// User management (admin-only)
+// ------------------------------------------------------------------
+
+export async function listUsers(): Promise<AdminUser[]> {
+  const res = await apiFetch("/api/admin/users");
+  if (!res.ok) throw new Error("Failed to list users");
+  return res.json();
+}
+
+export async function updateUserRoles(id: string, roles: UserRole[]): Promise<AdminUser> {
+  const res = await apiFetch(`/api/admin/users/${id}/roles`, {
+    method: "PATCH",
+    body: JSON.stringify({ roles }),
+  });
+  if (!res.ok) throw new Error("Failed to update roles");
+  return res.json();
+}
+
+export async function updateUserActive(id: string, is_active: boolean): Promise<AdminUser> {
+  const res = await apiFetch(`/api/admin/users/${id}/active`, {
+    method: "PATCH",
+    body: JSON.stringify({ is_active }),
+  });
+  if (!res.ok) throw new Error("Failed to update user");
   return res.json();
 }
 
