@@ -4,6 +4,7 @@ import { GradientBackdrop } from "./GradientBackdrop";
 import { RightsNotice } from "@/features/channels/components/RightsNotice";
 import { CodeInput } from "./CodeInput";
 
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex min-h-screen flex-col">
@@ -40,9 +41,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <footer className="border-t border-white/5">
         <div className="mx-auto max-w-6xl px-6 py-10">
           <RightsNotice />
-          <p className="mt-6 text-xs text-white/40">
-            © {new Date().getFullYear()} WavePalace — Visual radio for the web and VRChat.
-          </p>
+          <div className="mt-6 flex items-center gap-4">
+            <p className="text-xs text-white/40">
+              © {new Date().getFullYear()} WavePalace — Visual radio for the web and VRChat.
+            </p>
+            <Link href="/brand" className="text-xs text-white/30 transition hover:text-white/60">
+              Brand Kit
+            </Link>
+          </div>
         </div>
       </footer>
     </div>
