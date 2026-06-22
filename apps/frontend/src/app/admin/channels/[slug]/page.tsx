@@ -32,7 +32,11 @@ import {
   createCode,
   deactivateCode,
   listCodes,
+  listChannelOwners,
+  generateChannelInvite,
+  removeChannelOwner,
   type AdminCode,
+  type ChannelOwner,
 } from "@/features/admin/lib/adminApi";
 import type { AdminChannel, Sponsor, URLCheckResult, SubmissionOptions } from "@/features/admin/types/admin";
 import type { TrackItem } from "@/features/channels/types/channel";
@@ -245,6 +249,10 @@ export default function ChannelEditPage() {
   const [sponsorForm, setSponsorForm] = useState<Sponsor | null>(null);
   const [savingSponsor, setSavingSponsor] = useState(false);
   const [channelOptions, setChannelOptions] = useState<SubmissionOptions>({ genre: [], mood: [], energy: [], theme: [] });
+  const [owners, setOwners] = useState<ChannelOwner[]>([]);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -262,7 +270,26 @@ export default function ChannelEditPage() {
     });
     getOptions().then(setChannelOptions).catch(() => {});
     listCodes().then((all) => setCodes(all.filter((c) => c.channel_slug === slug))).catch(() => {});
+    listChannelOwners(slug).then(setOwners).catch(() => {});
   }, [slug]);
+
+  async function handleGenerateInvite() {
+    setInviteBusy(true);
+    try {
+      const invite = await generateChannelInvite(slug);
+      setInviteUrl(invite.invite_url);
+      setInviteCopied(false);
+    } finally {
+      setInviteBusy(false);
+    }
+  }
+
+  async function handleRemoveOwner(ownerId: string) {
+    if (!window.confirm("Remove this host from the channel?")) return;
+    const next = owners.filter((o) => o.id !== ownerId);
+    await removeChannelOwner(slug, next.map((o) => o.id));
+    setOwners(next);
+  }
 
   function setField<K extends keyof AdminChannel>(key: K, value: AdminChannel[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -302,7 +329,10 @@ export default function ChannelEditPage() {
   async function handleSave() {
     setSaving(true);
     const playlist = tracks.map(({ _id: _ignore, ...t }) => t);
-    await updateChannel(slug, { ...form, playlist });
+    // owner_ids is managed via the invite/remove actions, not this form — drop it
+    // so a content save can't clobber ownership changed since page load.
+    const { owner_ids: _ownerIds, ...rest } = form;
+    await updateChannel(slug, { ...rest, playlist });
     setSaving(false);
     router.push("/admin/channels");
   }
@@ -765,6 +795,87 @@ export default function ChannelEditPage() {
               )}
             </div>
           )}
+        </section>
+
+        {/* Ownership (Slice 11) */}
+        <section className="flex flex-col gap-4 border-t border-white/10 pt-6">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white/40">Ownership</h2>
+
+          {owners.length === 0 ? (
+            <p className="text-xs text-white/30">No hosts assigned. Generate an invite link to onboard one.</p>
+          ) : (
+            <ul className="space-y-2">
+              {owners.map((o) => (
+                <li key={o.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-2">
+                  <div className="flex items-center gap-3">
+                    {o.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={o.avatar_url} alt="" className="h-7 w-7 rounded-full object-cover ring-1 ring-white/10" />
+                    ) : (
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-xs font-semibold text-white/60">
+                        {o.display_name.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <span className="text-sm text-white/80">{o.display_name}</span>
+                  </div>
+                  <button
+                    onClick={() => handleRemoveOwner(o.id)}
+                    className="text-xs text-red-400/50 hover:text-red-400"
+                  >
+                    Remove
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleGenerateInvite}
+              disabled={inviteBusy}
+              className="self-start rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/60 transition hover:bg-white/10 hover:text-white disabled:opacity-40"
+            >
+              {inviteBusy ? "Generating…" : "Generate Invite Link"}
+            </button>
+            {inviteUrl && (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={inviteUrl}
+                    onFocus={(e) => e.target.select()}
+                    className="flex-1 rounded-lg border border-white/10 bg-black/60 px-3 py-2 text-xs text-white/70 outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(inviteUrl);
+                      setInviteCopied(true);
+                      setTimeout(() => setInviteCopied(false), 2000);
+                    }}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/60 transition hover:bg-white/10"
+                  >
+                    {inviteCopied ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+                <p className="text-xs text-amber-300/70">This link expires in 7 days and can only be used once.</p>
+              </div>
+            )}
+          </div>
+
+          <label className="flex items-start gap-2 text-sm text-white/60">
+            <input
+              type="checkbox"
+              checked={!(form.auto_publish ?? true)}
+              onChange={(e) => setField("auto_publish", !e.target.checked)}
+              className="mt-0.5 accent-cyan-400"
+            />
+            <span>
+              Require music director approval before host can publish changes
+              <span className="mt-0.5 block text-xs text-white/30">
+                When on, host edits go to pending review instead of publishing directly.
+              </span>
+            </span>
+          </label>
         </section>
 
         {/* Follow Codes */}

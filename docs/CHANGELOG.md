@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here.
 
+## [0.14.0] — Slice 11: Host Onboarding & Ownership
+
+### Added
+- **`Channel.owner_ids: list[str]`** and **`Channel.auto_publish: bool`** (default `True`) — admin-only fields, stripped from the public channel API via `response_model_exclude`
+- **`ChannelInviteToken`** schema + **`InviteRepository`** (ABC + Seed + Mongo, `channel_invites` collection) — single-use, 7-day, SHA-256-hashed tokens (raw token never stored)
+- **`InviteService`** — `generate_invite` (returns raw token once), `accept_invite` (adds caller to `owner_ids`, idempotent per user, 400 on expired/consumed), `list_invites`
+- **`POST /api/admin/channels/{slug}/invites`** — admin/music-director generates an invite link
+- **`GET /api/admin/channels/{slug}/invites`** — list a channel's invites (hashed metadata, never raw token)
+- **`POST /api/host/invite/accept`** — authenticated user accepts an invite to become a channel owner
+- **`GET /api/admin/channels/{slug}/owners`** — resolves `owner_ids` to `UserPublic` records
+- **`require_channel_owner(slug_param)`** dependency factory in `core/auth.py` — 403 unless caller owns the channel; admin/music-director bypass
+- **`ChannelRepository.get_channels_by_owner(user_id)`** — Seed + Mongo
+- **Admin channel edit — Ownership panel**: host list with avatars, remove, "Generate Invite Link" (copyable, one-time-use warning), and the `auto_publish` approval toggle
+- **`/host/join?token=`** page — resolves the invite, shows `SignInPanel` when logged out, accepts on login, success/expired states
+- **19 backend tests** (`test_slice11.py`) — all prior tests still green (251 total, 2 skipped)
+
+### Notes
+- "Host" remains a derived capability (ownership), not a global role — no `roles: ["host"]` field
+- Pre-Slice-11 channel documents default `owner_ids: []` / `auto_publish: true` on read (no migration)
+
 ## [0.13.0] — Slice 10: Identity & Roles
 
 ### Added

@@ -1214,3 +1214,84 @@ no password, login via secret) so the dashboard works with zero DB config.
 - [ ] All tests pass; seed-mode parity verified
 - [ ] Docs updated (`STATUS.md`, `CLAUDE.md`, `FEATURE_SLICES.md`, `MVP_TO_LAUNCH_ROADMAP.md`,
       `CHANGELOG.md`, `API_CONTRACT.md`, `HANDOFF.md`)
+
+---
+
+## Slice 11: Host Onboarding & Ownership — ✅ COMPLETE (v0.14.0)
+
+Connects Users (Slice 10) to Channels via ownership, and brings hosts onto the
+platform through single-use invite links. Builds directly on the Slice 10 identity
+layer; Slice 12 (Host Dashboard) builds on this.
+
+### Ownership model (locked)
+
+- **"Host" is a derived capability, not a global role.** A user is a host iff
+  their `user.id` appears in some `Channel.owner_ids`. There is no `roles: ["host"]`.
+- `Channel.owner_ids: list[str]` and `Channel.auto_publish: bool = True` are
+  **admin-only** — stripped from the public channel API via `response_model_exclude`.
+- `auto_publish = True` (default): a host may publish channel changes directly.
+  `auto_publish = False`: host edits go to pending review (enforced in Slice 12;
+  the flag and admin toggle ship here).
+- Admin and music_director bypass ownership checks (`require_channel_owner`).
+
+### Data model
+
+```python
+class ChannelInviteToken(BaseModel):
+    id: str                      # uuid
+    token_hash: str              # SHA-256 of the raw token (raw NEVER stored)
+    channel_slug: str
+    created_by_user_id: str
+    created_at: datetime
+    expires_at: datetime         # created_at + 7 days
+    consumed: bool = False
+    consumed_by_user_id: str | None = None
+    consumed_at: datetime | None = None
+```
+
+Invites are single-use and 7-day. The raw token (`secrets.token_urlsafe(32)`) is
+returned once at creation and embedded in the link; only its hash is persisted.
+
+### API endpoints
+
+```
+POST /api/admin/channels/{slug}/invites   # admin/MD — generate link, raw token returned once
+GET  /api/admin/channels/{slug}/invites   # admin/MD — list invites (hashed metadata only)
+GET  /api/admin/channels/{slug}/owners    # admin/MD — resolve owner_ids → UserPublic[]
+POST /api/host/invite/accept              # authed user — { token } → adds caller to owner_ids
+```
+
+`accept_invite` is idempotent per user, returns 400 on expired/consumed tokens,
+404 on unknown token, 401 when not logged in.
+
+### Authorization
+
+`require_channel_owner(slug_param="slug")` in `core/auth.py` — resolves the channel
+from the path, returns `(UserDocument, Channel)`, raises 403 unless the caller owns
+the channel (admin/music_director bypass). Slice 12 uses this on every host route.
+
+### Frontend
+
+- **Admin channel edit — Ownership panel**: host list (avatar + display name +
+  remove), "Generate Invite Link" (copyable URL, one-time-use + 7-day warning),
+  and the `auto_publish` approval toggle.
+- **`/host/join?token=`**: resolves the invite; shows `<SignInPanel />` (reused from
+  Slice 10) when logged out; accepts on login; success → link to `/host`; expired
+  or consumed → friendly "contact your music director" message.
+
+### Done criteria — all met
+
+- [x] `Channel.owner_ids` + `auto_publish`; defaulted on read for pre-Slice-11 docs
+- [x] `ChannelInviteToken` schema, `InviteRepository` (Seed + Mongo), `InviteService`
+- [x] Generate / list / accept endpoints + `GET .../owners`
+- [x] Expired and already-consumed tokens return 400; accept is idempotent
+- [x] `require_channel_owner` (admin/MD bypass, 403 for non-owners)
+- [x] `get_channels_by_owner` (Seed + Mongo)
+- [x] Admin Ownership panel + `auto_publish` toggle; `/host/join` page
+- [x] 19 backend tests (`test_slice11.py`); 251 total pass; TS clean
+- [x] Docs updated
+
+### Out of scope (→ Slice 12)
+
+- `/host` dashboard route group, host-scoped channel edit, per-channel host analytics
+- `pendingReview` flag + `auto_publish=False` enforcement on host saves

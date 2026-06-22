@@ -113,3 +113,15 @@ def get_session_repository():
 def get_auth_service():
     from app.services.auth_service import AuthService
     return AuthService(get_user_repository(), get_session_repository(), _settings())
+
+
+@lru_cache
+def get_invite_repository():
+    from app.repositories.invite_repository import build_invite_repository
+    return build_invite_repository(_settings())
+
+
+@lru_cache
+def get_invite_service():
+    from app.services.invite_service import InviteService
+    return InviteService(get_invite_repository(), get_channel_repository())

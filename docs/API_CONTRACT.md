@@ -845,3 +845,70 @@ Admin-auth required. Returns aggregated analytics over all channels.
 ```
 
 No PII (email addresses, Discord user IDs) is included in the response. Returns `401` without admin auth.
+
+---
+
+## Slice 11 — Host Onboarding & Ownership
+
+`Channel.owner_ids: list[str]` and `Channel.auto_publish: bool` are admin-only —
+returned by the admin channel API and stripped from the public `GET /api/channels`
+and `GET /api/channels/{slug}` responses.
+
+### POST /api/admin/channels/{slug}/invites
+
+Admin / music_director (`require_roles("admin", "music_director")`). Generates a
+single-use, 7-day invite link for the channel. The raw token is returned **once**
+and never stored (only its SHA-256 hash is persisted).
+
+**Response `201`:**
+```json
+{
+  "invite_url": "https://wavepalace.live/host/join?token=<raw_token>",
+  "expires_at": "2026-06-29T00:00:00+00:00",
+  "channel_slug": "late-night-house"
+}
+```
+`404` if channel not found · `401`/`403` without admin/MD auth.
+
+### GET /api/admin/channels/{slug}/invites
+
+Admin / music_director. Lists a channel's invites — hashed metadata only, never
+the raw token.
+
+**Response `200`:** array of
+```json
+{
+  "id": "…",
+  "channel_slug": "late-night-house",
+  "created_by_user_id": "…",
+  "created_at": "…",
+  "expires_at": "…",
+  "consumed": false,
+  "consumed_by_user_id": null,
+  "consumed_at": null
+}
+```
+
+### GET /api/admin/channels/{slug}/owners
+
+Admin / music_director. Resolves the channel's `owner_ids` to public user records.
+
+**Response `200`:** array of `UserPublic` (`id`, `display_name`, `email`,
+`avatar_url`, `roles`, `is_active`, …).
+
+### POST /api/host/invite/accept
+
+Authenticated user (`get_current_user`). Accepts an invite and adds the caller to
+the channel's `owner_ids` (idempotent per user).
+
+**Request:** `{ "token": "<raw_token>" }`
+
+**Response `200`:**
+```json
+{
+  "channel_slug": "late-night-house",
+  "channel_title": "Late Night House",
+  "message": "You are now a host of Late Night House."
+}
+```
+`400` expired or already-consumed · `404` unknown token · `401` not logged in.

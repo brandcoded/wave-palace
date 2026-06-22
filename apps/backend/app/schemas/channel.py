@@ -51,6 +51,9 @@ class Channel(BaseModel):
     muxLastAt: datetime | None = None
     streamingActive: bool = False
     vrchatFallbackUrl: str | None = None
+    # Slice 11 — Host Onboarding & Ownership (admin-only; stripped from public API)
+    owner_ids: list[str] = Field(default_factory=list)
+    auto_publish: bool = True
 
     model_config = {"populate_by_name": True}
 

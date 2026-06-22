@@ -10,10 +10,11 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.api.dependencies import get_channel_service
+from app.api.dependencies import get_channel_service, get_user_repository
 from app.core.auth import get_current_admin
 from app.schemas.channel import Channel
 from app.schemas.sponsor import Sponsor
+from app.schemas.user import UserPublic
 from app.services.channel_service import ChannelService
 from app.services.url_validator import URLCheckResult, validate_urls
 
@@ -64,6 +65,8 @@ class ChannelPatchRequest(BaseModel):
     isPublished: bool | None = None
     streamingActive: bool | None = None
     vrchatFallbackUrl: str | None = None
+    owner_ids: list[str] | None = None
+    auto_publish: bool | None = None
 
 
 class StreamingBulkRequest(BaseModel):
@@ -157,6 +160,25 @@ async def update_channel_sponsor(
     if updated is None:
         raise HTTPException(status_code=404, detail="Channel not found")
     return updated
+
+
+@router.get("/{slug}/owners", response_model=list[UserPublic])
+async def list_channel_owners(
+    slug: str,
+    _: dict = Depends(get_current_admin),
+    service: ChannelService = Depends(get_channel_service),
+    user_repo=Depends(get_user_repository),
+) -> list[UserPublic]:
+    """Resolve a channel's owner_ids to public user records (Slice 11)."""
+    channel = await service.get_raw_by_slug(slug)
+    if channel is None:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    owners: list[UserPublic] = []
+    for uid in channel.get("owner_ids") or []:
+        user = await user_repo.get(uid)
+        if user is not None:
+            owners.append(UserPublic(**user.model_dump()))
+    return owners
 
 
 @router.post("/{slug}/validate-urls", response_model=list[URLCheckResult])

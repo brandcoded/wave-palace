@@ -69,6 +69,8 @@ export interface AdminSubmission {
 
 export interface AdminChannel extends Channel {
   playCount: number;
+  owner_ids?: string[];
+  auto_publish?: boolean;
 }
 
 export interface SubmissionOptions {

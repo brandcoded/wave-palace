@@ -57,6 +57,7 @@ wave-palace/
 | Legal | DMCA Takedown Form — public `/legal/takedown`, admin queue `/admin/takedowns`, SMTP email, 20 backend tests | `3104e62` |
 | Infra | MongoDB Atlas connected — `MONGODB_URI` set on Render, `pymongo[srv]` pinned, idempotent seed | `9574d94` |
 | **10** | **Identity & Roles** — opaque `wp_session` cookie, `UserDocument`/`SessionDocument`, Discord+email-link+password auth, `require_roles` guards, `/admin/users` page, 26 tests | main |
+| **11** | **Host Onboarding & Ownership** — `Channel.owner_ids` + `auto_publish`, single-use 7-day invite links, `require_channel_owner` dep, admin Ownership panel, `/host/join` page, 19 tests | main |
 
 ### What is NOT STARTED / DEFERRED
 
@@ -67,15 +68,12 @@ wave-palace/
 | 4 | Live event streaming — Link-In + Ingest Keys | Slice 3 ✅ + VPS provisioned |
 | 4 add-on | Event Sponsorship (QR bridge + sponsor frame) | Slice 6 `sponsor` object + Slice 4 streaming path |
 | 6B | Full Ad Stack (rotation, CPM, audio stings, reporting) | Slice 4 ✅ (AzuraCast for audio stings) |
-| 7 | Production analytics dashboard | ✅ COMPLETE |
 | 8 | Play Metrics + Artist Reporting | Slice 3 add-ons ✅ + Slice 9 ✅ |
-| 10 | Identity & Roles (auth foundation) | ⬜ PLANNED — `User`/`Session` schema, stackable roles, Discord/email-code/password login, migrates Slice 3 admin JWT · full spec in `docs/FEATURE_SLICES.md` |
-| 11 | Host Onboarding & Ownership | ⬜ PLANNED — Slice 10 · `Channel.owner_ids`, invite links, host application = upgraded Slice 2 submission, `auto_publish` flag |
-| 12 | Host Dashboard | ⬜ PLANNED — Slice 11 · scoped `/host` area |
+| 12 | Host Dashboard | ⬜ PLANNED — Slice 11 ✅ · scoped `/host` area: own channels, tracks, analytics, edits · uses `require_channel_owner` + `get_channels_by_owner` |
 
-**Slices 6, 7, Pre-Slice 4 add-on, 9, and DMCA are all complete.** The next build options are: **Slice 10 — Identity & Roles** (auth foundation; prerequisite for the host program in Slices 11–12 — full spec in `docs/FEATURE_SLICES.md`), **External Stream Passthrough** (small, no VPS), **Slice 8 artist reporting**, or **provision Hetzner VPS → Slice 4 live events**. Rationale + copy-paste build prompts: `docs/MONETIZATION_PLAN.md`.
+**Slices 6, 7, 9, 10, 11, Pre-Slice 4 add-on, and DMCA are all complete.** The next build options are: **Slice 12 — Host Dashboard** (the scoped `/host` area; everything it needs — ownership, `require_channel_owner`, `get_channels_by_owner` — shipped in Slice 11), **External Stream Passthrough** (small, no VPS), **Slice 8 artist reporting**, or **provision Hetzner VPS → Slice 4 live events**. Rationale + copy-paste build prompts: `docs/MONETIZATION_PLAN.md`.
 
-> **Note on auth:** "Introduce auth before dashboard/submission write paths" (roadmap §3) is delivered by **Slice 10**, which replaces the current single-secret admin login with real user identity + stackable roles. The host program (Slices 11–12) depends on it.
+> **Note on auth:** "Introduce auth before dashboard/submission write paths" (roadmap §3) is delivered by **Slice 10** (real user identity + stackable roles). **Slice 11** adds channel ownership (`owner_ids`) and the invite flow on top; **Slice 12** (host dashboard) is the remaining piece of the host program.
 
 **Build one slice at a time. Do not start a slice until the previous one is merged and smoke-tested.**
 
@@ -214,7 +212,7 @@ All tests must stay green. Add tests for every backend change.
 
 ```
 [Next.js frontend — Vercel]
-  src/app/                    App Router: / · /channels/[slug] · /submit · /admin/* · /follow/[code] · /follows
+  src/app/                    App Router: / · /channels/[slug] · /submit · /admin/* · /follow/[code] · /follows · /host/join
   src/presentation/           Pure visual components (AppShell, GlassPanel, …)
   src/features/channels/      Channel browsing + player
     lib/                      Typed API client

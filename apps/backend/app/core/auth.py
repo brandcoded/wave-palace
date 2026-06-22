@@ -9,9 +9,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import jwt
-from fastapi import Cookie, Depends, HTTPException
+from fastapi import Cookie, Depends, HTTPException, Path
 
-from app.api.dependencies import get_auth_service
+from app.api.dependencies import get_auth_service, get_channel_service
+from app.schemas.channel import Channel
 from app.schemas.user import UserDocument
 
 logger = logging.getLogger("wavepalace.auth")
@@ -101,3 +102,35 @@ def require_roles(*roles: str):
 
 # Shim: existing route files use Depends(get_current_admin) — unchanged.
 get_current_admin = require_roles("admin", "music_director")
+
+
+# ---------------------------------------------------------------------------
+# Slice 11 — ownership-scoped guard
+# ---------------------------------------------------------------------------
+
+def require_channel_owner(slug_param: str = "slug"):
+    """
+    Factory returning a dependency that resolves the channel from the path and
+    enforces that the caller owns it. Admin and music_director bypass the
+    ownership check (they can act on any channel).
+
+    Returns a (UserDocument, Channel) tuple so routes get both without a second
+    lookup.
+    """
+    async def _dep(
+        slug: str = Path(..., alias=slug_param),
+        user: UserDocument = Depends(get_current_user),
+        channel_service=Depends(get_channel_service),
+    ) -> tuple[UserDocument, Channel]:
+        if not user.is_active:
+            raise HTTPException(status_code=403, detail="Account is deactivated")
+        raw = await channel_service.get_raw_by_slug(slug)
+        if raw is None:
+            raise HTTPException(status_code=404, detail="Channel not found")
+        if "admin" in user.roles or "music_director" in user.roles:
+            return user, Channel.model_validate(raw)
+        if user.id not in (raw.get("owner_ids") or []):
+            raise HTTPException(status_code=403, detail="Not an owner of this channel")
+        return user, Channel.model_validate(raw)
+
+    return _dep

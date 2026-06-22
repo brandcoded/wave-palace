@@ -14,8 +14,11 @@ from app.services.channel_service import ChannelService
 
 router = APIRouter(prefix="/api/channels", tags=["channels"])
 
+# Admin-only fields never exposed on the public channel API (Slice 11).
+_PUBLIC_EXCLUDE = {"owner_ids", "auto_publish"}
 
-@router.get("", response_model=list[Channel])
+
+@router.get("", response_model=list[Channel], response_model_exclude=_PUBLIC_EXCLUDE)
 async def list_channels(
     genre: str | None = Query(default=None),
     mood: str | None = Query(default=None),
@@ -28,7 +31,7 @@ async def list_channels(
     )
 
 
-@router.get("/{slug}", response_model=Channel)
+@router.get("/{slug}", response_model=Channel, response_model_exclude=_PUBLIC_EXCLUDE)
 async def get_channel(
     slug: str,
     service: ChannelService = Depends(get_channel_service),

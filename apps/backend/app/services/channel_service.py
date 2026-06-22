@@ -84,6 +84,13 @@ class ChannelService:
     async def list_all(self) -> list[dict]:
         return await self._repository.list_channels()
 
+    async def get_raw_by_slug(self, slug: str) -> dict | None:
+        """Return the raw channel dict regardless of published state (admin/host use)."""
+        return await self._repository.get_by_slug(slug)
+
+    async def get_channels_by_owner(self, user_id: str) -> list[dict]:
+        return await self._repository.get_channels_by_owner(user_id)
+
     async def create(self, data: dict) -> dict:
         return await self._repository.create(data)
 

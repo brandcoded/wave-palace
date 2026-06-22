@@ -20,15 +20,21 @@ _TAXONOMY_FIELDS = ("genre", "mood", "energy", "theme")
 
 
 def _normalize_taxonomy(doc: dict) -> dict:
-    """Coerce legacy string values for taxonomy fields into single-element lists.
+    """Normalize a channel dict for the API.
 
-    Old Mongo documents stored genre/mood/energy/theme as plain strings. This
-    ensures they pass Pydantic validation without a destructive migration.
+    - Coerce legacy string taxonomy values (genre/mood/energy/theme) into lists
+      so old Mongo documents pass Pydantic validation without a migration.
+    - Default Slice 11 ownership fields so admin/host reads of pre-Slice-11
+      documents always expose owner_ids/auto_publish.
     """
     for field in _TAXONOMY_FIELDS:
         val = doc.get(field)
         if isinstance(val, str):
             doc = {**doc, field: [val]}
+    if "owner_ids" not in doc:
+        doc = {**doc, "owner_ids": []}
+    if "auto_publish" not in doc:
+        doc = {**doc, "auto_publish": True}
     return doc
 
 
@@ -64,6 +70,10 @@ class ChannelRepository(ABC):
     @abstractmethod
     async def increment_sponsor_click(self, slug: str) -> bool:
         """Atomically increment sponsor.clickCount. Returns True if channel exists."""
+
+    @abstractmethod
+    async def get_channels_by_owner(self, user_id: str) -> list[dict]:
+        """Return all channels (published and unpublished) the user owns."""
 
 
 class SeedChannelRepository(ChannelRepository):
@@ -126,6 +136,13 @@ class SeedChannelRepository(ChannelRepository):
                 self._channels[i] = {**c, "sponsor": sp}
                 return True
         return False
+
+    async def get_channels_by_owner(self, user_id: str) -> list[dict]:
+        return [
+            _normalize_taxonomy(c)
+            for c in self._channels
+            if not c.get("deleted") and user_id in (c.get("owner_ids") or [])
+        ]
 
 
 class MongoChannelRepository(ChannelRepository):
@@ -199,6 +216,13 @@ class MongoChannelRepository(ChannelRepository):
             {"$inc": {"sponsor.clickCount": 1}},
         )
         return result.matched_count > 0
+
+    async def get_channels_by_owner(self, user_id: str) -> list[dict]:
+        await self._ensure_seeded()
+        cursor = self._collection.find(
+            {"owner_ids": user_id, "deleted": {"$ne": True}}, {"_id": 0}
+        )
+        return [_normalize_taxonomy(doc) async for doc in cursor]
 
 
 def build_channel_repository(settings: Settings) -> ChannelRepository:

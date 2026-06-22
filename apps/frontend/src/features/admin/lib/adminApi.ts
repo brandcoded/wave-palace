@@ -283,3 +283,54 @@ export async function getAnalytics(): Promise<AnalyticsSummary> {
   if (!res.ok) throw new Error("Failed to load analytics");
   return res.json();
 }
+
+// ------------------------------------------------------------------
+// Host ownership + invites (Slice 11)
+// ------------------------------------------------------------------
+
+export interface ChannelOwner {
+  id: string;
+  display_name: string;
+  email?: string | null;
+  avatar_url?: string | null;
+  roles: UserRole[];
+}
+
+export interface ChannelInvite {
+  invite_url: string;
+  expires_at: string;
+  channel_slug: string;
+}
+
+export async function listChannelOwners(slug: string): Promise<ChannelOwner[]> {
+  const res = await apiFetch(`/api/admin/channels/${slug}/owners`);
+  if (!res.ok) throw new Error("Failed to load channel owners");
+  return res.json();
+}
+
+export async function generateChannelInvite(slug: string): Promise<ChannelInvite> {
+  const res = await apiFetch(`/api/admin/channels/${slug}/invites`, { method: "POST" });
+  if (!res.ok) throw new Error("Failed to generate invite link");
+  return res.json();
+}
+
+export async function removeChannelOwner(
+  slug: string,
+  ownerIds: string[],
+): Promise<AdminChannel> {
+  return updateChannel(slug, { owner_ids: ownerIds });
+}
+
+export async function acceptHostInvite(
+  token: string,
+): Promise<{ channel_slug: string; channel_title: string; message: string }> {
+  const res = await apiFetch("/api/host/invite/accept", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { detail?: string }).detail ?? "Failed to accept invite");
+  }
+  return res.json();
+}
