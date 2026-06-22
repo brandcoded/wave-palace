@@ -181,6 +181,43 @@ async def list_channel_owners(
     return owners
 
 
+class MoveOwnerBody(BaseModel):
+    to_slug: str
+
+
+@router.post("/{slug}/owners/{user_id}/move")
+async def move_channel_owner(
+    slug: str,
+    user_id: str,
+    body: MoveOwnerBody,
+    _: dict = Depends(get_current_admin),
+    service: ChannelService = Depends(get_channel_service),
+) -> dict:
+    """Transfer a host from one channel to another in one atomic operation (Slice 11)."""
+    src = await service.get_raw_by_slug(slug)
+    if src is None:
+        raise HTTPException(status_code=404, detail="Source channel not found")
+
+    src_owners: list[str] = list(src.get("owner_ids") or [])
+    if user_id not in src_owners:
+        raise HTTPException(status_code=400, detail="User is not an owner of the source channel")
+
+    dst = await service.get_raw_by_slug(body.to_slug)
+    if dst is None:
+        raise HTTPException(status_code=404, detail="Target channel not found")
+
+    # Remove from source
+    new_src_owners = [uid for uid in src_owners if uid != user_id]
+    await service.update(slug, {"owner_ids": new_src_owners})
+
+    # Add to target (idempotent)
+    dst_owners: list[str] = list(dst.get("owner_ids") or [])
+    if user_id not in dst_owners:
+        await service.update(body.to_slug, {"owner_ids": dst_owners + [user_id]})
+
+    return {"from_slug": slug, "to_slug": body.to_slug, "user_id": user_id}
+
+
 @router.post("/{slug}/validate-urls", response_model=list[URLCheckResult])
 async def validate_channel_urls(
     slug: str,

@@ -1,7 +1,8 @@
 """Tests for Slice 11 — Host Onboarding & Ownership.
 
 Covers: Channel.owner_ids + auto_publish, invite generate/list/accept,
-expiry + single-use guards, get_channels_by_owner, require_channel_owner.
+expiry + single-use guards, get_channels_by_owner, require_channel_owner,
+and move-owner endpoint (Host Move Operation).
 """
 
 from __future__ import annotations
@@ -292,6 +293,81 @@ async def test_accept_invite_idempotent_same_user(invite_service, channel_servic
     assert len(owned) == 1
     raw_ch = await channel_service.get_raw_by_slug(SLUG)
     assert raw_ch["owner_ids"].count("same-user") == 1
+
+
+# ---------------------------------------------------------------------------
+# Move-owner endpoint
+# ---------------------------------------------------------------------------
+
+SLUG2 = "afro-future-lounge"
+
+@pytest.mark.asyncio
+async def test_move_owner_success(admin_client, channel_service):
+    """Owner is removed from source and added to target."""
+    await channel_service.update(SLUG, {"owner_ids": ["user-move"]})
+    await channel_service.update(SLUG2, {"owner_ids": []})
+
+    res = await admin_client.post(
+        f"/api/admin/channels/{SLUG}/owners/user-move/move",
+        json={"to_slug": SLUG2},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["from_slug"] == SLUG
+    assert data["to_slug"] == SLUG2
+    assert data["user_id"] == "user-move"
+
+    src = await channel_service.get_raw_by_slug(SLUG)
+    dst = await channel_service.get_raw_by_slug(SLUG2)
+    assert "user-move" not in (src.get("owner_ids") or [])
+    assert "user-move" in (dst.get("owner_ids") or [])
+
+
+@pytest.mark.asyncio
+async def test_move_owner_source_not_found(admin_client):
+    res = await admin_client.post(
+        "/api/admin/channels/nonexistent/owners/user-x/move",
+        json={"to_slug": SLUG2},
+    )
+    assert res.status_code == 404
+    assert "Source" in res.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_move_owner_target_not_found(admin_client, channel_service):
+    await channel_service.update(SLUG, {"owner_ids": ["user-move2"]})
+    res = await admin_client.post(
+        f"/api/admin/channels/{SLUG}/owners/user-move2/move",
+        json={"to_slug": "does-not-exist"},
+    )
+    assert res.status_code == 404
+    assert "Target" in res.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_move_owner_not_an_owner(admin_client, channel_service):
+    await channel_service.update(SLUG, {"owner_ids": []})
+    res = await admin_client.post(
+        f"/api/admin/channels/{SLUG}/owners/nobody/move",
+        json={"to_slug": SLUG2},
+    )
+    assert res.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_move_owner_already_on_target_no_duplicate(admin_client, channel_service):
+    """Moving to a channel where the user is already an owner must not duplicate the ID."""
+    await channel_service.update(SLUG, {"owner_ids": ["user-dup"]})
+    await channel_service.update(SLUG2, {"owner_ids": ["user-dup"]})
+
+    res = await admin_client.post(
+        f"/api/admin/channels/{SLUG}/owners/user-dup/move",
+        json={"to_slug": SLUG2},
+    )
+    assert res.status_code == 200
+
+    dst = await channel_service.get_raw_by_slug(SLUG2)
+    assert (dst.get("owner_ids") or []).count("user-dup") == 1
 
 
 # ---------------------------------------------------------------------------

@@ -32,9 +32,11 @@ import {
   createCode,
   deactivateCode,
   listCodes,
+  listAdminChannels,
   listChannelOwners,
   generateChannelInvite,
   removeChannelOwner,
+  moveChannelOwner,
   type AdminCode,
   type ChannelOwner,
 } from "@/features/admin/lib/adminApi";
@@ -253,6 +255,9 @@ export default function ChannelEditPage() {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
+  const [otherChannels, setOtherChannels] = useState<{ slug: string; title: string }[]>([]);
+  const [movingOwner, setMovingOwner] = useState<string | null>(null);
+  const [moveToast, setMoveToast] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -271,6 +276,9 @@ export default function ChannelEditPage() {
     getOptions().then(setChannelOptions).catch(() => {});
     listCodes().then((all) => setCodes(all.filter((c) => c.channel_slug === slug))).catch(() => {});
     listChannelOwners(slug).then(setOwners).catch(() => {});
+    listAdminChannels()
+      .then((all) => setOtherChannels(all.filter((c) => c.slug !== slug).map((c) => ({ slug: c.slug, title: c.title }))))
+      .catch(() => {});
   }, [slug]);
 
   async function handleGenerateInvite() {
@@ -289,6 +297,22 @@ export default function ChannelEditPage() {
     const next = owners.filter((o) => o.id !== ownerId);
     await removeChannelOwner(slug, next.map((o) => o.id));
     setOwners(next);
+  }
+
+  async function handleMoveOwner(ownerId: string, toSlug: string) {
+    const target = otherChannels.find((c) => c.slug === toSlug);
+    if (!target) return;
+    setMovingOwner(ownerId);
+    try {
+      await moveChannelOwner(slug, ownerId, toSlug);
+      setOwners((prev) => prev.filter((o) => o.id !== ownerId));
+      setMoveToast(`Moved to ${target.title}`);
+      setTimeout(() => setMoveToast(null), 3000);
+    } catch {
+      // error is shown inline via the select resetting — nothing more needed
+    } finally {
+      setMovingOwner(null);
+    }
   }
 
   function setField<K extends keyof AdminChannel>(key: K, value: AdminChannel[K]) {
@@ -801,6 +825,13 @@ export default function ChannelEditPage() {
         <section className="flex flex-col gap-4 border-t border-white/10 pt-6">
           <h2 className="text-xs font-bold uppercase tracking-widest text-white/40">Ownership</h2>
 
+          {moveToast && (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+              <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+              {moveToast}
+            </div>
+          )}
+
           {owners.length === 0 ? (
             <p className="text-xs text-white/30">No hosts assigned. Generate an invite link to onboard one.</p>
           ) : (
@@ -818,12 +849,35 @@ export default function ChannelEditPage() {
                     )}
                     <span className="text-sm text-white/80">{o.display_name}</span>
                   </div>
-                  <button
-                    onClick={() => handleRemoveOwner(o.id)}
-                    className="text-xs text-red-400/50 hover:text-red-400"
-                  >
-                    Remove
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {movingOwner === o.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-white/30" />
+                    ) : (
+                      otherChannels.length > 0 && (
+                        <select
+                          defaultValue=""
+                          disabled={movingOwner !== null}
+                          onChange={(e) => {
+                            if (e.target.value) handleMoveOwner(o.id, e.target.value);
+                            e.target.value = "";
+                          }}
+                          className="rounded-lg border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/70 outline-none focus:border-white/30 disabled:opacity-40"
+                        >
+                          <option value="" disabled>Move to…</option>
+                          {otherChannels.map((c) => (
+                            <option key={c.slug} value={c.slug}>{c.title}</option>
+                          ))}
+                        </select>
+                      )
+                    )}
+                    <button
+                      onClick={() => handleRemoveOwner(o.id)}
+                      disabled={movingOwner !== null}
+                      className="text-xs text-red-400/50 hover:text-red-400 disabled:opacity-40"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

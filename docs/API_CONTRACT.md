@@ -310,6 +310,14 @@ Admin-only. Update stackable roles.
 ```
 Response: updated `UserPublic`.
 
+### POST /api/admin/channels/{slug}/owners/{user_id}/move
+Admin + music_director. Transfer a host from the source channel to a target channel atomically.
+```json
+{ "to_slug": "target-channel-slug" }
+```
+Response: `{ "from_slug": "…", "to_slug": "…", "user_id": "…" }`
+Errors: `404` if source or target channel not found, `400` if `user_id` is not an owner of the source channel.
+
 ### PATCH /api/admin/users/{id}/active
 Admin-only. Activate or deactivate a user.
 ```json

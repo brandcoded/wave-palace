@@ -321,6 +321,18 @@ export async function removeChannelOwner(
   return updateChannel(slug, { owner_ids: ownerIds });
 }
 
+export async function moveChannelOwner(
+  fromSlug: string,
+  userId: string,
+  toSlug: string,
+): Promise<void> {
+  const res = await apiFetch(`/api/admin/channels/${fromSlug}/owners/${userId}/move`, {
+    method: "POST",
+    body: JSON.stringify({ to_slug: toSlug }),
+  });
+  if (!res.ok) throw new Error("Failed to move owner");
+}
+
 export async function acceptHostInvite(
   token: string,
 ): Promise<{ channel_slug: string; channel_title: string; message: string }> {
