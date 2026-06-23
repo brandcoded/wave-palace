@@ -58,6 +58,59 @@ class R2Repository:
         logger.info("Upload complete: %s", public_url)
         return public_url
 
+    async def upload_multipart_stream(
+        self, file_obj, r2_key: str, content_type: str,
+        cache_control: str = "public, max-age=300"
+    ) -> str:
+        """Stream *file_obj* to *r2_key* using S3 multipart upload.
+
+        Reads in 8 MB chunks (safely above the 5 MB S3 minimum part size).
+        Always calls abort_multipart_upload if the upload does not complete
+        successfully to prevent orphaned parts in R2.
+        """
+        CHUNK = 8 * 1024 * 1024  # 8 MB
+
+        logger.info("Starting multipart upload → s3://%s/%s", self._bucket, r2_key)
+        resp = self._client.create_multipart_upload(
+            Bucket=self._bucket,
+            Key=r2_key,
+            ContentType=content_type,
+            CacheControl=cache_control,
+        )
+        upload_id = resp["UploadId"]
+        parts: list[dict] = []
+        completed = False
+        try:
+            part_number = 1
+            while chunk := await file_obj.read(CHUNK):
+                part = self._client.upload_part(
+                    Bucket=self._bucket,
+                    Key=r2_key,
+                    UploadId=upload_id,
+                    PartNumber=part_number,
+                    Body=chunk,
+                )
+                parts.append({"ETag": part["ETag"], "PartNumber": part_number})
+                part_number += 1
+            self._client.complete_multipart_upload(
+                Bucket=self._bucket,
+                Key=r2_key,
+                UploadId=upload_id,
+                MultipartUpload={"Parts": parts},
+            )
+            completed = True
+        finally:
+            if not completed:
+                self._client.abort_multipart_upload(
+                    Bucket=self._bucket,
+                    Key=r2_key,
+                    UploadId=upload_id,
+                )
+
+        public_url = f"{self._public_base}/{r2_key}"
+        logger.info("Multipart upload complete: %s", public_url)
+        return public_url
+
     def upload_bytes(
         self, data: bytes, r2_key: str, content_type: str,
         cache_control: str = "public, max-age=300"

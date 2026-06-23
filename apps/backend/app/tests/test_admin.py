@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 import os
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -100,10 +100,23 @@ def uploads_admin_client() -> TestClient:
     def upload_side_effect(data: bytes, key: str, content_type: str) -> str:
         return f"https://stream.wavepalace.live/{key}"
     r2.upload_bytes.side_effect = upload_side_effect
+    async def multipart_side_effect(file_obj, key: str, content_type: str) -> str:
+        return f"https://stream.wavepalace.live/{key}"
+    r2.upload_multipart_stream = AsyncMock(side_effect=multipart_side_effect)
     app.dependency_overrides[get_r2_repository] = lambda: r2
     client = _make_client(authed=True)
     yield client
     app.dependency_overrides.clear()
+
+
+def _make_r2_with_mock_client():
+    """Build an R2Repository instance bypassing the boto3 credential check."""
+    from app.repositories.r2_repository import R2Repository
+    r2 = object.__new__(R2Repository)
+    r2._bucket = "test-bucket"
+    r2._public_base = "https://stream.wavepalace.live"
+    r2._client = MagicMock()
+    return r2
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +304,51 @@ def test_upload_video_valid_mp4(uploads_admin_client):
     )
     assert res.status_code == 200
     assert "url" in res.json()
+
+
+def test_upload_audio_multipart_success():
+    """Multipart path: boto3 create/upload/complete called; 200 + URL returned."""
+    r2 = _make_r2_with_mock_client()
+    r2._client.create_multipart_upload.return_value = {"UploadId": "upload-123"}
+    r2._client.upload_part.return_value = {"ETag": '"etag-abc"'}
+    r2._client.complete_multipart_upload.return_value = {}
+    app.dependency_overrides[get_r2_repository] = lambda: r2
+    client = _make_client(authed=True)
+    try:
+        res = client.post(
+            "/api/admin/upload/audio",
+            files={"file": ("track.mp3", io.BytesIO(b"ID3" + b"\x00" * 100), "audio/mpeg")},
+        )
+        assert res.status_code == 200
+        assert "url" in res.json()
+        assert "stream.wavepalace.live" in res.json()["url"]
+        r2._client.create_multipart_upload.assert_called_once()
+        r2._client.complete_multipart_upload.assert_called_once()
+        r2._client.abort_multipart_upload.assert_not_called()
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_upload_audio_multipart_abort_on_failure():
+    """If upload_part raises, abort_multipart_upload must be called."""
+    r2 = _make_r2_with_mock_client()
+    r2._client.create_multipart_upload.return_value = {"UploadId": "upload-456"}
+    r2._client.upload_part.side_effect = RuntimeError("simulated R2 failure")
+    app.dependency_overrides[get_r2_repository] = lambda: r2
+    client = TestClient(app, raise_server_exceptions=False)
+    client.cookies.set("wp_admin_token", _auth_cookie())
+    try:
+        res = client.post(
+            "/api/admin/upload/audio",
+            files={"file": ("track.mp3", io.BytesIO(b"ID3" + b"\x00" * 100), "audio/mpeg")},
+        )
+        assert res.status_code == 500
+        r2._client.abort_multipart_upload.assert_called_once()
+        call_kwargs = r2._client.abort_multipart_upload.call_args.kwargs
+        assert call_kwargs["Bucket"] == "test-bucket"
+        assert call_kwargs["UploadId"] == "upload-456"
+    finally:
+        app.dependency_overrides.clear()
 
 
 def test_upload_image_resizes_and_converts_to_webp(uploads_admin_client):

@@ -5,7 +5,7 @@ from __future__ import annotations
 import io
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
 from PIL import Image
 
 from app.api.dependencies import get_r2_repository
@@ -20,7 +20,7 @@ _AUDIO_TYPES = {"audio/mpeg", "audio/mp3"}
 
 _IMAGE_MAX_MB = 20
 _VIDEO_MAX_MB = 200
-_AUDIO_MAX_MB = 50
+_AUDIO_MAX_MB = 1024
 
 
 def _process_image(data: bytes) -> bytes:
@@ -116,11 +116,15 @@ async def upload_video(
 
 @router.post("/audio")
 async def upload_audio(
+    request: Request,
     file: UploadFile,
     _: dict = Depends(get_current_admin),
     r2: R2Repository = Depends(get_r2_repository),
 ) -> dict:
     _check_type(file.content_type, _AUDIO_TYPES)
+    cl = request.headers.get("content-length")
+    if cl and int(cl) > _AUDIO_MAX_MB * 1024 * 1024:
+        raise HTTPException(status_code=413, detail=f"File exceeds {_AUDIO_MAX_MB} MB limit.")
     r2_key = f"media/audio/{uuid.uuid4()}.mp3"
-    url = await _upload_stream(file, r2_key, "audio/mpeg", _AUDIO_MAX_MB, r2)
+    url = await r2.upload_multipart_stream(file, r2_key, "audio/mpeg")
     return {"url": url}
