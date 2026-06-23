@@ -229,7 +229,7 @@ function FollowMeInner() {
                 "rgba(127,119,221,0.15)";
             }}
           >
-            {busy ? "Finding them…" : "Follow them"}
+            {busy ? "Finding them…" : "Let's go"}
           </button>
         </div>
 
