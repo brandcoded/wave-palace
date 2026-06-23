@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 
 const headline1 = "A live set lasts a night.".split(" ");
 const headline2 = "A channel lasts.".split(" ");
@@ -8,7 +8,7 @@ const headline2 = "A channel lasts.".split(" ");
 export function Hero() {
   const shouldReduce = useReducedMotion();
 
-  const wordVariant = {
+  const wordVariant: Variants = {
     hidden: { opacity: 0, y: shouldReduce ? 0 : 16 },
     visible: (i: number) => ({
       opacity: 1,
@@ -17,7 +17,7 @@ export function Hero() {
     }),
   };
 
-  const fadeIn = {
+  const fadeIn: Variants = {
     hidden: { opacity: 0, y: shouldReduce ? 0 : 12 },
     visible: (i: number) => ({
       opacity: 1,

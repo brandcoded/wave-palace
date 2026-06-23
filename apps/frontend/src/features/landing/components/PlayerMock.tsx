@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 
 const API_BASE =
   (process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
@@ -42,12 +42,12 @@ export function PlayerMock() {
 
   const featured = channels?.[0];
 
-  const cardVariant = {
+  const cardVariant: Variants = {
     hidden: { opacity: 0, y: shouldReduce ? 0 : 24 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } },
   };
 
-  const sidebarItem = (i: number) => ({
+  const sidebarItem = (i: number): Variants => ({
     hidden: { opacity: 0, x: shouldReduce ? 0 : 16 },
     visible: {
       opacity: 1,

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion, type Variants } from "framer-motion";
 
 const line1 = "No algorithm.".split(" ");
 const line2 = "Just the dial.".split(" ");
@@ -8,7 +8,7 @@ const line2 = "Just the dial.".split(" ");
 export function ListenerHero() {
   const shouldReduce = useReducedMotion();
 
-  const wordVariant = {
+  const wordVariant: Variants = {
     hidden: { opacity: 0, y: shouldReduce ? 0 : 16 },
     visible: (i: number) => ({
       opacity: 1,
@@ -17,7 +17,7 @@ export function ListenerHero() {
     }),
   };
 
-  const fadeIn = {
+  const fadeIn: Variants = {
     hidden: { opacity: 0, y: shouldReduce ? 0 : 12 },
     visible: (i: number) => ({
       opacity: 1,
