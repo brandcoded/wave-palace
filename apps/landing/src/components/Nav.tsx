@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { Disc3 } from "lucide-react";
 
 export function Nav() {
   const pathname = usePathname();
@@ -13,10 +14,11 @@ export function Nav() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <a
           href="/"
-          className="text-base font-semibold tracking-tight text-wp-white"
+          className="group flex items-center gap-2 font-semibold tracking-tight text-wp-white"
           aria-label="WavePalace home"
         >
-          Wave<span className="text-wp-violet">Palace</span>
+          <Disc3 className="h-6 w-6 text-wave-400 transition-transform group-hover:rotate-90" />
+          <span className="text-base">Wave<span className="text-gradient">Palace</span></span>
         </a>
 
         <nav className="hidden items-center gap-8 sm:flex" aria-label="Site navigation">
@@ -36,7 +38,7 @@ export function Nav() {
 
         <a
           href="https://wavepalace.live"
-          className="rounded border border-wp-violet bg-wp-violet px-4 py-1.5 text-sm font-medium text-white transition hover:bg-wp-violet2"
+          className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/10"
         >
           Browse channels
         </a>

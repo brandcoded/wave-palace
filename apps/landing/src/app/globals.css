@@ -30,6 +30,31 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+.text-wave-400 {
+  color: #a78bfa;
+}
+
+.from-wave-500 {
+  --tw-gradient-from: #8b5cf6;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+.to-glow-magenta {
+  --tw-gradient-to: #ff5cc8;
+}
+
+.shadow-wave-600\/30 {
+  --tw-shadow-color: rgb(124 58 237 / 0.3);
+  --tw-shadow: var(--tw-shadow-colored);
+}
+
+.text-gradient {
+  background: linear-gradient(120deg, #38e8ff 0%, #a78bfa 45%, #ff5cc8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
 a:focus-visible,
 button:focus-visible {
   outline: 2px solid var(--wp-violet);

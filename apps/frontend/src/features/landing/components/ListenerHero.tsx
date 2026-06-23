@@ -109,14 +109,13 @@ export function ListenerHero() {
         >
           <a
             href="/"
-            className="rounded border border-wp-violet bg-wp-violet px-6 py-2.5 text-sm font-medium text-white transition hover:bg-wp-violet2"
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-wave-500 to-glow-magenta px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-wave-600/30 transition hover:brightness-110"
           >
             Browse channels
           </a>
           <a
             href="#how-it-works"
-            className="rounded border px-6 py-2.5 text-sm font-medium text-wp-muted transition hover:border-wp-violet hover:text-wp-white"
-            style={{ borderColor: "var(--wp-border)" }}
+            className="rounded-full border border-white/15 bg-white/5 px-6 py-3 text-sm font-semibold text-white/80 transition hover:bg-white/10"
           >
             How it works
           </a>

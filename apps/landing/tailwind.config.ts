@@ -13,6 +13,8 @@ const config: Config = {
         "wp-amber":   "#D97706",
         "wp-white":   "#F8F7FF",
         "wp-muted":   "#9B8EC4",
+        "wave": { "400": "#a78bfa", "500": "#8b5cf6", "600": "#7c3aed" },
+        "glow": { "magenta": "#ff5cc8" },
       },
       fontFamily: {
         sans: ["var(--font-inter)", "system-ui", "sans-serif"],
