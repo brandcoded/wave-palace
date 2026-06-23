@@ -1,7 +1,7 @@
 # WavePalace — Agent Handoff Document
 
 > For seamless handoffs between **Claude Code** and **Codex**. Read this before touching any code.
-> Last updated: 2026-06-21
+> Last updated: 2026-06-22
 
 ---
 
@@ -31,7 +31,17 @@ wave-palace/
 
 ---
 
-## Current state (as of 2026-06-19)
+## Current state (as of 2026-06-22)
+
+> **Production deploy:** `origin/main` is at `e286d7e`. **Slice 10 (Identity &
+> Roles)** and **Slice 11 (Host Onboarding & Ownership)** shipped at `34878d7`
+> (now an ancestor) and are live. Since then, additional work landed on `main`:
+> `/creators` + `/listeners` landing routes, global nav/button polish, and a
+> **Vercel build fix** (`e286d7e` — framer-motion `Variants` typing) that resolved
+> a failed frontend build. Render (backend) + Vercel (frontend) auto-deploy on push
+> to `main`. Still smoke-test the host invite flow + Discord login on `/host/join`
+> against the live environment. MongoDB Atlas connected, so `channel_invites` /
+> `owner_ids` / `auto_publish` persist.
 
 ### What is COMPLETE and committed
 
@@ -191,6 +201,16 @@ All tests must stay green. Add tests for every backend change.
 | `DISCORD_CLIENT_ID` | Render | Discord OAuth2 client ID |
 | `VAPID_PUBLIC_KEY` | Render | Web Push API — generate once with `py-vapid` |
 | `VAPID_PRIVATE_KEY` | Render | Web Push API — generate once with `py-vapid` |
+
+### Slice 10 backend additions (active — added to Render at Slice 10)
+
+| Variable | Service | Notes |
+|---|---|---|
+| `DISCORD_CLIENT_SECRET` | Render | Discord OAuth2 client secret (admin login + follow flow) |
+| `DISCORD_REDIRECT_URI` | Render | Must be `https://api.wavepalace.live/api/auth/discord/callback` |
+| `RESEND_API_KEY` | Render | Email magic-link delivery — free tier sufficient |
+| `JWT_SECRET` | Render | **Required** — signs Discord OAuth state tokens; default in source is public, must be set in prod |
+| `ADMIN_SECRET` | Render | Break-glass admin login secret — rotate if ever shared or committed |
 
 **Future (not active — do not add to Render until SMS is activated):**
 

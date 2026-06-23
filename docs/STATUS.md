@@ -3,6 +3,7 @@
 > Single source of truth for slice status. Update this file whenever a slice
 > ships or changes state. `CLAUDE.md` carries a compact copy — keep both in sync.
 > Last updated: 2026-06-22 (Slice 11 — Host Onboarding & Ownership complete)
+> Production: `origin/main` @ `e286d7e` — Slices 10 + 11 live (shipped at `34878d7`); since-then landing routes (`/creators`, `/listeners`), nav polish, and a Vercel build fix also deployed.
 >
 > **Hours worked** column counts all time on a slice: PM prep, prompt writing,
 > build sessions, debugging, testing, and deploy. Pre-column-add slices show `—`.

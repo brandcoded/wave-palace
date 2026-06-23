@@ -1,6 +1,12 @@
 # MVP → Launch Roadmap — WavePalace
 
-## 1. MVP build (current)
+> **Current status:** Far past MVP. Shipped through **Slice 11 (Host Onboarding &
+> Ownership)** — live in production (`origin/main` @ `e286d7e`; Slices 10 + 11
+> shipped at `34878d7`, plus since-then `/creators` + `/listeners` landing routes
+> and a Vercel build fix). MongoDB Atlas connected. **Next planned: Slice 12 — Host
+> Dashboard.** Section 1 below is retained as historical context, not current state.
+
+## 1. MVP build (historical — shipped)
 
 Walking skeleton + the Public Visual Channel Playback slice. Runs locally with
 seed-mode fallback. Backend tests green.
