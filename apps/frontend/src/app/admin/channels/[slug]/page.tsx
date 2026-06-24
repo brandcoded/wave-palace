@@ -380,10 +380,10 @@ export default function ChannelEditPage() {
       setMuxStatus("Done — VRChat video updated.");
       if (channel) setChannel({ ...channel, muxOutdated: false });
       setTimeout(() => setMuxStatus(""), 4000);
-    } catch {
+    } catch (err) {
       clearInterval(interval);
       muxIntervalRef.current = null;
-      setMuxStatus("Update failed — try again.");
+      setMuxStatus(err instanceof Error ? err.message : "Update failed — try again.");
     } finally {
       setMuxing(false);
     }
