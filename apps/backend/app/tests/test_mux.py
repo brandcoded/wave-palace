@@ -6,6 +6,7 @@ suite runs without network access, ffmpeg binary, or R2 credentials.
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -38,9 +39,10 @@ def _make_mux_service(mux_result: str = _FAKE_URL) -> MuxService:
 
 @pytest.fixture()
 def mux_client() -> TestClient:
-    # Reset the module-level job store so tests don't leak state into each other.
+    # Reset the module-level job stores so tests don't leak state into each other.
     from app.api.routes import mux as mux_routes
     mux_routes._JOB.update(running=False, started_at=None, finished_at=None, channels={})
+    mux_routes._CHANNEL_JOBS.clear()
 
     svc = _make_mux_service()
     app.dependency_overrides[get_mux_service] = lambda: svc
@@ -54,20 +56,50 @@ def mux_client() -> TestClient:
 # ---------------------------------------------------------------------------
 
 
-def test_mux_channel_returns_url(mux_client):
+def test_mux_channel_returns_202(mux_client):
     res = mux_client.post("/api/channels/late-night-house/mux")
-    assert res.status_code == 200
+    assert res.status_code == 202
     body = res.json()
     assert body["slug"] == "late-night-house"
-    assert body["vrchatPlaybackUrl"] == _FAKE_URL
+    assert body["status"] == "accepted"
+    assert "poll" in body
+
+
+def test_mux_channel_status_done(mux_client):
+    """After the background task completes, status endpoint returns done + url."""
+    mux_client.post("/api/channels/late-night-house/mux")
+    res = mux_client.get("/api/channels/late-night-house/mux/status")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["state"] == "done"
+    assert body["url"] == _FAKE_URL
+
+
+def test_mux_channel_status_404_when_never_started(mux_client):
+    res = mux_client.get("/api/channels/never-started/mux/status")
+    assert res.status_code == 404
+
+
+def test_mux_channel_409_when_already_running(mux_client):
+    """Second POST while state is 'running' returns 409."""
+    from app.api.routes import mux as mux_routes
+    mux_routes._CHANNEL_JOBS["late-night-house"] = {
+        "state": "running", "url": None, "error": None,
+        "started_at": time.time(), "finished_at": None,
+    }
+    res = mux_client.post("/api/channels/late-night-house/mux")
+    assert res.status_code == 409
 
 
 def test_mux_channel_404_on_missing_slug(mux_client):
+    """Service raises ValueError → background worker records error state."""
     svc = MagicMock(spec=MuxService)
     svc.mux_channel = AsyncMock(side_effect=ValueError("Channel not found: nope"))
     app.dependency_overrides[get_mux_service] = lambda: svc
-    res = mux_client.post("/api/channels/nope/mux")
-    assert res.status_code == 404
+    mux_client.post("/api/channels/nope/mux")
+    status = mux_client.get("/api/channels/nope/mux/status").json()
+    assert status["state"] == "error"
+    assert "Channel not found" in status["error"]
     app.dependency_overrides.clear()
 
 

@@ -1,14 +1,13 @@
 """Mux API routes — internal/admin use only (no auth for MVP).
 
-POST /api/channels/{slug}/mux   — mux a single channel (synchronous, returns URL/error)
-POST /api/mux/all               — start a background job muxing every published channel
-GET  /api/mux/status            — poll the status of the most recent /api/mux/all job
+POST /api/channels/{slug}/mux        — start a background mux job for one channel (returns 202)
+GET  /api/channels/{slug}/mux/status — poll the status of the single-channel job
+POST /api/mux/all                    — start a background job muxing every published channel
+GET  /api/mux/status                 — poll the status of the most recent /api/mux/all job
 
-On Render's CPU-throttled free tier a single channel can take ~25s+ and a
-synchronous "mux everything" request exceeds the platform's HTTP timeout
-(observed as a 502). So /api/mux/all runs in the background and records
-per-channel progress in an in-memory store that GET /api/mux/status returns.
-Poll that endpoint until every channel reports "done" or "error".
+Both single-channel and bulk mux run as background tasks so Render's HTTP
+timeout (observed at ~30 min on long encodes) is never an issue. Poll the
+status endpoint until state is "done" or "error".
 """
 
 from __future__ import annotations
@@ -33,19 +32,45 @@ MUX_BUILD = "videoloop-v4"
 # admin-only tool. Reset each time a new /api/mux/all job starts.
 _JOB: dict = {"running": False, "started_at": None, "finished_at": None, "channels": {}}
 
+# Per-slug state for single-channel async mux jobs.
+_CHANNEL_JOBS: dict[str, dict] = {}
 
-@router.post("/api/channels/{slug}/mux", summary="Mux a single channel to MP4")
+
+@router.post("/api/channels/{slug}/mux", status_code=202, summary="Start background mux of one channel")
 async def mux_channel(
     slug: str,
+    background_tasks: BackgroundTasks,
     service: MuxService = Depends(get_mux_service),
 ) -> dict:
+    if _CHANNEL_JOBS.get(slug, {}).get("state") == "running":
+        raise HTTPException(status_code=409, detail="Mux already running for this channel.")
+    _CHANNEL_JOBS[slug] = {
+        "state": "running",
+        "url": None,
+        "error": None,
+        "started_at": time.time(),
+        "finished_at": None,
+    }
+    background_tasks.add_task(_run_mux_channel, slug, service)
+    return {"slug": slug, "status": "accepted", "poll": f"/api/channels/{slug}/mux/status"}
+
+
+async def _run_mux_channel(slug: str, service: MuxService) -> None:
     try:
         url = await service.mux_channel(slug)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return {"slug": slug, "vrchatPlaybackUrl": url}
+        _CHANNEL_JOBS[slug].update(state="done", url=url, finished_at=time.time())
+        logger.info("MUX DONE [%s] -> %s", slug, url)
+    except Exception as exc:  # noqa: BLE001
+        _CHANNEL_JOBS[slug].update(state="error", error=str(exc), finished_at=time.time())
+        logger.error("MUX FAILED [%s]: %s", slug, exc)
+
+
+@router.get("/api/channels/{slug}/mux/status", summary="Status of the single-channel mux job")
+async def mux_channel_status(slug: str) -> dict:
+    job = _CHANNEL_JOBS.get(slug)
+    if job is None:
+        raise HTTPException(status_code=404, detail="No mux job found for this channel.")
+    return {"slug": slug, **job}
 
 
 async def _run_mux_all(service: MuxService) -> None:

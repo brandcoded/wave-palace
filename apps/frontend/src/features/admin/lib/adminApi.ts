@@ -136,8 +136,17 @@ export async function deleteChannel(slug: string): Promise<void> {
 
 export async function muxChannel(slug: string): Promise<{ slug: string; vrchatPlaybackUrl: string }> {
   const res = await apiFetch(`/api/channels/${slug}/mux`, { method: "POST" });
-  if (!res.ok) throw new Error("Mux failed");
-  return res.json();
+  if (res.status !== 202) throw new Error(`Mux start failed: ${res.status}`);
+
+  for (let attempt = 0; attempt < 120; attempt++) {   // up to 6 minutes
+    await new Promise((r) => setTimeout(r, 3000));
+    const status = await apiFetch(`/api/channels/${slug}/mux/status`);
+    if (!status.ok) throw new Error("Mux status check failed");
+    const data = await status.json();
+    if (data.state === "done") return { slug, vrchatPlaybackUrl: data.url };
+    if (data.state === "error") throw new Error(data.error ?? "Mux failed");
+  }
+  throw new Error("Mux timed out after 6 minutes");
 }
 
 export async function updateChannelSponsor(
