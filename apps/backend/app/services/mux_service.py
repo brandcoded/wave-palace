@@ -43,7 +43,8 @@ _VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv"}
 _LOOP_FPS = 15
 
 # Hard cap so a runaway encode fails fast instead of hanging the worker.
-_FFMPEG_TIMEOUT_S = 600
+# Long DJ mixes (3-4 h) take 20-40 min on shared CPU — use 2-hour ceiling.
+_FFMPEG_TIMEOUT_S = 7200
 
 
 # ---------------------------------------------------------------------------
@@ -458,7 +459,8 @@ def _download(url: str, dest: Path) -> None:
         headers={"User-Agent": "Mozilla/5.0 (compatible; WavePalace-Mux/1.0)"},
     )
     with urllib.request.urlopen(req) as resp, open(dest, "wb") as f:  # noqa: S310
-        f.write(resp.read())
+        while chunk := resp.read(8 * 1024 * 1024):  # 8 MB chunks — avoids buffering large files
+            f.write(chunk)
 
 
 async def _probe_duration(path: Path) -> float:
