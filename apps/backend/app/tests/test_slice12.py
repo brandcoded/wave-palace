@@ -355,3 +355,180 @@ def test_follows_requires_auth():
     client = _make_client(user=None)
     resp = client.get("/api/me/follows")
     assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Regression: user WITH follows must not 500
+# ---------------------------------------------------------------------------
+
+def _make_client_with_follow(user: UserDocument, channel_slug: str = "late-night-house") -> TestClient:
+    """Build a test client where *user* has one confirmed follow on *channel_slug*."""
+    import asyncio as _aio
+
+    channel_repo = SeedChannelRepository()
+    follow_repo = SeedFollowRepository()
+    rec_svc = RecommendationService(channel_repo, follow_repo)
+
+    _aio.run(follow_repo.create(
+        _make_follow_doc(
+            channel_slug=channel_slug,
+            email=user.email,
+        )
+    ))
+
+    app.dependency_overrides[get_channel_service] = lambda: ChannelService(channel_repo)
+    app.dependency_overrides[get_listen_history_service] = lambda: ListenHistoryService(SeedListenEventRepository())
+    app.dependency_overrides[get_channel_save_repository] = lambda: SeedChannelSaveRepository()
+    app.dependency_overrides[get_notification_repository] = lambda: SeedNotificationRepository()
+    app.dependency_overrides[get_follow_repository] = lambda: follow_repo
+    app.dependency_overrides[get_recommendation_service] = lambda: rec_svc
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_optional_user] = lambda: user
+
+    return TestClient(app, raise_server_exceptions=True)
+
+
+def _make_follow_doc(channel_slug: str, email: str | None = "fan@example.com") -> "FollowDocument":
+    from app.schemas.follow import FollowDocument as FD
+    from uuid import uuid4 as _uuid4
+    return FD(
+        id=str(_uuid4()),
+        entity_type="channel",
+        entity_id=channel_slug,
+        channel_slug=channel_slug,
+        notification_channel="email",
+        email=email,
+        confirmed=True,
+        created_at=_now(),
+        code_used="TEST",
+    )
+
+
+def test_recommendations_with_follows_returns_200():
+    """GET /api/me/recommendations must return 200 even when user has follows."""
+    user = _make_user()
+    client = _make_client_with_follow(user)
+    resp = client.get("/api/me/recommendations")
+    assert resp.status_code == 200
+    recs = resp.json()["recommendations"]
+    assert isinstance(recs, list)
+    # Followed channel should not appear in recommendations
+    slugs = [r["slug"] for r in recs]
+    assert "late-night-house" not in slugs
+
+
+def test_follows_with_follows_returns_slugs():
+    """GET /api/me/follows must return 200 and the confirmed channel slug."""
+    user = _make_user()
+    client = _make_client_with_follow(user)
+    resp = client.get("/api/me/follows")
+    assert resp.status_code == 200
+    assert "late-night-house" in resp.json()["slugs"]
+
+
+def test_recommendations_with_follows_legacy_string_genre():
+    """Channels stored with genre/mood as strings (legacy Mongo docs) must not 500."""
+    import asyncio as _aio
+
+    # Build channel repo with a legacy string-genre channel
+    channel_repo = SeedChannelRepository(channels=[
+        {
+            "id": "ch-legacy",
+            "slug": "legacy-house",
+            "title": "Legacy House",
+            "description": "Old schema",
+            "genre": "House",       # string, not list
+            "mood": "Late Night",   # string, not list
+            "hostName": "DJ Legacy",
+            "coverImageUrl": "https://stream.wavepalace.live/channels/channel_abc123/purple-sky.jpg",
+            "audioUrl": "https://stream.wavepalace.live/tracks/channel_abc123/come-thru.mp3",
+            "playlist": [],
+            "vrchatPlaybackUrl": "",
+            "isPublished": True,
+        },
+        {
+            "id": "ch-match",
+            "slug": "house-match",
+            "title": "House Match",
+            "description": "Matching genre",
+            "genre": "House",       # string, not list
+            "mood": "Late Night",   # string, not list
+            "hostName": "DJ Match",
+            "coverImageUrl": "https://stream.wavepalace.live/channels/channel_abc123/purple-sky.jpg",
+            "audioUrl": "https://stream.wavepalace.live/tracks/channel_abc123/come-thru.mp3",
+            "playlist": [],
+            "vrchatPlaybackUrl": "",
+            "isPublished": True,
+        },
+    ])
+    follow_repo = SeedFollowRepository()
+    user = _make_user()
+    _aio.run(follow_repo.create(_make_follow_doc("legacy-house", email=user.email)))
+
+    rec_svc = RecommendationService(channel_repo, follow_repo)
+
+    app.dependency_overrides[get_channel_service] = lambda: ChannelService(channel_repo)
+    app.dependency_overrides[get_listen_history_service] = lambda: ListenHistoryService(SeedListenEventRepository())
+    app.dependency_overrides[get_channel_save_repository] = lambda: SeedChannelSaveRepository()
+    app.dependency_overrides[get_notification_repository] = lambda: SeedNotificationRepository()
+    app.dependency_overrides[get_follow_repository] = lambda: follow_repo
+    app.dependency_overrides[get_recommendation_service] = lambda: rec_svc
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_optional_user] = lambda: user
+
+    client = TestClient(app, raise_server_exceptions=True)
+    resp = client.get("/api/me/recommendations")
+    assert resp.status_code == 200
+    recs = resp.json()["recommendations"]
+    # Matching channel found; genre tag matching returns full strings (not chars)
+    if recs:
+        genres = recs[0].get("genre", [])
+        assert genres == ["House"], f"Expected ['House'] not char-set, got {genres}"
+
+
+def test_follows_legacy_doc_without_code_used():
+    """Follow documents in Mongo without code_used (pre-Slice-9 docs) must not 500."""
+    import asyncio as _aio
+    from app.schemas.follow import FollowDocument as FD
+
+    # Simulate a legacy doc that omits code_used
+    legacy_doc = FD(
+        id="legacy-no-code",
+        entity_type="channel",
+        entity_id="late-night-house",
+        channel_slug="late-night-house",
+        notification_channel="email",
+        email="legacy@example.com",
+        confirmed=True,
+        created_at=_now(),
+        # code_used intentionally omitted
+    )
+    assert legacy_doc.code_used == ""   # backfilled to empty string
+
+    follow_repo = SeedFollowRepository()
+    _aio.run(follow_repo.create(legacy_doc))
+
+    user = UserDocument(
+        id="legacy-user",
+        email="legacy@example.com",
+        display_name="Legacy User",
+        roles=[],
+        created_at=_now(),
+        is_active=True,
+    )
+
+    channel_repo = SeedChannelRepository()
+    rec_svc = RecommendationService(channel_repo, follow_repo)
+
+    app.dependency_overrides[get_channel_service] = lambda: ChannelService(channel_repo)
+    app.dependency_overrides[get_listen_history_service] = lambda: ListenHistoryService(SeedListenEventRepository())
+    app.dependency_overrides[get_channel_save_repository] = lambda: SeedChannelSaveRepository()
+    app.dependency_overrides[get_notification_repository] = lambda: SeedNotificationRepository()
+    app.dependency_overrides[get_follow_repository] = lambda: follow_repo
+    app.dependency_overrides[get_recommendation_service] = lambda: rec_svc
+    app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_optional_user] = lambda: user
+
+    client = TestClient(app, raise_server_exceptions=True)
+    assert client.get("/api/me/follows").status_code == 200
+    assert client.get("/api/me/recommendations").status_code == 200

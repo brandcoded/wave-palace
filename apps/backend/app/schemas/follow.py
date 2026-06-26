@@ -24,7 +24,9 @@ class FollowDocument(BaseModel):
     vrchat_username: Optional[str] = None
     confirmed: bool = False
     created_at: datetime
-    code_used: str
+    # code_used is required for new follows; default="" so pre-Slice-9 docs in
+    # MongoDB that were inserted without this field still deserialize without error.
+    code_used: str = ""
     # Slice 13 — notification preferences (backfilled for pre-Slice-13 documents)
     notify_new_tracks: bool = True
     notify_channel_live: bool = True
@@ -32,11 +34,12 @@ class FollowDocument(BaseModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _backfill_notify_prefs(cls, values: object) -> object:
+    def _backfill_legacy_fields(cls, values: object) -> object:
         if isinstance(values, dict):
             values.setdefault("notify_new_tracks", True)
             values.setdefault("notify_channel_live", True)
             values.setdefault("notify_digest", False)
+            values.setdefault("code_used", "")
         return values
 
 

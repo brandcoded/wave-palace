@@ -9,6 +9,21 @@ from app.repositories.follow_repository import FollowRepository
 from app.schemas.user import UserDocument
 
 
+def _as_list(val: object) -> list[str]:
+    """Normalize a taxonomy field (genre/mood/energy/theme) to list[str].
+
+    Handles three cases that appear in real MongoDB documents:
+      - Already a list  → returned as-is
+      - Legacy string   → wrapped in a single-element list
+      - None / missing  → empty list
+    """
+    if not val:
+        return []
+    if isinstance(val, list):
+        return val
+    return [str(val)]
+
+
 class RecommendationService:
     def __init__(self, channel_repo: ChannelRepository, follow_repo: FollowRepository) -> None:
         self._channels = channel_repo
@@ -28,15 +43,15 @@ class RecommendationService:
             followed_chans = [c for c in all_channels if c["slug"] in followed_slugs]
             tags: set[tuple[str, str]] = set()
             for fc in followed_chans:
-                for g in (fc.get("genre") or []):
+                for g in _as_list(fc.get("genre")):
                     tags.add(("genre", g))
-                for m in (fc.get("mood") or []):
+                for m in _as_list(fc.get("mood")):
                     tags.add(("mood", m))
 
             if tags:
                 def _score(ch: dict) -> int:
-                    ch_genres = set(ch.get("genre") or [])
-                    ch_moods = set(ch.get("mood") or [])
+                    ch_genres = set(_as_list(ch.get("genre")))
+                    ch_moods = set(_as_list(ch.get("mood")))
                     return sum(
                         1 for k, v in tags
                         if (k == "genre" and v in ch_genres) or (k == "mood" and v in ch_moods)
@@ -57,11 +72,11 @@ class RecommendationService:
 
 
 def _find_reason(ch: dict, followed_chans: list[dict], tags: set) -> Optional[str]:
-    ch_genres = set(ch.get("genre") or [])
-    ch_moods = set(ch.get("mood") or [])
+    ch_genres = set(_as_list(ch.get("genre")))
+    ch_moods = set(_as_list(ch.get("mood")))
     for fc in followed_chans:
-        fc_genres = set(fc.get("genre") or [])
-        fc_moods = set(fc.get("mood") or [])
+        fc_genres = set(_as_list(fc.get("genre")))
+        fc_moods = set(_as_list(fc.get("mood")))
         if (fc_genres & ch_genres) or (fc_moods & ch_moods):
             return f"Because you follow {fc.get('title', fc['slug'])}"
     return None
