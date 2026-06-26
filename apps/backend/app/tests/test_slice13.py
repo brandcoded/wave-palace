@@ -1,4 +1,4 @@
-"""Tests for Slice 13 — Notification System.
+"""Tests for Slice 13 — Notification System + one-click follow add-on.
 
 Covers:
 - FollowDocument notify_* defaults and backfill
@@ -9,6 +9,7 @@ Covers:
 - POST /api/admin/notifications/digest
 - POST /api/admin/channels/{slug}/notify (admin manual trigger)
 - PATCH /api/admin/channels/{slug} fires notification on new tracks
+- POST /api/codes/{code}/follow/me (one-click follow for logged-in users)
 """
 
 from __future__ import annotations
@@ -23,11 +24,13 @@ from fastapi.testclient import TestClient
 
 from app.api.dependencies import (
     get_channel_service,
+    get_code_service,
     get_follow_repository,
+    get_follow_service,
     get_notification_delivery_service,
     get_notification_repository,
 )
-from app.core.auth import get_current_admin
+from app.core.auth import get_current_admin, get_current_user
 from app.core.config import Settings
 from app.main import app
 from app.repositories.channel_repository import SeedChannelRepository
@@ -495,3 +498,96 @@ def test_admin_manual_notify_returns_delivery_result():
     mock_delivery.notify_new_tracks.assert_called_once()
     call_kwargs = mock_delivery.notify_new_tracks.call_args.kwargs
     assert call_kwargs["ignore_throttle"] is True
+
+
+# ---------------------------------------------------------------------------
+# POST /api/codes/{code}/follow/me — one-click follow for logged-in users
+# ---------------------------------------------------------------------------
+
+def _make_follow_me_client(
+    user: UserDocument,
+    follow_repo: SeedFollowRepository | None = None,
+) -> TestClient:
+    from app.repositories.code_repository import SeedCodeRepository
+    from app.services.code_service import CodeService
+    from app.services.follow_service import FollowService
+
+    code_repo = SeedCodeRepository()
+    f_repo = follow_repo or SeedFollowRepository()
+    channel_repo = SeedChannelRepository()
+    code_svc = CodeService(code_repo, channel_repo)
+    follow_svc = FollowService(f_repo, code_repo, channel_repo)
+
+    app.dependency_overrides[get_code_service] = lambda: code_svc
+    app.dependency_overrides[get_follow_service] = lambda: follow_svc
+    app.dependency_overrides[get_current_user] = lambda: user
+
+    # Seed a valid code
+    asyncio.run(code_repo.create(_make_test_code()))
+
+    return TestClient(app, raise_server_exceptions=True), code_repo, f_repo
+
+
+def _make_test_code():
+    from app.schemas.code import CodeDocument
+    return CodeDocument(
+        code="METEST",
+        entity_type="channel",
+        entity_id="test-channel",
+        channel_slug="test-channel",
+        active=True,
+        created_at=_now(),
+    )
+
+
+def test_follow_as_me_email_user():
+    """Email-only user → notification_channel=email, confirmed=True."""
+    user = _make_user(uid="user-email-only", email="loggedin@example.com")
+    client, _, follow_repo = _make_follow_me_client(user)
+
+    resp = client.post("/api/codes/METEST/follow/me")
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["confirmed"] is True
+    assert data["channel"] == "email"
+
+    follows = asyncio.run(follow_repo.get_by_channel("test-channel"))
+    assert len(follows) == 1
+    assert follows[0].email == "loggedin@example.com"
+    assert follows[0].confirmed is True
+
+
+def test_follow_as_me_discord_user():
+    """User with discord_user_id → notification_channel=discord, confirmed=True."""
+    user = UserDocument(
+        id="user-discord",
+        email="dj@example.com",
+        display_name="DJ User",
+        roles=[],
+        created_at=_now(),
+        is_active=True,
+        discord_user_id="discord-999",
+    )
+    client, _, follow_repo = _make_follow_me_client(user)
+
+    resp = client.post("/api/codes/METEST/follow/me")
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["channel"] == "discord"
+    assert data["confirmed"] is True
+
+    follows = asyncio.run(follow_repo.get_by_channel("test-channel"))
+    assert follows[0].discord_user_id == "discord-999"
+
+
+def test_follow_as_me_duplicate_returns_409():
+    """Second follow from same user returns 409, not 500."""
+    user = _make_user()
+    client, _, _ = _make_follow_me_client(user)
+
+    resp1 = client.post("/api/codes/METEST/follow/me")
+    assert resp1.status_code == 201
+
+    resp2 = client.post("/api/codes/METEST/follow/me")
+    assert resp2.status_code == 409
+    assert "already following" in resp2.json()["detail"].lower()

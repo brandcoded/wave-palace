@@ -1027,3 +1027,18 @@ Response includes all three fields.
 
 ### GET /api/follows (extended in Slice 13)
 Response items now include `notify_new_tracks`, `notify_channel_live`, `notify_digest` fields.
+
+---
+
+### POST /api/codes/{code}/follow/me
+Authenticated (`wp_session` cookie required). One-click follow for logged-in users — no
+email confirmation step. Identity is taken from the session:
+- User has `discord_user_id` → `notification_channel="discord"`, confirmed instantly
+- User has only `email` → `notification_channel="email"`, confirmed instantly (email already
+  verified at login)
+
+**Response `201`:**
+```json
+{ "follow_id": "...", "channel": "discord", "confirmed": true }
+```
+`401` not logged in · `404` invalid/expired code · `409` already following this channel.

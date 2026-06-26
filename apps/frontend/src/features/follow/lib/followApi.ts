@@ -84,6 +84,23 @@ export async function deleteFollow(followId: string): Promise<void> {
   });
 }
 
+export type FollowMeResult = FollowResult & { already?: boolean };
+
+export async function followAsMe(code: string): Promise<FollowMeResult> {
+  const res = await fetch(`${API_BASE_URL}/api/codes/${code}/follow/me`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (res.status === 409) {
+    return { follow_id: "", channel: "", confirmed: true, already: true };
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(err.detail ?? "Request failed");
+  }
+  return res.json();
+}
+
 export async function updateFollowPrefs(
   followId: string,
   prefs: {

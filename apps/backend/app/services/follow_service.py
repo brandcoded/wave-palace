@@ -196,6 +196,56 @@ class FollowService:
             notify_digest=updated.notify_digest,
         )
 
+    async def follow_as_user(
+        self,
+        code: str,
+        user: "UserDocument",
+    ) -> FollowResponse:
+        from app.schemas.user import UserDocument as _UD  # local import to avoid circular
+
+        code_doc = await self._resolve_active_code(code)
+
+        # Prefer discord when available (instant confirm, no email confirmation loop)
+        if user.discord_user_id:
+            nc = "discord"
+            discord_user_id = user.discord_user_id
+            email = None
+        elif user.email:
+            nc = "email"
+            discord_user_id = None
+            email = user.email
+        else:
+            raise HTTPException(status_code=422, detail="Account has no email or Discord linked.")
+
+        duplicate = await self._follow_repo.exists(
+            entity_id=code_doc.entity_id,
+            notification_channel=nc,
+            discord_user_id=discord_user_id,
+            email=email,
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="You're already following this channel.")
+
+        from uuid import uuid4
+        from datetime import datetime, timezone
+
+        follow_id = str(uuid4())
+        doc = FollowDocument(
+            id=follow_id,
+            entity_type=code_doc.entity_type,
+            entity_id=code_doc.entity_id,
+            channel_slug=code_doc.channel_slug,
+            notification_channel=nc,
+            discord_user_id=discord_user_id,
+            discord_username=None,
+            email=email,
+            confirmed=True,
+            created_at=datetime.now(tz=timezone.utc),
+            code_used=code.upper(),
+        )
+        await self._follow_repo.create(doc)
+        return FollowResponse(follow_id=follow_id, channel=nc, confirmed=True)
+
     async def delete_follow(
         self,
         follow_id: str,

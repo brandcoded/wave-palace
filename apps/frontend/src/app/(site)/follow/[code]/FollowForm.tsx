@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { submitFollow } from "@/features/follow/lib/followApi";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { followAsMe, submitFollow } from "@/features/follow/lib/followApi";
+import { getMe } from "@/features/me/lib/meApi";
+
+import type { CurrentUser } from "@/features/admin/types/admin";
 
 interface Props {
   code: string;
@@ -11,10 +15,26 @@ interface Props {
 type Method = "discord" | "email";
 
 export function FollowForm({ code, discordInitiateUrl }: Props) {
+  const [user, setUser] = useState<CurrentUser | null | undefined>(undefined); // undefined = loading
   const [method, setMethod] = useState<Method | null>(null);
   const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "busy" | "done" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "busy" | "done" | "already" | "error">("idle");
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    getMe().then(setUser).catch(() => setUser(null));
+  }, []);
+
+  async function handleFollowAsMe() {
+    setStatus("busy");
+    try {
+      const result = await followAsMe(code);
+      setStatus(result.already ? "already" : "done");
+    } catch (err: unknown) {
+      setStatus("error");
+      setMessage(err instanceof Error ? err.message : "Something went wrong.");
+    }
+  }
 
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,14 +50,63 @@ export function FollowForm({ code, discordInitiateUrl }: Props) {
     }
   }
 
+  // Loading — avoid layout flash while auth resolves
+  if (user === undefined) {
+    return <div className="h-14 animate-pulse rounded-2xl bg-white/5" />;
+  }
+
+  // Success states
   if (status === "done") {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center">
-        <p className="text-sm text-white/80">{message}</p>
+        <p className="mb-3 text-sm text-white/80">
+          {user ? "You're now following this channel!" : message}
+        </p>
+        {user && (
+          <Link
+            href="/follows"
+            className="text-xs text-wave-400 hover:underline"
+          >
+            Manage your follows →
+          </Link>
+        )}
       </div>
     );
   }
 
+  if (status === "already") {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center">
+        <p className="mb-3 text-sm text-white/60">You&apos;re already following this channel.</p>
+        <Link href="/follows" className="text-xs text-wave-400 hover:underline">
+          Manage your follows →
+        </Link>
+      </div>
+    );
+  }
+
+  // Logged-in: one-click path
+  if (user !== null) {
+    return (
+      <div className="flex flex-col gap-3">
+        <button
+          onClick={handleFollowAsMe}
+          disabled={status === "busy"}
+          className="rounded-2xl bg-wave-500 px-6 py-4 text-sm font-semibold text-white transition hover:bg-wave-400 disabled:opacity-50"
+        >
+          {status === "busy" ? "Following…" : `Follow as ${user.display_name}`}
+        </button>
+        {status === "error" && (
+          <p className="text-xs text-red-400">{message}</p>
+        )}
+        <p className="text-xs text-white/30">
+          Your follow will be confirmed instantly.
+        </p>
+      </div>
+    );
+  }
+
+  // Logged-out: existing Discord/email form
   if (method === null) {
     return (
       <div className="flex flex-col gap-3">
