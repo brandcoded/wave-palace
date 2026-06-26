@@ -29,6 +29,9 @@ export interface FollowView {
   notification_channel: string;
   confirmed: boolean;
   created_at: string;
+  notify_new_tracks: boolean;
+  notify_channel_live: boolean;
+  notify_digest: boolean;
 }
 
 export async function resolveCode(code: string): Promise<CodeInfo | null> {
@@ -79,4 +82,23 @@ export async function deleteFollow(followId: string): Promise<void> {
     method: "DELETE",
     credentials: "include",
   });
+}
+
+export async function updateFollowPrefs(
+  followId: string,
+  prefs: {
+    notification_channel?: string;
+    notify_new_tracks?: boolean;
+    notify_channel_live?: boolean;
+    notify_digest?: boolean;
+  }
+): Promise<FollowView> {
+  const res = await fetch(`${API_BASE_URL}/api/follows/${followId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(prefs),
+  });
+  if (!res.ok) throw new Error("Failed to update preferences");
+  return res.json();
 }

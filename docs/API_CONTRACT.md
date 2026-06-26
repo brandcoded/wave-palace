@@ -553,14 +553,19 @@ session cookie (Discord user ID or confirmed email).
 
 ### PATCH /api/follows/{id}
 
-Authenticated listener. Update notification preferences for a follow.
+Authenticated listener. Update notification channel and/or per-notification preferences.
 
-**Request:**
+**Request (all fields optional, at least one required):**
 ```json
-{ "notification_channel": "email" }
+{
+  "notification_channel": "email",
+  "notify_new_tracks": true,
+  "notify_channel_live": false,
+  "notify_digest": true
+}
 ```
 
-**Response `200`:** updated follow object (same shape as GET /api/follows item).
+**Response `200`:** updated follow object including `notify_new_tracks`, `notify_channel_live`, `notify_digest`.
 
 ---
 
@@ -990,3 +995,35 @@ Returns channels where the authenticated user is in `owner_ids`.
 ```json
 { "channels": [{ …channel dict… }] }
 ```
+
+---
+
+## Slice 13 — Notification System
+
+### POST /api/admin/channels/{slug}/notify
+Admin. Manually trigger new-track notifications for a channel, bypassing throttle.
+Sends to all confirmed follows with `notify_new_tracks=True`.
+```json
+{ "sent": 2, "skipped": 0 }
+```
+`404` channel not found.
+
+---
+
+### POST /api/admin/notifications/digest
+Admin. Trigger weekly digest emails to all confirmed follows with `notify_digest=True`.
+Intended to be called by an external cron job once per week.
+```json
+{ "sent": 12, "skipped": 3 }
+```
+
+---
+
+### PATCH /api/follows/{id} (extended in Slice 13)
+Now also accepts `notify_new_tracks`, `notify_channel_live`, `notify_digest` booleans.
+Response includes all three fields.
+
+---
+
+### GET /api/follows (extended in Slice 13)
+Response items now include `notify_new_tracks`, `notify_channel_live`, `notify_digest` fields.

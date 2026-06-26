@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import Any
 
@@ -10,12 +11,18 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.api.dependencies import get_channel_service, get_user_repository
+from app.api.dependencies import (
+    get_channel_service,
+    get_notification_delivery_service,
+    get_user_repository,
+)
 from app.core.auth import get_current_admin
+from app.core.config import Settings, get_settings
 from app.schemas.channel import Channel
 from app.schemas.sponsor import Sponsor
 from app.schemas.user import UserPublic
 from app.services.channel_service import ChannelService
+from app.services.notification_delivery_service import NotificationDeliveryService
 from app.services.url_validator import URLCheckResult, validate_urls
 
 router = APIRouter(prefix="/api/admin/channels", tags=["admin-channels"])
@@ -127,13 +134,46 @@ async def update_channel(
     body: ChannelPatchRequest,
     _: dict = Depends(get_current_admin),
     service: ChannelService = Depends(get_channel_service),
+    delivery_svc: NotificationDeliveryService = Depends(get_notification_delivery_service),
+    settings: Settings = Depends(get_settings),
 ) -> dict:
     patch = {k: v for k, v in body.model_dump().items() if v is not None}
     if patch.keys() & _OVERLAY_FIELDS:
         patch["muxOutdated"] = True
+
+    # Capture old playlist URLs before write (for new-track detection)
+    old_playlist_urls: set[str] = set()
+    if "playlist" in patch:
+        old_ch = await service.get_raw_by_slug(slug)
+        if old_ch:
+            old_playlist_urls = {
+                t.get("url", "") for t in (old_ch.get("playlist") or []) if isinstance(t, dict)
+            }
+
     updated = await service.update(slug, patch)
     if updated is None:
         raise HTTPException(status_code=404, detail="Channel not found")
+
+    # Fire new-track notifications for added tracks
+    if "playlist" in patch and old_playlist_urls is not None:
+        new_playlist = patch["playlist"]
+        added = [
+            t for t in new_playlist
+            if isinstance(t, dict) and t.get("url", "") not in old_playlist_urls
+        ]
+        if added:
+            channel_name = updated.get("title", slug)
+            origin = settings.frontend_origin.split(",")[0].strip()
+            asyncio.create_task(
+                delivery_svc.notify_new_tracks(
+                    channel_slug=slug,
+                    channel_name=channel_name,
+                    new_tracks=added,
+                    channel_url=f"{origin}/channels/{slug}",
+                    vrchat_url=updated.get("vrchatFallbackUrl"),
+                )
+            )
+
     return updated
 
 
@@ -246,3 +286,31 @@ async def validate_channel_urls(
     visual_loop_url: str | None = ch.get("visualLoopUrl") or None
 
     return await validate_urls(audio_urls, visual_loop_url)
+
+
+@router.post("/{slug}/notify", response_model=dict)
+async def manual_notify_channel(
+    slug: str,
+    _: dict = Depends(get_current_admin),
+    service: ChannelService = Depends(get_channel_service),
+    delivery_svc: NotificationDeliveryService = Depends(get_notification_delivery_service),
+    settings: Settings = Depends(get_settings),
+) -> dict:
+    """Manually trigger new-track notifications for a channel, bypassing throttle.
+
+    Sends to all confirmed follows with notify_new_tracks=True.
+    """
+    ch = await service.get_raw_by_slug(slug)
+    if ch is None:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    origin = settings.frontend_origin.split(",")[0].strip()
+    tracks = [t for t in (ch.get("playlist") or []) if isinstance(t, dict)]
+    return await delivery_svc.notify_new_tracks(
+        channel_slug=slug,
+        channel_name=ch.get("title", slug),
+        new_tracks=tracks,
+        channel_url=f"{origin}/channels/{slug}",
+        vrchat_url=ch.get("vrchatFallbackUrl"),
+        ignore_throttle=True,
+    )

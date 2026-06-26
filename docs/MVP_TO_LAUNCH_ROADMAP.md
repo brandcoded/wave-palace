@@ -48,6 +48,7 @@ Add slices one at a time per `FEATURE_SLICES.md`. Slice order:
 | **10** | **Identity & Roles (auth foundation)** | ✅ COMPLETE | Opaque sessions (`wp_session`) · `UserDocument`/`SessionDocument` schemas · `AuthService` · Discord + email magic link + password login · `require_roles` guards · `get_current_admin` shim (no lockout) · `/admin/users` page · 26 tests |
 | 11 | Host Onboarding & Ownership | ✅ COMPLETE (v0.14.0) | `Channel.owner_ids` + `auto_publish` · single-use 7-day invite links · `POST /api/host/invite/accept` · `require_channel_owner` dep · admin Ownership panel · `/host/join` page · 19 tests |
 | **12** | **Logged-In Dashboard** | **✅ COMPLETE (v0.16.0)** | `/home` · listen history · saves · notifications · recommendations · `UserMenuIsland` · ChannelCard heart · 20 tests |
+| **13** | **Notification System** | **✅ COMPLETE (v0.17.0)** | Per-follow notify_ prefs · throttle · Resend email + Discord DM delivery · new-track hook · admin trigger + digest cron endpoint · `/follows` prefs panel · 17 tests |
 
 Each slice ships with UI, API, tests, and docs.
 

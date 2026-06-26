@@ -1,11 +1,11 @@
-"""Schemas for the Follow Intent system (Slice 9)."""
+"""Schemas for the Follow Intent system (Slice 9 + 13)."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 NotificationChannel = Literal["discord", "email", "browser_push", "sms"]
 
@@ -25,6 +25,19 @@ class FollowDocument(BaseModel):
     confirmed: bool = False
     created_at: datetime
     code_used: str
+    # Slice 13 — notification preferences (backfilled for pre-Slice-13 documents)
+    notify_new_tracks: bool = True
+    notify_channel_live: bool = True
+    notify_digest: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _backfill_notify_prefs(cls, values: object) -> object:
+        if isinstance(values, dict):
+            values.setdefault("notify_new_tracks", True)
+            values.setdefault("notify_channel_live", True)
+            values.setdefault("notify_digest", False)
+        return values
 
 
 class FollowSubmitRequest(BaseModel):
@@ -50,3 +63,6 @@ class FollowPublicView(BaseModel):
     notification_channel: str
     confirmed: bool
     created_at: datetime
+    notify_new_tracks: bool = True
+    notify_channel_live: bool = True
+    notify_digest: bool = False

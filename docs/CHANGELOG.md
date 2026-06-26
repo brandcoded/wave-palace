@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here.
 
+## [0.17.0] — Slice 13: Notification System
+
+### Added
+- **Per-follow notification preferences** — `notify_new_tracks`, `notify_channel_live`, `notify_digest` fields on `FollowDocument` with `model_validator` backfill for pre-Slice-13 documents (defaults: new_tracks=True, channel_live=True, digest=False)
+- **`PATCH /api/follows/{id}`** extended to accept `notify_new_tracks`, `notify_channel_live`, `notify_digest` fields alongside existing `notification_channel`
+- **`GET /api/follows`** response now includes notify_* fields in `FollowPublicView`
+- **`ThrottleRepository`** (`notification_throttle` collection) — `SeedThrottleRepository` + `MongoThrottleRepository` (TTL index 7 days); `is_throttled` / `record_sent`; windows: new_tracks=24h, channel_live=2h, digest=144h
+- **`email_templates.py`** — `new_tracks_email`, `channel_live_email`, `weekly_digest_email` returning `(subject, html, text)` tuples
+- **`NotificationDeliveryService`** — `notify_new_tracks` (email + Discord DM, throttle, inbox creation for registered users), `notify_channel_live` (stub + TODO for Slice 4), `send_weekly_digest` (email-only, groups by email, discord follows resolved via UserDocument)
+- **New-track detection hook** in `PATCH /api/admin/channels/{slug}` — compares pre/post playlist URLs; fires `asyncio.create_task(notify_new_tracks(...))` for any added tracks
+- **`POST /api/admin/channels/{slug}/notify`** — manual admin trigger; sends to all confirmed follows with notify_new_tracks=True; bypasses throttle (`ignore_throttle=True`)
+- **`POST /api/admin/notifications/digest`** — cron endpoint for weekly digest (external cron job weekly)
+- **`/follows` page** — expandable per-row notification preferences panel (toggle switches for new_tracks / channel_live / digest); `?unsubscribe={follow_id}` deep-link handling with banner confirmation
+- **`.env.example`** — documents all environment variables including `DISCORD_BOT_TOKEN`
+- **17 backend tests** in `test_slice13.py`; all prior tests green (321 total)
+
+### Changed
+- `FollowService.update_follow` signature changed from `notification_channel: str` to `updates: dict` (supports notify_* fields; allowlisted to safe fields only)
+
 ## [0.16.0] — Slice 12: Logged-In Dashboard
 
 ### Added

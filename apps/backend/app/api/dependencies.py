@@ -155,3 +155,28 @@ def get_listen_history_service():
 def get_recommendation_service():
     from app.services.recommendation_service import RecommendationService
     return RecommendationService(get_channel_repository(), get_follow_repository())
+
+
+@lru_cache
+def get_throttle_repository():
+    from app.repositories.throttle_repository import SeedThrottleRepository, MongoThrottleRepository
+    s = _settings()
+    if not s.mongodb_uri:
+        return SeedThrottleRepository()
+    try:
+        return MongoThrottleRepository(s.mongodb_uri, s.mongodb_database)
+    except Exception:
+        return SeedThrottleRepository()
+
+
+@lru_cache
+def get_notification_delivery_service():
+    from app.services.notification_delivery_service import NotificationDeliveryService
+    return NotificationDeliveryService(
+        follow_repo=get_follow_repository(),
+        notif_repo=get_notification_repository(),
+        throttle_repo=get_throttle_repository(),
+        user_repo=get_user_repository(),
+        listen_history_svc=get_listen_history_service(),
+        settings=_settings(),
+    )

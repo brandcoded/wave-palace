@@ -1336,3 +1336,49 @@ header shows my avatar with an unread notification badge when I'm signed in.
 - [x] Header shows "Sign in" link when logged out, user menu when logged in
 - [x] ChannelCard heart button: optimistic, auth-gate redirect, no navigation on click
 - [x] 20 backend tests; TS clean; no regressions (304 total)
+
+---
+
+## Slice 13 — Notification System — ✅ COMPLETE (v0.17.0)
+
+### Goal
+Deliver timely, non-spammy notifications to followers when channel content changes, via Resend email and Discord bot DMs.
+
+### What shipped
+
+**Backend**:
+- `notify_new_tracks`, `notify_channel_live`, `notify_digest` fields on `FollowDocument` with `model_validator(mode="before")` backfill (old documents get True/True/False defaults)
+- `FollowPublicView` extended with notify_* fields
+- `PATCH /api/follows/{id}` + `FollowService.update_follow` accept notify_* as well as `notification_channel`
+- `ThrottleRepository` (`notification_throttle` collection) — Seed + Mongo; TTL index 7 days; windows: new_tracks=24h, channel_live=2h, digest=144h
+- `email_templates.py` — `new_tracks_email`, `channel_live_email`, `weekly_digest_email`
+- `NotificationDeliveryService` — Resend email, Discord bot DM (`Bot {token}` auth, create DM channel + send), per-follow throttle, inbox NotificationDocument creation for registered users
+- `notify_channel_live` — stub with `# TODO: called from Slice 4 live event route`
+- New-track detection hook in `PATCH /api/admin/channels/{slug}` — pre/post playlist URL diff; fires `asyncio.create_task` when tracks are added
+- `POST /api/admin/channels/{slug}/notify` — manual trigger; `ignore_throttle=True`
+- `POST /api/admin/notifications/digest` — external cron endpoint; groups by email (discord-only with no account email → skipped)
+- `get_notification_delivery_service`, `get_throttle_repository` wired in `dependencies.py`
+- `admin_notifications` router registered in `main.py`
+
+**Frontend**:
+- `FollowView` type extended with notify_* fields
+- `updateFollowPrefs` API helper in `followApi.ts`
+- `/follows` page: expandable per-row preferences panel (toggle switches); `?unsubscribe={follow_id}` deep-link handling with banner
+
+**Config**:
+- `.env.example` created documenting all env vars
+- `HANDOFF.md` updated with Discord bot setup steps and digest cron job instructions
+
+### Done criteria
+
+- [x] `FollowDocument` backfills notify_* for pre-Slice-13 documents
+- [x] `GET /api/follows` returns notify_* fields
+- [x] `PATCH /api/follows/{id}` updates notify_* preferences (allowlisted; 422 if empty)
+- [x] Email delivered via Resend (graceful no-op if RESEND_API_KEY unset)
+- [x] Discord DM delivered via Bot token (graceful no-op if DISCORD_BOT_TOKEN unset)
+- [x] Throttle enforced: skip if last sent within window; bypass on admin manual trigger
+- [x] notify_channel_live stubbed with TODO for Slice 4
+- [x] Weekly digest endpoint callable by external cron; discord-only no-account follows skipped
+- [x] New-track hook fires only for actually-new track URLs (not playlist re-saves)
+- [x] `/follows` page: preference toggles save immediately; unsubscribe deep link removes follow + shows banner
+- [x] 17 backend tests; TS clean; no regressions (321 total)

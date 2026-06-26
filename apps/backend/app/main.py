@@ -13,6 +13,7 @@ from app.api.routes import admin_analytics
 from app.api.routes import auth_user, admin_users
 from app.api.routes import host_invites
 from app.api.routes import me as me_routes
+from app.api.routes import admin_notifications
 from app.core.config import get_settings
 
 logging.basicConfig(level=logging.INFO)
@@ -67,6 +68,9 @@ app.include_router(host_invites.router)
 
 # Slice 12 — Logged-In Dashboard
 app.include_router(me_routes.router)
+
+# Slice 13 — Notification System
+app.include_router(admin_notifications.router)
 
 
 @app.get("/", tags=["system"])

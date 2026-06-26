@@ -154,6 +154,9 @@ class FollowService:
                     notification_channel=f.notification_channel,
                     confirmed=f.confirmed,
                     created_at=f.created_at,
+                    notify_new_tracks=f.notify_new_tracks,
+                    notify_channel_live=f.notify_channel_live,
+                    notify_digest=f.notify_digest,
                 )
             )
         return result
@@ -163,8 +166,12 @@ class FollowService:
         follow_id: str,
         discord_user_id: str | None,
         email: str | None,
-        notification_channel: str,
+        updates: dict,
     ) -> FollowPublicView:
+        _ALLOWED = {"notification_channel", "notify_new_tracks", "notify_channel_live", "notify_digest"}
+        safe_updates = {k: v for k, v in updates.items() if k in _ALLOWED}
+        if not safe_updates:
+            raise HTTPException(status_code=422, detail="No updatable fields provided")
         doc = await self._follow_repo.get(follow_id)
         if doc is None:
             raise HTTPException(status_code=404, detail="Follow not found")
@@ -173,7 +180,7 @@ class FollowService:
         )
         if not owns:
             raise HTTPException(status_code=404, detail="Follow not found")
-        updated = await self._follow_repo.update(follow_id, {"notification_channel": notification_channel})
+        updated = await self._follow_repo.update(follow_id, safe_updates)
         channel = await self._channel_repo.get_by_slug(updated.channel_slug)
         display_name = channel.get("title", updated.channel_slug) if channel else updated.channel_slug
         return FollowPublicView(
@@ -184,6 +191,9 @@ class FollowService:
             notification_channel=updated.notification_channel,
             confirmed=updated.confirmed,
             created_at=updated.created_at,
+            notify_new_tracks=updated.notify_new_tracks,
+            notify_channel_live=updated.notify_channel_live,
+            notify_digest=updated.notify_digest,
         )
 
     async def delete_follow(

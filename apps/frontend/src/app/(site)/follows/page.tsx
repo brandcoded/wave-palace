@@ -1,12 +1,147 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { deleteFollow, getMyFollows, type FollowView } from "@/features/follow/lib/followApi";
+import { useSearchParams } from "next/navigation";
+import {
+  deleteFollow,
+  getMyFollows,
+  updateFollowPrefs,
+  type FollowView,
+} from "@/features/follow/lib/followApi";
+
+// Expandable notification-preference row
+function FollowRow({
+  follow,
+  onUnfollow,
+  onPrefsChange,
+}: {
+  follow: FollowView;
+  onUnfollow: (id: string) => void;
+  onPrefsChange: (updated: FollowView) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  async function toggle(
+    field: "notify_new_tracks" | "notify_channel_live" | "notify_digest"
+  ) {
+    setSaving(true);
+    try {
+      const updated = await updateFollowPrefs(follow.id, {
+        [field]: !follow[field],
+      });
+      onPrefsChange(updated);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <li className="glass rounded-2xl overflow-hidden">
+      {/* Main row */}
+      <div className="flex items-center justify-between px-5 py-4">
+        <div>
+          <p className="font-semibold text-white">{follow.display_name}</p>
+          <p className="text-xs text-white/40">
+            via {follow.notification_channel}
+            {!follow.confirmed && " · pending confirmation"}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Link
+            href={`/channels/${follow.channel_slug}`}
+            className="text-xs text-wave-400 hover:underline"
+          >
+            Listen
+          </Link>
+          <button
+            onClick={() => setOpen((o) => !o)}
+            className="text-xs text-white/40 hover:text-white/70"
+            aria-expanded={open}
+          >
+            {open ? "Close" : "Preferences"}
+          </button>
+          <button
+            onClick={() => onUnfollow(follow.id)}
+            className="text-xs text-white/30 hover:text-red-400"
+          >
+            Unfollow
+          </button>
+        </div>
+      </div>
+
+      {/* Expandable preferences panel */}
+      {open && (
+        <div className="border-t border-white/5 px-5 py-4">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-white/30">
+            Notify me when…
+          </p>
+          <div className="flex flex-col gap-2">
+            <PrefToggle
+              label="New tracks are added"
+              checked={follow.notify_new_tracks}
+              disabled={saving}
+              onChange={() => toggle("notify_new_tracks")}
+            />
+            <PrefToggle
+              label="Channel goes live"
+              checked={follow.notify_channel_live}
+              disabled={saving}
+              onChange={() => toggle("notify_channel_live")}
+            />
+            <PrefToggle
+              label="Weekly digest"
+              checked={follow.notify_digest}
+              disabled={saving}
+              onChange={() => toggle("notify_digest")}
+            />
+          </div>
+        </div>
+      )}
+    </li>
+  );
+}
+
+function PrefToggle({
+  label,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-3">
+      <button
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={onChange}
+        className={`relative h-5 w-9 rounded-full transition-colors ${
+          checked ? "bg-wave-500" : "bg-white/10"
+        } disabled:opacity-50`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
+            checked ? "translate-x-4" : "translate-x-0"
+          }`}
+        />
+      </button>
+      <span className="text-sm text-white/70">{label}</span>
+    </label>
+  );
+}
 
 export default function MyFollowsPage() {
   const [follows, setFollows] = useState<FollowView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [banner, setBanner] = useState<string | null>(null);
+  const unsubscribeHandled = useRef(false);
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     getMyFollows()
@@ -14,9 +149,26 @@ export default function MyFollowsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Handle ?unsubscribe={follow_id} deep link
+  useEffect(() => {
+    if (unsubscribeHandled.current) return;
+    const followId = searchParams.get("unsubscribe");
+    if (!followId) return;
+    unsubscribeHandled.current = true;
+
+    deleteFollow(followId).then(() => {
+      setFollows((prev) => prev.filter((f) => f.id !== followId));
+      setBanner("You've been unsubscribed.");
+    });
+  }, [searchParams]);
+
   async function handleUnfollow(id: string) {
     await deleteFollow(id);
     setFollows((prev) => prev.filter((f) => f.id !== id));
+  }
+
+  function handlePrefsChange(updated: FollowView) {
+    setFollows((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
   }
 
   if (loading) {
@@ -30,6 +182,12 @@ export default function MyFollowsPage() {
   return (
     <div className="mx-auto max-w-2xl px-6 py-20">
       <h1 className="mb-8 text-2xl font-bold text-white">My Follows</h1>
+
+      {banner && (
+        <div className="mb-6 rounded-2xl bg-white/5 px-5 py-3 text-sm text-white/70">
+          {banner}
+        </div>
+      )}
 
       {follows.length === 0 ? (
         <div className="glass rounded-3xl p-10 text-center">
@@ -47,32 +205,12 @@ export default function MyFollowsPage() {
       ) : (
         <ul className="flex flex-col gap-3">
           {follows.map((f) => (
-            <li
+            <FollowRow
               key={f.id}
-              className="glass flex items-center justify-between rounded-2xl px-5 py-4"
-            >
-              <div>
-                <p className="font-semibold text-white">{f.display_name}</p>
-                <p className="text-xs text-white/40">
-                  via {f.notification_channel}
-                  {!f.confirmed && " · pending confirmation"}
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <Link
-                  href={`/channels/${f.channel_slug}`}
-                  className="text-xs text-wave-400 hover:underline"
-                >
-                  Listen
-                </Link>
-                <button
-                  onClick={() => handleUnfollow(f.id)}
-                  className="text-xs text-white/30 hover:text-red-400"
-                >
-                  Unfollow
-                </button>
-              </div>
-            </li>
+              follow={f}
+              onUnfollow={handleUnfollow}
+              onPrefsChange={handlePrefsChange}
+            />
           ))}
         </ul>
       )}

@@ -13,7 +13,10 @@ router = APIRouter(prefix="/api/follows", tags=["follows"])
 
 
 class UpdateFollowRequest(BaseModel):
-    notification_channel: str
+    notification_channel: str | None = None
+    notify_new_tracks: bool | None = None
+    notify_channel_live: bool | None = None
+    notify_digest: bool | None = None
 
 
 def _get_listener_identity(
@@ -53,11 +56,12 @@ async def update_follow(
     identity: dict = Depends(_get_listener_identity),
     service: FollowService = Depends(get_follow_service),
 ) -> FollowPublicView:
+    updates = body.model_dump(exclude_none=True)
     return await service.update_follow(
         follow_id=follow_id,
         discord_user_id=identity["discord_user_id"],
         email=identity["email"],
-        notification_channel=body.notification_channel,
+        updates=updates,
     )
 
 

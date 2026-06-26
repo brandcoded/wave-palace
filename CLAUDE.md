@@ -37,6 +37,7 @@ Full status: `docs/STATUS.md` (canonical) — this file carries a compact copy.
 | **10** | **Identity & Roles** (auth foundation: User/Session, stackable roles, Discord/email-code/password login, migrates admin JWT) | ✅ COMPLETE |
 | **11** | **Host Onboarding & Ownership** (`Channel.owner_ids` + `auto_publish`, single-use invite links, `require_channel_owner`, `/host/join`) | ✅ COMPLETE |
 | **12** | **Logged-In Dashboard** (`/home`, listen history, saves, notifications, recommendations, `UserMenuIsland`, `ChannelCard` heart, `ChannelPlayer` listen event) | **✅ COMPLETE** |
+| **13** | **Notification System** (Resend email + Discord bot DM, per-follow notify_ prefs, throttle, new-track hook, admin trigger + digest cron endpoint, `/follows` prefs panel + unsubscribe deep link) | **✅ COMPLETE** |
 | Legal | DMCA Takedown Form (`/legal/takedown` + admin queue) | ✅ COMPLETE |
 
 **Always update this table and `docs/STATUS.md` when a slice ships.**

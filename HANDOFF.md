@@ -213,6 +213,24 @@ All tests must stay green. Add tests for every backend change.
 | `JWT_SECRET` | Render | **Required** — signs Discord OAuth state tokens; default in source is public, must be set in prod |
 | `ADMIN_SECRET` | Render | Break-glass admin login secret — rotate if ever shared or committed |
 
+### Slice 13 backend additions (active — `DISCORD_BOT_TOKEN` required for DM delivery)
+
+**Discord bot setup** (one-time):
+1. Create application at https://discord.com/developers/applications
+2. Add a Bot user → enable "Message Content Intent" off (not needed for DMs) → copy Bot Token
+3. Set `DISCORD_BOT_TOKEN` in Render env
+4. Invite URL: `https://discord.com/api/oauth2/authorize?client_id=CLIENT_ID&scope=bot&permissions=2048` (Send Messages)
+5. Bot must be a member of any server where it needs to DM users (Discord DM permission requirement)
+
+**Digest cron job setup** (weekly):
+- Hit `POST /api/admin/notifications/digest` with admin auth once per week
+- Suggested: Render Cron Job (or GitHub Actions scheduled workflow on `schedule: cron: '0 9 * * 1'`)
+- No `DISCORD_BOT_TOKEN` required — digest is email-only
+
+| Variable | Service | Notes |
+|---|---|---|
+| `DISCORD_BOT_TOKEN` | Render | Discord bot token for DM delivery (gracefully skipped if unset) |
+
 **Future (not active — do not add to Render until SMS is activated):**
 
 | Variable | Notes |
