@@ -1,29 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { followAsMe, submitFollow } from "@/features/follow/lib/followApi";
-import { getMe } from "@/features/me/lib/meApi";
 
 import type { CurrentUser } from "@/features/admin/types/admin";
 
 interface Props {
   code: string;
   discordInitiateUrl: string;
+  currentUser: CurrentUser | null;
 }
 
 type Method = "discord" | "email";
 
-export function FollowForm({ code, discordInitiateUrl }: Props) {
-  const [user, setUser] = useState<CurrentUser | null | undefined>(undefined); // undefined = loading
+export function FollowForm({ code, discordInitiateUrl, currentUser }: Props) {
+  const user = currentUser;
   const [method, setMethod] = useState<Method | null>(null);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "busy" | "done" | "already" | "error">("idle");
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    getMe().then(setUser).catch(() => setUser(null));
-  }, []);
 
   async function handleFollowAsMe() {
     setStatus("busy");
@@ -48,11 +44,6 @@ export function FollowForm({ code, discordInitiateUrl }: Props) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "Something went wrong.");
     }
-  }
-
-  // Loading — avoid layout flash while auth resolves
-  if (user === undefined) {
-    return <div className="h-14 animate-pulse rounded-2xl bg-white/5" />;
   }
 
   // Success states
