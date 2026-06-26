@@ -141,7 +141,9 @@ export async function muxChannel(slug: string): Promise<{ slug: string; vrchatPl
   if (res.status === 200) return res.json();
   if (res.status !== 202) throw new Error(`Mux failed to start (HTTP ${res.status})`);
 
-  for (let attempt = 0; attempt < 120; attempt++) {   // up to 6 minutes
+  // Poll past the backend's 600s FFmpeg timeout (+ buffer) so a long mix that
+  // legitimately finishes in 6–10 min isn't falsely reported as failed.
+  for (let attempt = 0; attempt < 240; attempt++) {   // up to 12 minutes
     await new Promise((r) => setTimeout(r, 3000));
     const st = await apiFetch(`/api/channels/${slug}/mux/status`);
     if (st.status === 404) throw new Error("Server restarted mid-mux — please try again.");
@@ -150,7 +152,9 @@ export async function muxChannel(slug: string): Promise<{ slug: string; vrchatPl
     if (data.state === "done") return { slug, vrchatPlaybackUrl: data.url };
     if (data.state === "error") throw new Error(data.error ?? "Mux failed");
   }
-  throw new Error("Mux is taking longer than 6 minutes — check back and try again.");
+  // The job keeps running on the server; the "VR outdated" badge clears once it
+  // finishes, so this is informational rather than a hard failure.
+  throw new Error("Still processing in the background — refresh in a few minutes; the badge clears when it's done.");
 }
 
 export async function updateChannelSponsor(
