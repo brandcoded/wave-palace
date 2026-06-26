@@ -151,6 +151,27 @@ def _drawtext_overlay(
 
 
 # ---------------------------------------------------------------------------
+# Visualizer filter constants (VRChat mux only — always white at 70% opacity)
+# ---------------------------------------------------------------------------
+
+_VIZ_FILTER: dict[str, str] = {
+    "waveform": "showwaves=s=1280x120:mode=line:colors=White@0.7",
+    "bars":     "showfreqs=s=1280x120:mode=bar:colors=White@0.7",
+    "blob":     "showwaves=s=1280x120:mode=p2p:colors=White@0.7",
+    "terrain":  "showwaves=s=1280x120:mode=cline:colors=White@0.7",
+    "circular": "avectorscope=s=300x300:zoom=1.5:rc=200:gc=200:bc=200",
+}
+
+_VIZ_OVERLAY_POS: dict[str, str] = {
+    "waveform": "0:600",
+    "bars":     "0:600",
+    "blob":     "0:600",
+    "terrain":  "0:600",
+    "circular": "490:210",
+}
+
+
+# ---------------------------------------------------------------------------
 # FFmpeg command builders
 # ---------------------------------------------------------------------------
 
@@ -171,22 +192,40 @@ def _build_image_mux_cmd(
     output: Path,
     total_duration: float,
     overlay: str = "",
+    viz_style: str = "none",
 ) -> list[str]:
     """Loop a still image at 1 fps over the concatenated playlist audio.
 
     *overlay* is a comma-joined drawtext filter chain (static + time-windowed)
     appended after the scale/pad chain so text is burned into every frame.
+    *viz_style* adds an audio-reactive FFmpeg filter overlaid at the bottom.
     """
     cmd: list[str] = ["ffmpeg", "-y", "-loop", "1", "-framerate", "1", "-i", str(cover)]
     for a in audios:
         cmd += ["-i", str(a)]
 
     vf_chain = f"{_VIDEO_FILTER},{overlay}" if overlay else _VIDEO_FILTER
-    filter_complex = f"[0:v]{vf_chain}[vout];{_audio_concat_filter(len(audios))}"
+    audio_part = _audio_concat_filter(len(audios))
+
+    if viz_style and viz_style != "none" and viz_style in _VIZ_FILTER:
+        viz_f = _VIZ_FILTER[viz_style]
+        pos = _VIZ_OVERLAY_POS[viz_style]
+        filter_complex = (
+            f"[0:v]{vf_chain}[vout];"
+            f"{audio_part};"
+            f"[aout]asplit=2[aout_play][aout_viz];"
+            f"[aout_viz]{viz_f}[vizout];"
+            f"[vout][vizout]overlay={pos}[final_v]"
+        )
+        vid_map, aud_map = "[final_v]", "[aout_play]"
+    else:
+        filter_complex = f"[0:v]{vf_chain}[vout];{audio_part}"
+        vid_map, aud_map = "[vout]", "[aout]"
+
     cmd += [
         "-filter_complex", filter_complex,
-        "-map", "[vout]",
-        "-map", "[aout]",
+        "-map", vid_map,
+        "-map", aud_map,
         "-c:v", "libx264",
         "-preset", "ultrafast",
         "-tune", "stillimage",
@@ -229,41 +268,83 @@ def _build_video_mux_cmd(
     output: Path,
     total_duration: float,
     overlay: str = "",
+    viz_style: str = "none",
 ) -> list[str]:
     """Stream-loop the pre-encoded *segment* and mux with concatenated audio.
 
     When *overlay* is provided the video is re-encoded (libx264 ultrafast) so
     the drawtext filter chain — including time-windowed per-track now-playing
     entries — is burned in.  Without overlay the video is stream-copied (zero
-    re-encode cost).
+    re-encode cost).  *viz_style* adds an audio-reactive FFmpeg filter overlay.
     """
     cmd: list[str] = ["ffmpeg", "-y", "-stream_loop", str(repeats), "-i", str(segment)]
     for a in audios:
         cmd += ["-i", str(a)]
 
-    if overlay:
-        filter_complex = f"[0:v]{overlay}[vout];{_audio_concat_filter(len(audios))}"
+    use_viz = viz_style and viz_style != "none" and viz_style in _VIZ_FILTER
+    audio_part = _audio_concat_filter(len(audios))
+
+    if overlay and use_viz:
+        viz_f = _VIZ_FILTER[viz_style]
+        pos = _VIZ_OVERLAY_POS[viz_style]
+        filter_complex = (
+            f"[0:v]{overlay}[vout];"
+            f"{audio_part};"
+            f"[aout]asplit=2[aout_play][aout_viz];"
+            f"[aout_viz]{viz_f}[vizout];"
+            f"[vout][vizout]overlay={pos}[final_v]"
+        )
+        cmd += [
+            "-filter_complex", filter_complex,
+            "-map", "[final_v]",
+            "-map", "[aout_play]",
+            "-c:v", "libx264", "-preset", "ultrafast",
+            "-threads", "1",
+            "-c:a", "aac", "-b:a", "256k",
+            "-t", f"{total_duration:.3f}",
+            "-movflags", "+faststart",
+            str(output),
+        ]
+    elif overlay:
+        filter_complex = f"[0:v]{overlay}[vout];{audio_part}"
         cmd += [
             "-filter_complex", filter_complex,
             "-map", "[vout]",
             "-map", "[aout]",
-            "-c:v", "libx264",
-            "-preset", "ultrafast",
+            "-c:v", "libx264", "-preset", "ultrafast",
             "-threads", "1",
-            "-c:a", "aac",
-            "-b:a", "256k",
+            "-c:a", "aac", "-b:a", "256k",
+            "-t", f"{total_duration:.3f}",
+            "-movflags", "+faststart",
+            str(output),
+        ]
+    elif use_viz:
+        viz_f = _VIZ_FILTER[viz_style]
+        pos = _VIZ_OVERLAY_POS[viz_style]
+        filter_complex = (
+            f"{audio_part};"
+            f"[aout]asplit=2[aout_play][aout_viz];"
+            f"[aout_viz]{viz_f}[vizout];"
+            f"[0:v][vizout]overlay={pos}[final_v]"
+        )
+        cmd += [
+            "-filter_complex", filter_complex,
+            "-map", "[final_v]",
+            "-map", "[aout_play]",
+            "-c:v", "libx264", "-preset", "ultrafast",
+            "-threads", "1",
+            "-c:a", "aac", "-b:a", "256k",
             "-t", f"{total_duration:.3f}",
             "-movflags", "+faststart",
             str(output),
         ]
     else:
         cmd += [
-            "-filter_complex", _audio_concat_filter(len(audios)),
+            "-filter_complex", audio_part,
             "-map", "0:v",
             "-map", "[aout]",
             "-c:v", "copy",
-            "-c:a", "aac",
-            "-b:a", "256k",
+            "-c:a", "aac", "-b:a", "256k",
             "-t", f"{total_duration:.3f}",
             "-movflags", "+faststart",
             str(output),
@@ -396,6 +477,8 @@ class MuxService:
                 track_codes=track_codes,
             )
 
+            viz_style: str = channel.get("visualizer_style") or "none"
+
             if cover_path.suffix.lower() in _VIDEO_EXTS:
                 # Encode raw normalized segment (no overlay — overlay goes in
                 # final pass so time-windowed text spans the full timeline).
@@ -407,11 +490,12 @@ class MuxService:
                 repeats = math.ceil(total_duration / seg_duration) + 1
                 cmd = _build_video_mux_cmd(
                     seg_path, repeats, audio_paths, output_path, total_duration,
-                    overlay=overlay,
+                    overlay=overlay, viz_style=viz_style,
                 )
             else:
                 cmd = _build_image_mux_cmd(
-                    cover_path, audio_paths, output_path, total_duration, overlay=overlay
+                    cover_path, audio_paths, output_path, total_duration,
+                    overlay=overlay, viz_style=viz_style,
                 )
 
             logger.info("Running: %s", " ".join(cmd))

@@ -47,6 +47,9 @@ export interface Channel {
   muxLastAt?: string | null;
   streamingActive?: boolean;
   vrchatFallbackUrl?: string | null;
+  visualizer_style?: "none" | "waveform" | "bars" | "circular" | "blob" | "terrain";
+  visualizer_theme?: "violet" | "teal" | "ember" | "rose" | "ice" | "frequency";
+  visualizer_backdrop?: "overlay_video" | "overlay_image" | "replace";
 }
 
 export interface ChannelFilters {

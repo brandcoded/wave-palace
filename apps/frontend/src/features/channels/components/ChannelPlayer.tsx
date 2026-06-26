@@ -6,6 +6,8 @@ import { Play, Pause, Volume2, VolumeX, AlertTriangle, User, X } from "lucide-re
 import type { Sponsor, TrackItem } from "@/features/channels/types/channel";
 import { recordPlay, recordSponsorImpression, recordSponsorClick } from "@/features/channels/lib/channelApi";
 import { makeFollowCode } from "@/features/channels/lib/followCode";
+import { useAudioVisualizer } from "@/features/channels/hooks/useAudioVisualizer";
+import type { VisualizerStyle, VisualizerTheme } from "@/features/channels/hooks/useAudioVisualizer";
 
 interface ChannelPlayerProps {
   tracks: TrackItem[];
@@ -17,11 +19,18 @@ interface ChannelPlayerProps {
   genre: string[];
   mood: string[];
   sponsor?: Sponsor | null;
+  visualizerStyle?: VisualizerStyle;
+  visualizerTheme?: VisualizerTheme;
+  visualizerBackdrop?: "overlay_video" | "overlay_image" | "replace";
 }
 
-export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, hostName, genre, mood, sponsor }: ChannelPlayerProps) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, hostName, genre, mood, sponsor, visualizerStyle, visualizerTheme, visualizerBackdrop }: ChannelPlayerProps) {
+  const audioRef  = useRef<HTMLAudioElement>(null);
+  const videoRef  = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const vizStyle  = visualizerStyle  ?? "none";
+  const vizTheme  = visualizerTheme  ?? "violet";
+  const vizBackdrop = visualizerBackdrop ?? "overlay_video";
   const [currentIndex, setCurrentIndex] = useState(0);
   const [playing, setPlaying] = useState(false);
   const playingRef = useRef(false);
@@ -29,6 +38,8 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
   const [volume, setVolume] = useState(0.8);
   const [errored, setErrored] = useState(false);
   const [sponsorDismissed, setSponsorDismissed] = useState(false);
+
+  useAudioVisualizer(audioRef, canvasRef, vizStyle, vizTheme, playing);
 
   const sponsorActive =
     sponsor != null &&
@@ -147,8 +158,8 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
 
   return (
     <div className="group relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl shadow-black/50">
-      {/* Visual backdrop */}
-      {visualLoopUrl ? (
+      {/* Visual backdrop — hidden in replace mode */}
+      {vizBackdrop !== "replace" && (vizBackdrop === "overlay_video" && visualLoopUrl ? (
         <video
           ref={videoRef}
           src={visualLoopUrl}
@@ -165,6 +176,24 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
           alt={`${title} channel art`}
           className="aspect-video w-full object-cover"
         />
+      ))}
+
+      {/* Replace mode: placeholder so the player keeps its aspect ratio */}
+      {vizBackdrop === "replace" && (
+        <div className="aspect-video w-full bg-black" />
+      )}
+
+      {/* Audio-reactive canvas visualizer */}
+      {vizStyle !== "none" && (
+        <canvas
+          ref={canvasRef}
+          className={
+            vizBackdrop === "replace"
+              ? "absolute inset-0 h-full w-full pointer-events-none"
+              : "absolute inset-x-0 bottom-0 h-[120px] pointer-events-none"
+          }
+          style={{ zIndex: 2 }}
+        />
       )}
 
       {/* Hidden audio element */}
@@ -172,6 +201,7 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
         ref={audioRef}
         src={trackSrc}
         preload="auto"
+        crossOrigin="anonymous"
         onCanPlay={handleCanPlay}
         onError={() => setErrored(true)}
         onPlay={() => { videoRef.current?.play(); setPlaying(true); }}

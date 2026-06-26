@@ -35,6 +35,12 @@ def _normalize_taxonomy(doc: dict) -> dict:
         doc = {**doc, "owner_ids": []}
     if "auto_publish" not in doc:
         doc = {**doc, "auto_publish": True}
+    if "visualizer_style" not in doc:
+        doc = {**doc, "visualizer_style": "none"}
+    if "visualizer_theme" not in doc:
+        doc = {**doc, "visualizer_theme": "violet"}
+    if "visualizer_backdrop" not in doc:
+        doc = {**doc, "visualizer_backdrop": "overlay_video"}
     return doc
 
 

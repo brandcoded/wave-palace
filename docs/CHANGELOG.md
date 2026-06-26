@@ -2,6 +2,25 @@
 
 All notable changes to this project are documented here.
 
+## [0.15.0] — Slice 1C: Audio Visualizer
+
+### Added
+- **`Channel.visualizer_style`** — `"none" | "waveform" | "bars" | "circular" | "blob" | "terrain"` (default `"none"`)
+- **`Channel.visualizer_theme`** — `"violet" | "teal" | "ember" | "rose" | "ice" | "frequency"` (default `"violet"`)
+- **`Channel.visualizer_backdrop`** — `"overlay_video" | "overlay_image" | "replace"` (default `"overlay_video"`)
+- **`useAudioVisualizer` hook** — Web Audio API canvas renderer with `AnalyserNode` (fftSize 2048, smoothingTimeConstant 0.88), gaussian spatial blur, log-frequency remapping, and `requestAnimationFrame` loop; 5 draw modes; silently no-ops if AudioContext unavailable
+- **`ChannelPlayer` canvas layer** — z-index 2 canvas above backdrop; overlay modes render a 120 px bottom strip, replace mode fills the full frame; `crossOrigin="anonymous"` added to audio element
+- **Admin channel edit — Visualizer section** — animated style picker (6 canvas thumbnails with simulated data), color theme swatches, backdrop mode pills; appears between VRChat and Sponsor sections
+- **VRChat mux FFmpeg filter** — `showwaves`, `showfreqs`, and `avectorscope` filters via `asplit=2` + `overlay` on the final video track; all 3 command builders (`_build_image_mux_cmd`, `_build_video_mux_cmd`) updated
+- **`_OVERLAY_FIELDS`** includes `visualizer_style`, `visualizer_theme`, `visualizer_backdrop` (changes flag `muxOutdated=True`)
+- **`_normalize_taxonomy`** defaults new fields for pre-Slice-1C documents
+- **`from __future__ import annotations`** added to `channel.py` for Python 3.9 compatibility
+- **15 backend tests** in `test_visualizer.py`; all prior tests green (281 total)
+
+### Notes
+- Web player theme colors are full-fidelity RGB; VRChat mux always renders white at 70% opacity
+- AudioContext created lazily on first `play` event (browser user-gesture requirement)
+
 ## [0.14.0] — Slice 11: Host Onboarding & Ownership
 
 ### Added

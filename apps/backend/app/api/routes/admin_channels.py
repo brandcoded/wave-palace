@@ -24,6 +24,7 @@ router = APIRouter(prefix="/api/admin/channels", tags=["admin-channels"])
 _OVERLAY_FIELDS = {
     "title", "hostName", "genre", "mood",
     "visualLoopUrl", "coverImageUrl", "playlist",
+    "visualizer_style", "visualizer_theme", "visualizer_backdrop",
 }
 
 
@@ -67,6 +68,9 @@ class ChannelPatchRequest(BaseModel):
     vrchatFallbackUrl: str | None = None
     owner_ids: list[str] | None = None
     auto_publish: bool | None = None
+    visualizer_style: str | None = None
+    visualizer_theme: str | None = None
+    visualizer_backdrop: str | None = None
 
 
 class StreamingBulkRequest(BaseModel):

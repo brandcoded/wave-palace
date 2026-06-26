@@ -1,6 +1,9 @@
 """Pydantic schemas for the Channel domain (data/transport contract)."""
 
+from __future__ import annotations
+
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl
 
@@ -54,6 +57,10 @@ class Channel(BaseModel):
     # Slice 11 — Host Onboarding & Ownership (admin-only; stripped from public API)
     owner_ids: list[str] = Field(default_factory=list)
     auto_publish: bool = True
+    # Slice 1C — Audio Visualizer
+    visualizer_style: Literal["none", "waveform", "bars", "circular", "blob", "terrain"] = "none"
+    visualizer_theme: Literal["violet", "teal", "ember", "rose", "ice", "frequency"] = "violet"
+    visualizer_backdrop: Literal["overlay_video", "overlay_image", "replace"] = "overlay_video"
 
     model_config = {"populate_by_name": True}
 

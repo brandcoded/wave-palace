@@ -231,6 +231,134 @@ function Field({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Visualizer admin helpers
+// ---------------------------------------------------------------------------
+
+const VIZ_STYLE_LABELS: Record<string, string> = {
+  none: "None", waveform: "Waveform", bars: "Bars",
+  circular: "Circular", blob: "Blob", terrain: "Terrain",
+};
+
+const VIZ_THEME_COLORS: Record<string, string> = {
+  violet: "#a78bfa", teal: "#2dd4bf", ember: "#fb923c",
+  rose:   "#fb7185", ice:  "#bae6fd", frequency: "",
+};
+
+function VisualizerThumbnail({ style, theme, selected, onClick }: {
+  style: string; theme: string; selected: boolean; onClick: () => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef    = useRef<number>(0);
+  const tRef      = useRef(0);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    function frame() {
+      rafRef.current = requestAnimationFrame(frame);
+      tRef.current += 0.028;
+      const t = tRef.current;
+      const c = canvas!.getContext("2d");
+      if (!c) return;
+      const W = 80, H = 48;
+      c.clearRect(0, 0, W, H);
+
+      const color = VIZ_THEME_COLORS[theme] || "#a78bfa";
+      const n = 48;
+      const freq = new Float32Array(n);
+      for (let i = 0; i < n; i++) {
+        const band = i / n;
+        freq[i] = Math.min(1, Math.max(0,
+          (band < 0.15 ? (Math.sin(t * 2.1) * 0.45 + 0.5) * 0.85 : 0) +
+          (Math.sin(t * 1.3 + band * 9) * 0.28 + 0.35) * (band > 0.08 && band < 0.6 ? 0.65 : 0.1),
+        ));
+      }
+      const td = new Float32Array(96);
+      for (let i = 0; i < 96; i++) {
+        td[i] = Math.sin(t * 2 + (i / 96) * Math.PI * 4) * 0.38 + 0.5 + Math.sin(t * 5 + i * 0.2) * 0.07;
+      }
+
+      if (style === "none") {
+        c.beginPath(); c.strokeStyle = color + "50"; c.lineWidth = 1;
+        c.moveTo(0, H / 2); c.lineTo(W, H / 2); c.stroke();
+      } else if (style === "waveform") {
+        c.beginPath(); c.strokeStyle = color + "cc"; c.lineWidth = 1.5;
+        for (let i = 0; i < td.length - 1; i++) {
+          const x1 = (i / td.length) * W, y1 = td[i] * H;
+          const x2 = ((i+1) / td.length) * W, y2 = td[i+1] * H;
+          const mx = (x1+x2)/2, my = (y1+y2)/2;
+          if (i === 0) c.moveTo(x1, y1); else c.quadraticCurveTo(x1, y1, mx, my);
+        }
+        c.stroke();
+      } else if (style === "bars") {
+        for (let i = 0; i < n; i++) {
+          const bW = W/n - 0.5, x = (i/n)*W, bH = freq[i]*H;
+          c.fillStyle = (theme === "frequency" ? `hsl(${(i/n)*240},75%,60%)` : color) + "99";
+          c.fillRect(x, H-bH, bW, bH);
+        }
+      } else if (style === "circular") {
+        const cx = W/2, cy = H/2, r0 = Math.min(W,H)*0.22;
+        for (let i = 0; i < n; i++) {
+          const ang = (i/n)*Math.PI*2 - Math.PI/2;
+          const r = r0 + freq[i]*r0*0.65;
+          c.beginPath(); c.moveTo(cx+Math.cos(ang)*r0, cy+Math.sin(ang)*r0);
+          c.lineTo(cx+Math.cos(ang)*r, cy+Math.sin(ang)*r);
+          c.strokeStyle = color + "cc"; c.lineWidth = 1; c.stroke();
+        }
+        c.beginPath(); c.arc(cx, cy, r0, 0, Math.PI*2);
+        c.strokeStyle = color + "30"; c.lineWidth = 0.75; c.stroke();
+      } else if (style === "blob") {
+        const m = 32, cx = W/2, cy = H/2, r0 = Math.min(W,H)*0.18;
+        c.beginPath();
+        for (let i = 0; i <= m; i++) {
+          const idx = i%m, ang = (idx/m)*Math.PI*2-Math.PI/2;
+          const r = r0 + freq[idx%n]*r0*0.7;
+          const x = cx+Math.cos(ang)*r, y = cy+Math.sin(ang)*r;
+          const nI = (idx+1)%m, nA = (nI/m)*Math.PI*2-Math.PI/2;
+          const nr = r0 + freq[nI%n]*r0*0.7;
+          const nx = cx+Math.cos(nA)*nr, ny = cy+Math.sin(nA)*nr;
+          if (i===0) c.moveTo((x+nx)/2,(y+ny)/2); else c.quadraticCurveTo(x,y,(x+nx)/2,(y+ny)/2);
+        }
+        c.closePath(); c.fillStyle = color+"18"; c.fill();
+        c.strokeStyle = color+"cc"; c.lineWidth = 1.5; c.stroke();
+      } else if (style === "terrain") {
+        c.beginPath();
+        for (let i = 0; i <= n; i++) {
+          const idx = i%n, x = (idx/n)*W, y = H - freq[idx]*H*0.8 - H*0.04;
+          if (i===0) { c.moveTo(x,y); } else {
+            const pi=(i-1)%n, px=(pi/n)*W, py=H-freq[pi]*H*0.8-H*0.04;
+            c.quadraticCurveTo(px,py,(px+x)/2,(py+y)/2);
+          }
+        }
+        c.lineTo(W,H); c.lineTo(0,H); c.closePath();
+        c.fillStyle = color+"20"; c.fill(); c.strokeStyle = color+"bb"; c.lineWidth = 1.5; c.stroke();
+      }
+    }
+
+    frame();
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [style, theme]);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1 rounded-lg border p-1 transition ${
+        selected
+          ? "border-cyan-400/60 bg-cyan-400/10"
+          : "border-white/10 bg-white/5 hover:border-white/20"
+      }`}
+    >
+      <canvas ref={canvasRef} width={80} height={48} className="rounded" />
+      <span className={`text-[9px] font-semibold uppercase tracking-widest ${selected ? "text-cyan-300" : "text-white/40"}`}>
+        {VIZ_STYLE_LABELS[style] ?? style}
+      </span>
+    </button>
+  );
+}
+
 export default function ChannelEditPage() {
   const { slug } = useParams<{ slug: string }>();
   const router = useRouter();
@@ -650,6 +778,69 @@ export default function ChannelEditPage() {
           </div>
           {form.vrchatPlaybackUrl && (
             <p className="truncate text-xs text-white/30">{form.vrchatPlaybackUrl as string}</p>
+          )}
+        </section>
+
+        {/* Visualizer */}
+        <section className="flex flex-col gap-3">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white/30">Audio Visualizer</h2>
+          <p className="text-xs text-white/40">Shown on the web player during playback. VRChat mux burns a white version into the video.</p>
+
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {(["none", "waveform", "bars", "circular", "blob", "terrain"] as const).map((s) => (
+              <VisualizerThumbnail
+                key={s}
+                style={s}
+                theme={(form.visualizer_theme as string) ?? "violet"}
+                selected={((form.visualizer_style as string) ?? "none") === s}
+                onClick={() => setForm((prev) => ({ ...prev, visualizer_style: s }))}
+              />
+            ))}
+          </div>
+
+          {((form.visualizer_style as string) ?? "none") !== "none" && (
+            <>
+              <label className="text-xs font-medium text-white/50">Color theme</label>
+              <div className="flex flex-wrap gap-2">
+                {(["violet", "teal", "ember", "rose", "ice", "frequency"] as const).map((th) => (
+                  <button
+                    key={th}
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, visualizer_theme: th }))}
+                    className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium border transition ${
+                      ((form.visualizer_theme as string) ?? "violet") === th
+                        ? "border-white/40 bg-white/15 text-white"
+                        : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10"
+                    }`}
+                  >
+                    {th === "frequency" ? (
+                      <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ background: "linear-gradient(90deg,#ef4444,#22c55e,#3b82f6)" }} />
+                    ) : (
+                      <span className="h-3 w-3 rounded-full flex-shrink-0" style={{ background: VIZ_THEME_COLORS[th] }} />
+                    )}
+                    {th}
+                  </button>
+                ))}
+              </div>
+
+              <label className="text-xs font-medium text-white/50">Backdrop mode</label>
+              <div className="flex gap-2 flex-wrap">
+                {(["overlay_video", "overlay_image", "replace"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, visualizer_backdrop: m }))}
+                    className={`rounded-full px-3 py-1 text-xs font-medium border transition ${
+                      ((form.visualizer_backdrop as string) ?? "overlay_video") === m
+                        ? "border-cyan-400/60 bg-cyan-400/10 text-cyan-300"
+                        : "border-white/10 bg-white/5 text-white/50 hover:bg-white/10"
+                    }`}
+                  >
+                    {m === "overlay_video" ? "Video + strip" : m === "overlay_image" ? "Image + strip" : "Replace backdrop"}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </section>
 

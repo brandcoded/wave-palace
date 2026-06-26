@@ -2,7 +2,7 @@
 
 > Single source of truth for slice status. Update this file whenever a slice
 > ships or changes state. `CLAUDE.md` carries a compact copy — keep both in sync.
-> Last updated: 2026-06-22 (Slice 11 — Host Onboarding & Ownership complete)
+> Last updated: 2026-06-26 (Slice 1C — Audio Visualizer complete)
 > Production: `origin/main` @ `e286d7e` — Slices 10 + 11 live (shipped at `34878d7`); since-then landing routes (`/creators`, `/listeners`), nav polish, and a Vercel build fix also deployed.
 >
 > **Hours worked** column counts all time on a slice: PM prep, prompt writing,
@@ -17,6 +17,7 @@
 | MVP | Public visual channel playback | ✅ COMPLETE (v0.1.0) | 7 | Browse, filter, play, copy links, error states |
 | MVP | Playlist cycling + track counter | ✅ COMPLETE (v0.2.0) | 11 | Tracks auto-advance, loop, counter shown |
 | MVP add-on | VRChat MP4 mux service | ✅ COMPLETE (v0.3.0) | 11 | `POST /api/mux/all`, `POST /api/channels/{slug}/mux`, R2 upload |
+| **1C** | **Audio Visualizer** | **✅ COMPLETE (v0.15.0)** | — | Web Audio API canvas (waveform, bars, circular, blob, terrain) · 6 color themes + frequency gradient · 3 backdrop modes · animated admin style picker · VRChat mux FFmpeg viz filter (showwaves/showfreqs/avectorscope) · 15 backend tests |
 | 1 | Animated video loop backgrounds | ✅ COMPLETE (v0.4.0) | 15 | `visualLoopUrl` live on web player + mux · Admin UI toggle shipped in Slice 3 (v0.7.0) |
 | 1B | Channel & host info in player overlay | ✅ COMPLETE (v0.5.0) | 4 | Title, host name, genre/mood in gradient bar |
 | 1B add-on | VRChat MP4 overlay parity | ✅ COMPLETE (v0.5.0) | 7 | Channel info burned into MP4 via FFmpeg `drawtext` |

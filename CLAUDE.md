@@ -16,6 +16,7 @@ Full status: `docs/STATUS.md` (canonical) — this file carries a compact copy.
 | MVP | Playlist cycling + track counter | ✅ COMPLETE |
 | MVP add-on | VRChat MP4 mux service | ✅ COMPLETE |
 | 1 | Animated video loop backgrounds | ✅ COMPLETE |
+| **1C** | **Audio Visualizer** (Web Audio canvas, 5 styles, 6 themes, backdrop modes, VRChat mux FFmpeg filter) | **✅ COMPLETE** |
 | 1B | Channel & host info in player overlay | ✅ COMPLETE |
 | 1B add-on | VRChat MP4 overlay parity (drawtext) | ✅ COMPLETE |
 | 3 add-on | TrackItem schema + now-playing display | ✅ COMPLETE |

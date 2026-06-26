@@ -72,6 +72,9 @@ export default async function ChannelDetailPage({
             genre={channel.genre}
             mood={channel.mood}
             sponsor={channel.sponsor}
+            visualizerStyle={channel.visualizer_style}
+            visualizerTheme={channel.visualizer_theme}
+            visualizerBackdrop={channel.visualizer_backdrop}
           />
 
           <p className="max-w-2xl leading-relaxed text-white/70">
