@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -9,6 +9,11 @@ import {
   updateFollowPrefs,
   type FollowView,
 } from "@/features/follow/lib/followApi";
+
+// User-specific, auth-gated page that reads query params client-side — render
+// on demand instead of static prerender (avoids the useSearchParams CSR bailout
+// that otherwise fails the production build).
+export const dynamic = "force-dynamic";
 
 // Expandable notification-preference row
 function FollowRow({
@@ -136,7 +141,7 @@ function PrefToggle({
   );
 }
 
-export default function MyFollowsPage() {
+function MyFollowsContent() {
   const [follows, setFollows] = useState<FollowView[]>([]);
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState<string | null>(null);
@@ -215,5 +220,19 @@ export default function MyFollowsPage() {
         </ul>
       )}
     </div>
+  );
+}
+
+export default function MyFollowsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <p className="text-white/30">Loading…</p>
+        </div>
+      }
+    >
+      <MyFollowsContent />
+    </Suspense>
   );
 }

@@ -52,7 +52,7 @@ function MiniChannelCard({ channel, reason }: { channel: Channel; reason?: strin
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-white">{channel.title}</p>
         <p className="truncate text-xs text-white/45">
-          {channel.genre.slice(0, 2).join(" · ")}
+          {(Array.isArray(channel.genre) ? channel.genre : []).slice(0, 2).join(" · ")}
           {reason ? <span className="ml-1 text-wave-400"> · {reason}</span> : null}
         </p>
       </div>
@@ -144,61 +144,88 @@ export default function HomePage() {
   const [followedChannels, setFollowedChannels] = useState<Channel[]>([]);
   const [savedChannels, setSavedChannels] = useState<Channel[]>([]);
   const [ownedChannels, setOwnedChannels] = useState<Channel[]>([]);
+  const [loadError, setLoadError] = useState(false);
   const mergedRef = useRef(false);
 
   useEffect(() => {
     (async () => {
-      const me = await getMe();
-      if (!me) {
-        router.replace("/");
-        return;
+      try {
+        const me = await getMe();
+        if (!me) {
+          router.replace("/");
+          return;
+        }
+        setUser(me);
+
+        // Merge anonymous listen history once per session
+        if (!mergedRef.current) {
+          mergedRef.current = true;
+          const sk = getOrCreateSessionKey();
+          if (sk) mergeListenHistory(sk);
+        }
+
+        // allSettled: one failing endpoint degrades its section to empty
+        // instead of blanking the whole dashboard.
+        const [rHist, rSaved, rNotif, rRec, rFollowed, rOwned, rChannels] =
+          await Promise.allSettled([
+            getHistory(),
+            getSaves(),
+            getNotifications(),
+            getRecommendations(),
+            getFollowedSlugs(),
+            getOwnedChannels(),
+            getChannels(),
+          ]);
+
+        const anyFailed = [rHist, rSaved, rNotif, rRec, rFollowed, rOwned, rChannels].some(
+          (r) => r.status === "rejected",
+        );
+
+        const hist =
+          rHist.status === "fulfilled"
+            ? rHist.value
+            : { recent: [], top_channel: null, last_channel: null };
+        const savedSlugs = rSaved.status === "fulfilled" ? rSaved.value : [];
+        const notifications =
+          rNotif.status === "fulfilled" ? rNotif.value : { notifications: [], unread_count: 0 };
+        const recData = rRec.status === "fulfilled" ? rRec.value : [];
+        const followedSlugs = rFollowed.status === "fulfilled" ? rFollowed.value : [];
+        const owned = rOwned.status === "fulfilled" ? rOwned.value : [];
+        const channels = rChannels.status === "fulfilled" ? rChannels.value : [];
+
+        setHistory(hist);
+        setNotifs(notifications);
+        setLoadError(anyFailed);
+
+        const bySlug = new Map(channels.map((c) => [c.slug, c]));
+
+        setFollowedChannels(
+          followedSlugs.flatMap((s) => { const c = bySlug.get(s); return c ? [c] : []; }),
+        );
+        setSavedChannels(
+          savedSlugs.flatMap((s) => { const c = bySlug.get(s); return c ? [c] : []; }),
+        );
+
+        const recChannels: ChannelRec[] = recData.flatMap((r) => {
+          const slug = r.slug as string;
+          const base = bySlug.get(slug) ?? (r as unknown as Channel);
+          if (!slug) return [];
+          return [{ ...base, _reason: (r._reason as string | null) ?? null }];
+        });
+        setRecs(recChannels.slice(0, 6));
+
+        const ownedMapped = (owned as Record<string, unknown>[]).flatMap((o) => {
+          const c = bySlug.get(o.slug as string);
+          return c ? [c] : [];
+        });
+        setOwnedChannels(ownedMapped);
+      } catch {
+        // getMe() or an unexpected error — render a recoverable state rather
+        // than hanging forever on the loading screen.
+        setLoadError(true);
+      } finally {
+        setLoading(false);
       }
-      setUser(me);
-
-      // Merge anonymous listen history once per session
-      if (!mergedRef.current) {
-        mergedRef.current = true;
-        const sk = getOrCreateSessionKey();
-        if (sk) mergeListenHistory(sk);
-      }
-
-      const [hist, savedSlugs, notifications, recData, followedSlugs, owned, channels] = await Promise.all([
-        getHistory(),
-        getSaves(),
-        getNotifications(),
-        getRecommendations(),
-        getFollowedSlugs(),
-        getOwnedChannels(),
-        getChannels(),
-      ]);
-
-      setHistory(hist);
-      setNotifs(notifications);
-
-      const bySlug = new Map(channels.map((c) => [c.slug, c]));
-
-      setFollowedChannels(
-        followedSlugs.flatMap((s) => { const c = bySlug.get(s); return c ? [c] : []; }),
-      );
-      setSavedChannels(
-        savedSlugs.flatMap((s) => { const c = bySlug.get(s); return c ? [c] : []; }),
-      );
-
-      const recChannels: ChannelRec[] = recData.flatMap((r) => {
-        const slug = r.slug as string;
-        const base = bySlug.get(slug) ?? (r as unknown as Channel);
-        if (!slug) return [];
-        return [{ ...base, _reason: (r._reason as string | null) ?? null }];
-      });
-      setRecs(recChannels.slice(0, 6));
-
-      const ownedMapped = (owned as Record<string, unknown>[]).flatMap((o) => {
-        const c = bySlug.get(o.slug as string);
-        return c ? [c] : [];
-      });
-      setOwnedChannels(ownedMapped);
-
-      setLoading(false);
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -225,11 +252,40 @@ export default function HomePage() {
     );
   }
 
+  // getMe() failed entirely — show a recoverable state instead of crashing on
+  // user!.display_name below.
+  if (!user) {
+    return (
+      <div className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-6 text-center">
+        <p className="mb-2 font-semibold text-white">We couldn&apos;t load your dashboard</p>
+        <p className="mb-6 text-sm text-white/50">
+          Please check your connection and try again.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="rounded-full bg-wave-500/20 px-5 py-2.5 text-sm font-semibold text-wave-300 hover:bg-wave-500/30"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   const recentEvents = history.recent.slice(0, 8);
   const unreadNotifs = notifs.notifications.filter((n) => !n.read);
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
+      {loadError && (
+        <div className="mb-6 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100/90">
+          Some sections couldn&apos;t load. Showing what we could —{" "}
+          <button onClick={() => window.location.reload()} className="underline hover:text-amber-100">
+            refresh to retry
+          </button>
+          .
+        </div>
+      )}
+
       {/* Greeting + resume */}
       <section className="mb-10">
         <h1 className="mb-1 text-3xl font-semibold tracking-tight text-white">
