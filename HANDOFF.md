@@ -68,6 +68,7 @@ wave-palace/
 | Infra | MongoDB Atlas connected — `MONGODB_URI` set on Render, `pymongo[srv]` pinned, idempotent seed | `9574d94` |
 | **10** | **Identity & Roles** — opaque `wp_session` cookie, `UserDocument`/`SessionDocument`, Discord+email-link+password auth, `require_roles` guards, `/admin/users` page, 26 tests | main |
 | **11** | **Host Onboarding & Ownership** — `Channel.owner_ids` + `auto_publish`, single-use 7-day invite links, `require_channel_owner` dep, admin Ownership panel, `/host/join` page, 19 tests | main |
+| **12** | **Logged-In Dashboard** — `listen_events` + `channel_saves` + `notifications` repos · `ListenHistoryService` + `RecommendationService` · 10 me/* endpoints · `/home` page · `UserMenuIsland` · `ChannelCard` heart button · `ChannelPlayer` listen events · 20 tests (304 total) | main |
 
 ### What is NOT STARTED / DEFERRED
 

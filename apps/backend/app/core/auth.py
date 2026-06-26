@@ -86,6 +86,28 @@ async def get_current_user(
     raise HTTPException(status_code=401, detail="Not authenticated")
 
 
+async def get_optional_user(
+    wp_session: Optional[str] = Cookie(default=None),
+    wp_admin_token: Optional[str] = Cookie(default=None),
+    auth_service=Depends(get_auth_service),
+) -> Optional[UserDocument]:
+    """Like get_current_user but returns None when unauthenticated."""
+    if wp_session:
+        user = await auth_service.get_user_by_session(wp_session)
+        if user and user.is_active:
+            return user
+    if wp_admin_token:
+        try:
+            payload = _decode_token(wp_admin_token)
+            if payload.get("sub") == "admin":
+                user = await auth_service.get_or_create_bootstrap_admin()
+                if user.is_active:
+                    return user
+        except jwt.InvalidTokenError:
+            pass
+    return None
+
+
 def require_roles(*roles: str):
     """
     Factory returning a FastAPI dependency that enforces role membership.

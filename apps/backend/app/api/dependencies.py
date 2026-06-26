@@ -125,3 +125,33 @@ def get_invite_repository():
 def get_invite_service():
     from app.services.invite_service import InviteService
     return InviteService(get_invite_repository(), get_channel_repository())
+
+
+@lru_cache
+def get_listen_event_repository():
+    from app.repositories.listen_event_repository import build_listen_event_repository
+    return build_listen_event_repository(_settings())
+
+
+@lru_cache
+def get_channel_save_repository():
+    from app.repositories.channel_save_repository import build_channel_save_repository
+    return build_channel_save_repository(_settings())
+
+
+@lru_cache
+def get_notification_repository():
+    from app.repositories.notification_repository import build_notification_repository
+    return build_notification_repository(_settings())
+
+
+@lru_cache
+def get_listen_history_service():
+    from app.services.listen_history_service import ListenHistoryService
+    return ListenHistoryService(get_listen_event_repository())
+
+
+@lru_cache
+def get_recommendation_service():
+    from app.services.recommendation_service import RecommendationService
+    return RecommendationService(get_channel_repository(), get_follow_repository())

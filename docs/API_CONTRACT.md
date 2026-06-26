@@ -920,3 +920,73 @@ the channel's `owner_ids` (idempotent per user).
 }
 ```
 `400` expired or already-consumed · `404` unknown token · `401` not logged in.
+
+---
+
+## Slice 12 — Logged-In Dashboard (`/api/me/*`)
+
+All endpoints require a valid `wp_session` cookie unless noted. Returns `401` when unauthenticated.
+
+### POST /api/me/history
+Record a listen event. No auth required — pass `session_key` for anonymous tracking.
+```json
+{ "channel_slug": "late-night-house", "track_title": "Come Thru", "track_artist": "DJ Skyy", "session_key": "abc123" }
+```
+Response: `201` `{ "ok": true }`
+
+### GET /api/me/history
+Returns recent listen history for the authenticated user.
+```json
+{ "recent": [{ "id": "…", "channel_slug": "…", "track_title": "…", "track_artist": "…", "started_at": "…" }], "top_channel": "late-night-house", "last_channel": "late-night-house" }
+```
+
+### POST /api/me/history/merge
+Attribute anonymous listen events (by `session_key`) to the authenticated user.
+```json
+{ "session_key": "abc123" }
+```
+Response: `200` `{ "merged": 3 }`
+
+### POST /api/me/saves/{slug}
+Save a channel. Idempotent. Response: `204`. `404` if channel not found.
+
+### DELETE /api/me/saves/{slug}
+Unsave a channel. Idempotent (no error if not saved). Response: `204`.
+
+### GET /api/me/saves
+```json
+{ "slugs": ["late-night-house", "neon-afterhours"] }
+```
+
+### GET /api/me/notifications
+```json
+{ "notifications": [{ "id": "…", "type": "recommendation", "title": "…", "body": null, "link": null, "read": false, "created_at": "…" }], "unread_count": 1 }
+```
+Unread notifications sort before read; within each group, newest first.
+
+### PATCH /api/me/notifications/{id}
+```json
+{ "read": true }
+```
+Response: `200` `{ "ok": true }` · `404` if not found or wrong user.
+
+### POST /api/me/notifications/mark-all-read
+Response: `200` `{ "marked": 3 }`
+
+### GET /api/me/recommendations
+Up to 6 channels. Tag-overlap scored against Slice 9 follows; falls back to top `playCount`.
+```json
+{ "recommendations": [{ "slug": "…", "title": "…", "_reason": "Because you follow Late Night House", …channel fields… }] }
+```
+
+### GET /api/me/follows
+Returns confirmed followed channel slugs (bridges Slice 9 Discord/email follows).
+```json
+{ "slugs": ["late-night-house"] }
+```
+
+### GET /api/me/channels
+Returns channels where the authenticated user is in `owner_ids`.
+```json
+{ "channels": [{ …channel dict… }] }
+```

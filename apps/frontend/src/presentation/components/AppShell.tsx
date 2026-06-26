@@ -3,6 +3,7 @@ import { Disc3 } from "lucide-react";
 import { GradientBackdrop } from "./GradientBackdrop";
 import { RightsNotice } from "@/features/channels/components/RightsNotice";
 import { CodeInput } from "./CodeInput";
+import { UserMenuIsland } from "./UserMenuIsland";
 
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -32,6 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               Browse channels
             </Link>
+            <UserMenuIsland />
           </nav>
         </div>
       </header>

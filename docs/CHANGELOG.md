@@ -2,6 +2,37 @@
 
 All notable changes to this project are documented here.
 
+## [0.16.0] — Slice 12: Logged-In Dashboard
+
+### Added
+- **`listen_events` collection** — `ListenEventDocument` (user_id optional, session_key, channel_slug, track_title, track_artist, started_at) · `SeedListenEventRepository` + `MongoListenEventRepository` · `ListenHistoryService`
+- **`channel_saves` collection** — `ChannelSaveDocument` · `SeedChannelSaveRepository` + `MongoChannelSaveRepository` (idempotent upsert)
+- **`notifications` collection** — `NotificationDocument` (type, channel_slug, title, body, link, read) · `SeedNotificationRepository` + `MongoNotificationRepository`
+- **`RecommendationService`** — tag-overlap scoring on genre + mood from Slice 9 follows; falls back to top play_count when no follows or no matches; excludes already-followed channels
+- **`get_optional_user`** FastAPI dependency (returns `None` instead of 401 — used by `POST /api/me/history`)
+- **`POST /api/me/history`** — record a listen event (anon via `session_key` or authenticated)
+- **`GET  /api/me/history`** — recent events + top_channel + last_channel (30-day window for top)
+- **`POST /api/me/history/merge`** — attribute anonymous events to the authenticated user
+- **`POST/DELETE/GET /api/me/saves/{slug}` / `/api/me/saves`** — idempotent save/unsave, list of saved slugs
+- **`GET /api/me/notifications`** — inbox with unread_count; unread-first ordering
+- **`PATCH /api/me/notifications/{id}`** — mark one notification read
+- **`POST /api/me/notifications/mark-all-read`** — bulk mark read
+- **`GET /api/me/recommendations`** — up to 6 tag-matched or top-play_count channels with optional `_reason` field
+- **`GET /api/me/follows`** — channel slugs from Slice 9 follow system bridged to me-namespace
+- **`GET /api/me/channels`** — owned channels for the creator panel
+- **`/home` page** — client-side authenticated dashboard: greeting + resume button, notifications with mark-all-read, followed channels, recently played, saved channels, recommendations, creator panel; redirects to `/` when unauthenticated
+- **`UserMenuIsland`** — client component in `AppShell` header; shows avatar/display name + unread notification badge when signed in, "Sign in" link otherwise; dropdown with Dashboard, Notifications, Sign out
+- **`ChannelCard`** — heart/save button with optimistic update; 401 redirects to sign-in; `initialSaved` prop for future server-side hydration
+- **`ChannelPlayer`** — fires `POST /api/me/history` on each new track via `lastListenKeyRef` guard (no duplicate fires on pause/resume)
+- **`SignInPanel`** — calls `mergeListenHistory(sessionKey)` after secret-based login success
+- **`meApi.ts`** — full me/* API client including `getOrCreateSessionKey()` localStorage helper
+- **20 backend tests** in `test_slice12.py`; all prior tests green (304 total)
+
+### Notes
+- Notification inbox is a stub — events are written by future services (Slice 8 artist reporting, admin broadcast). The inbox + badge plumbing is live.
+- Recommendations use Slice 9 follows (Discord/email) not a separate user-follow concept. If user has no confirmed Slice 9 follows, falls back to top play_count.
+- `ChannelCard` is now a client component (`"use client"`) for the save button.
+
 ## [0.15.0] — Slice 1C: Audio Visualizer
 
 ### Added

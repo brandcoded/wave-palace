@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { MessageSquare, Mail, KeyRound, CheckCircle } from "lucide-react";
 import { login, requestEmailLink, discordLoginUrl } from "@/features/admin/lib/adminApi";
+import { getOrCreateSessionKey, mergeListenHistory } from "@/features/me/lib/meApi";
 
 interface Props {
   onSuccess: () => void;
@@ -36,6 +37,8 @@ export function SignInPanel({ onSuccess }: Props) {
     setLoading(true);
     try {
       await login(secret);
+      const sk = getOrCreateSessionKey();
+      if (sk) mergeListenHistory(sk);
       onSuccess();
     } catch {
       setError("Incorrect secret.");

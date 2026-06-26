@@ -6,6 +6,7 @@ import { Play, Pause, Volume2, VolumeX, AlertTriangle, User, X } from "lucide-re
 import type { Sponsor, TrackItem } from "@/features/channels/types/channel";
 import { recordPlay, recordSponsorImpression, recordSponsorClick } from "@/features/channels/lib/channelApi";
 import { makeFollowCode } from "@/features/channels/lib/followCode";
+import { recordListenEvent, getOrCreateSessionKey } from "@/features/me/lib/meApi";
 import { useAudioVisualizer } from "@/features/channels/hooks/useAudioVisualizer";
 import type { VisualizerStyle, VisualizerTheme } from "@/features/channels/hooks/useAudioVisualizer";
 
@@ -38,8 +39,21 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
   const [volume, setVolume] = useState(0.8);
   const [errored, setErrored] = useState(false);
   const [sponsorDismissed, setSponsorDismissed] = useState(false);
+  const lastListenKeyRef = useRef<string | null>(null);
 
   useAudioVisualizer(audioRef, canvasRef, vizStyle, vizTheme, playing);
+
+  // Fire listen history when a new track starts playing.
+  useEffect(() => {
+    if (!playing) return;
+    const track = tracks[currentIndex];
+    if (!track) return;
+    const key = `${slug}:${currentIndex}:${track.title}`;
+    if (lastListenKeyRef.current === key) return;
+    lastListenKeyRef.current = key;
+    const sk = typeof window !== "undefined" ? getOrCreateSessionKey() : null;
+    recordListenEvent(slug, track.title || null, track.artist || null, sk);
+  }, [currentIndex, playing, slug, tracks]);
 
   const sponsorActive =
     sponsor != null &&

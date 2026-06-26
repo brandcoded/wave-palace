@@ -12,6 +12,7 @@ from app.api.routes import takedowns
 from app.api.routes import admin_analytics
 from app.api.routes import auth_user, admin_users
 from app.api.routes import host_invites
+from app.api.routes import me as me_routes
 from app.core.config import get_settings
 
 logging.basicConfig(level=logging.INFO)
@@ -63,6 +64,9 @@ app.include_router(admin_users.router)
 
 # Slice 11 — Host Onboarding & Ownership
 app.include_router(host_invites.router)
+
+# Slice 12 — Logged-In Dashboard
+app.include_router(me_routes.router)
 
 
 @app.get("/", tags=["system"])

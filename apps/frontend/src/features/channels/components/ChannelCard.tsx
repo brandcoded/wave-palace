@@ -1,6 +1,10 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import { Play, User } from "lucide-react";
+import { Heart, Play, User } from "lucide-react";
 import type { Channel } from "@/features/channels/types/channel";
+import { unsaveChannel } from "@/features/me/lib/meApi";
 
 const tagClass =
   "rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[11px] font-medium text-white/70";
@@ -14,8 +18,50 @@ const isFeaturedSponsor = (channel: Channel): boolean => {
   return true;
 };
 
-export function ChannelCard({ channel }: { channel: Channel }) {
+interface ChannelCardProps {
+  channel: Channel;
+  initialSaved?: boolean;
+}
+
+const API_BASE =
+  typeof process !== "undefined"
+    ? (process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "http://localhost:8000")
+    : "http://localhost:8000";
+
+export function ChannelCard({ channel, initialSaved = false }: ChannelCardProps) {
+  const [saved, setSaved] = useState(initialSaved);
+  const [savePending, setSavePending] = useState(false);
   const featured = isFeaturedSponsor(channel);
+
+  async function handleSaveToggle(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (savePending) return;
+    setSavePending(true);
+    const next = !saved;
+    setSaved(next); // optimistic
+    try {
+      if (next) {
+        const res = await fetch(`${API_BASE}/api/me/saves/${channel.slug}`, {
+          method: "POST",
+          credentials: "include",
+        });
+        if (res.status === 401) {
+          setSaved(false);
+          window.location.href = "/admin/login";
+          return;
+        }
+        if (!res.ok) setSaved(false);
+      } else {
+        await unsaveChannel(channel.slug);
+      }
+    } catch {
+      setSaved(!next);
+    } finally {
+      setSavePending(false);
+    }
+  }
+
   return (
     <Link
       href={`/channels/${channel.slug}`}
@@ -40,6 +86,17 @@ export function ChannelCard({ channel }: { channel: Channel }) {
               Sponsored
             </span>
           )}
+          <button
+            onClick={handleSaveToggle}
+            aria-label={saved ? "Unsave channel" : "Save channel"}
+            className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
+              saved
+                ? "bg-wave-500/80 text-white"
+                : "bg-black/40 text-white/50 opacity-0 group-hover:opacity-100 hover:text-white"
+            }`}
+          >
+            <Heart className="h-3.5 w-3.5" fill={saved ? "currentColor" : "none"} />
+          </button>
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-wave-500/90 text-white opacity-0 shadow-lg transition duration-300 group-hover:opacity-100">
             <Play className="h-4 w-4 translate-x-[1px]" fill="currentColor" />
           </div>

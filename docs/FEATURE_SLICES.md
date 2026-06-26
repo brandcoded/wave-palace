@@ -1291,7 +1291,48 @@ the channel (admin/music_director bypass). Slice 12 uses this on every host rout
 - [x] 19 backend tests (`test_slice11.py`); 251 total pass; TS clean
 - [x] Docs updated
 
-### Out of scope (→ Slice 12)
+### Out of scope (→ future)
 
 - `/host` dashboard route group, host-scoped channel edit, per-channel host analytics
 - `pendingReview` flag + `auto_publish=False` enforcement on host saves
+
+---
+
+## Slice 12 (COMPLETE — v0.16.0): Logged-In Dashboard
+
+As a signed-in user I have a personal home page at `/home` showing my listening
+history, saved channels, notification inbox, and tag-matched recommendations. The
+channel directory cards gain a heart/save button (optimistic, auth-gated). The
+header shows my avatar with an unread notification badge when I'm signed in.
+
+### What shipped
+
+**Backend** (all collections: `listen_events`, `channel_saves`, `notifications`):
+- `ListenEventDocument` + `ChannelSaveDocument` + `NotificationDocument` schemas in `schemas/me.py`
+- `ListenEventRepository`, `ChannelSaveRepository`, `NotificationRepository` — ABC + Seed + Mongo variants
+- `ListenHistoryService` — record, merge anonymous, get history (top_channel last 30 days, last_channel overall)
+- `RecommendationService` — tag-overlap scoring (genre + mood) against Slice 9 follows; falls back to top playCount; excludes already-followed channels
+- `get_optional_user` FastAPI dep — returns `None` instead of 401 (used by `POST /api/me/history`)
+- 10 new API endpoints: `POST/GET /api/me/history`, `POST /api/me/history/merge`, `POST/DELETE/GET /api/me/saves/{slug}` and `/api/me/saves`, `GET/PATCH /api/me/notifications`, `POST /api/me/notifications/mark-all-read`, `GET /api/me/recommendations`, `GET /api/me/follows`, `GET /api/me/channels`
+- 20 backend tests in `test_slice12.py`; 304 total; TS clean
+
+**Frontend**:
+- `meApi.ts` — full me/* API client + `getOrCreateSessionKey()` localStorage helper
+- `/home` page — client component; unauthenticated redirects to `/`; sections: greeting + resume button, notifications (mark-all-read), followed channels, recently played, saved channels, recommendations (with reason), creator panel (owned channels → admin edit link)
+- `UserMenuIsland` — client component added to `AppShell` header; avatar + display name + unread badge; dropdown: Dashboard, Notifications, Sign out
+- `ChannelCard` — converted to `"use client"`, heart/save button with optimistic toggle; 401 redirects to sign-in; `initialSaved` prop
+- `ChannelPlayer` — fires `recordListenEvent` on each new track via `lastListenKeyRef` guard
+- `SignInPanel` — calls `mergeListenHistory(sessionKey)` after secret login success
+
+### Done criteria
+
+- [x] Anonymous listen events tracked by `session_key` (localStorage `wp_listen_session`)
+- [x] Authenticated events linked to `user_id`
+- [x] Post-login merge attributes anonymous events to user
+- [x] Saves are idempotent (no duplicates); unsave is a no-op if not saved
+- [x] Notification inbox stub wired; ready for Slice 8 / admin broadcast to push events
+- [x] Recommendations exclude followed channels; fall back to play_count
+- [x] `/home` redirects unauthenticated visitors to `/`
+- [x] Header shows "Sign in" link when logged out, user menu when logged in
+- [x] ChannelCard heart button: optimistic, auth-gate redirect, no navigation on click
+- [x] 20 backend tests; TS clean; no regressions (304 total)
