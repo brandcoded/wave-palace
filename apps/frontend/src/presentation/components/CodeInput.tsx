@@ -35,7 +35,7 @@ export function CodeInput() {
         placeholder="ENTER CODE"
         aria-label="Enter channel code"
         className={[
-          "w-28 rounded-full border bg-white/5 px-3 py-1.5 text-center text-xs font-mono font-semibold tracking-widest text-white/80 outline-none transition placeholder:text-white/30",
+          "w-24 sm:w-28 rounded-full border bg-white/5 px-3 py-1.5 text-center text-xs font-mono font-semibold tracking-widest text-white/80 outline-none transition placeholder:text-white/30",
           error
             ? "border-red-500/60 focus:border-red-400"
             : "border-white/10 focus:border-wave-400/60",
