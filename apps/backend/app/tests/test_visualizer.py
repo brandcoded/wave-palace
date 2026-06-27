@@ -136,19 +136,21 @@ def test_normalize_taxonomy_preserves_existing_visualizer():
 # ---------------------------------------------------------------------------
 
 
-def test_build_image_mux_cmd_waveform_viz_includes_showwaves():
+def test_build_image_mux_cmd_waveform_viz_uses_showfreqs_line():
     from app.services.mux_service import _build_image_mux_cmd
 
     cmd = _build_image_mux_cmd(
         Path("/tmp/c.jpg"), [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"), 300.0,
-        viz_style="waveform",
+        viz_style="waveform", viz_theme="violet",
     )
     fc = cmd[cmd.index("-filter_complex") + 1]
-    assert "showwaves" in fc
+    assert "showfreqs" in fc
+    assert "mode=line" in fc
     assert "asplit=2" in fc
     assert "overlay" in fc
     assert "[final_v]" in fc
     assert "[aout_play]" in fc
+    assert "showwaves" not in fc
 
 
 def test_build_image_mux_cmd_bars_viz_includes_showfreqs():
@@ -156,23 +158,26 @@ def test_build_image_mux_cmd_bars_viz_includes_showfreqs():
 
     cmd = _build_image_mux_cmd(
         Path("/tmp/c.jpg"), [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"), 300.0,
-        viz_style="bars",
+        viz_style="bars", viz_theme="teal",
     )
     fc = cmd[cmd.index("-filter_complex") + 1]
     assert "showfreqs" in fc
+    assert "mode=bar" in fc
 
 
-def test_build_image_mux_cmd_circular_viz_includes_avectorscope():
-    from app.services.mux_service import _build_image_mux_cmd
+def test_build_image_mux_cmd_circular_viz_uses_showcqt_not_avectorscope():
+    from app.services.mux_service import _build_image_mux_cmd, _VIZ_POSITION
 
     cmd = _build_image_mux_cmd(
         Path("/tmp/c.jpg"), [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"), 300.0,
-        viz_style="circular",
+        viz_style="circular", viz_theme="violet",
     )
     fc = cmd[cmd.index("-filter_complex") + 1]
-    assert "avectorscope" in fc
-    # Circular overlay is centered, not at bottom
-    assert "490:210" in fc
+    assert "showcqt" in fc
+    # Must use uniform bottom-strip position, not the old centered avectorscope pos
+    assert f"overlay={_VIZ_POSITION}" in fc
+    assert "avectorscope" not in fc
+    assert "490:210" not in fc
 
 
 def test_build_image_mux_cmd_viz_none_no_asplit():
@@ -198,11 +203,11 @@ def test_build_image_mux_cmd_viz_with_overlay_combines_both(tmp_path):
     overlay = _drawtext_overlay("Title", "Host", "Genre", "Mood", str(font))
     cmd = _build_image_mux_cmd(
         Path("/tmp/c.jpg"), [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"), 300.0,
-        overlay=overlay, viz_style="waveform",
+        overlay=overlay, viz_style="waveform", viz_theme="violet",
     )
     fc = cmd[cmd.index("-filter_complex") + 1]
     assert "drawtext" in fc
-    assert "showwaves" in fc
+    assert "showfreqs" in fc
     assert "[final_v]" in fc
 
 
@@ -211,17 +216,19 @@ def test_build_image_mux_cmd_viz_with_overlay_combines_both(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_build_video_mux_cmd_waveform_viz_includes_showwaves():
+def test_build_video_mux_cmd_waveform_viz_uses_showfreqs():
     from app.services.mux_service import _build_video_mux_cmd
 
     cmd = _build_video_mux_cmd(
         Path("/tmp/seg.mp4"), 31, [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"), 300.0,
-        viz_style="waveform",
+        viz_style="waveform", viz_theme="rose",
     )
     fc = cmd[cmd.index("-filter_complex") + 1]
-    assert "showwaves" in fc
+    assert "showfreqs" in fc
+    assert "mode=line" in fc
     assert "asplit=2" in fc
     assert "[final_v]" in fc
+    assert "showwaves" not in fc
     # viz-only re-encodes (no stream copy)
     assert cmd[cmd.index("-c:v") + 1] == "libx264"
 
@@ -236,12 +243,14 @@ def test_build_video_mux_cmd_no_viz_stream_copy():
 
 
 def test_build_video_mux_cmd_terrain_bottom_overlay():
-    from app.services.mux_service import _build_video_mux_cmd
+    from app.services.mux_service import _build_video_mux_cmd, _VIZ_POSITION
 
     cmd = _build_video_mux_cmd(
         Path("/tmp/seg.mp4"), 31, [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"), 300.0,
-        viz_style="terrain",
+        viz_style="terrain", viz_theme="ember",
     )
     fc = cmd[cmd.index("-filter_complex") + 1]
-    assert "showwaves" in fc
-    assert "0:600" in fc  # bottom strip position
+    assert "showfreqs" in fc
+    assert "mode=bar2" in fc
+    assert f"overlay={_VIZ_POSITION}" in fc
+    assert "showwaves" not in fc

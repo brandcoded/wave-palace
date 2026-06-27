@@ -350,3 +350,142 @@ def test_build_video_mux_cmd_streamloops_segment():
 
     assert cmd[cmd.index("-stream_loop") + 1] == "31"
     assert cmd[cmd.index("-t") + 1] == "889.600"
+
+
+# ---------------------------------------------------------------------------
+# Visualizer filter unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_viz_filter_none_returns_none():
+    from app.services.mux_service import _viz_filter
+
+    assert _viz_filter("none", "violet") is None
+    assert _viz_filter("", "teal") is None
+    assert _viz_filter("unknown_style", "rose") is None
+
+
+def test_viz_filter_bars_uses_showfreqs_log():
+    from app.services.mux_service import _viz_filter
+
+    f = _viz_filter("bars", "violet")
+    assert f is not None
+    assert "showfreqs" in f
+    assert "fscale=log" in f
+    assert "mode=bar" in f
+    # No legacy filters
+    assert "showwaves" not in f
+    assert "avectorscope" not in f
+
+
+def test_viz_filter_terrain_uses_showfreqs_bar2():
+    from app.services.mux_service import _viz_filter
+
+    f = _viz_filter("terrain", "teal")
+    assert f is not None
+    assert "showfreqs" in f
+    assert "mode=bar2" in f
+    assert "showwaves" not in f
+
+
+def test_viz_filter_waveform_uses_showfreqs_line():
+    from app.services.mux_service import _viz_filter
+
+    f = _viz_filter("waveform", "ember")
+    assert f is not None
+    assert "showfreqs" in f
+    assert "mode=line" in f
+    # Must NOT use showwaves (old implementation)
+    assert "showwaves" not in f
+
+
+def test_viz_filter_blob_uses_showcqt():
+    from app.services.mux_service import _viz_filter
+
+    f = _viz_filter("blob", "rose")
+    assert f is not None
+    assert "showcqt" in f
+    assert "colorchannelmixer" in f
+    assert "avectorscope" not in f
+
+
+def test_viz_filter_circular_uses_showcqt():
+    from app.services.mux_service import _viz_filter
+
+    f = _viz_filter("circular", "ice")
+    assert f is not None
+    assert "showcqt" in f
+    assert "colorchannelmixer" in f
+    assert "avectorscope" not in f
+
+
+def test_viz_filter_theme_changes_filter_content():
+    """Different themes must produce different filter strings (color is honored)."""
+    from app.services.mux_service import _viz_filter
+
+    violet = _viz_filter("bars", "violet")
+    teal   = _viz_filter("bars", "teal")
+    ember  = _viz_filter("bars", "ember")
+    assert violet != teal
+    assert teal != ember
+    # Theme color hex must appear in the filter string
+    assert "0xa78bfa" in violet
+    assert "0x2dd4bf" in teal
+    assert "0xfb923c" in ember
+
+
+def test_viz_filter_all_styles_produce_1280x120():
+    """Every non-none style must request a 1280×120 output."""
+    from app.services.mux_service import _viz_filter
+
+    for style in ("bars", "terrain", "waveform", "blob", "circular"):
+        f = _viz_filter(style, "violet")
+        assert f is not None, f"Expected filter for style={style!r}"
+        assert "1280x120" in f, f"Expected 1280x120 in filter for style={style!r}"
+
+
+def test_build_image_mux_cmd_viz_overlays_at_consistent_position():
+    from app.services.mux_service import _build_image_mux_cmd, _VIZ_POSITION
+
+    for style in ("bars", "terrain", "waveform", "blob", "circular"):
+        cmd = _build_image_mux_cmd(
+            Path("/tmp/c.jpg"), [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"),
+            300.0, viz_style=style, viz_theme="violet",
+        )
+        fc = cmd[cmd.index("-filter_complex") + 1]
+        assert f"overlay={_VIZ_POSITION}" in fc, f"Expected overlay at {_VIZ_POSITION} for {style!r}"
+        # All styles should be a bottom strip — old circular was 490:210
+        assert "490:210" not in fc
+
+
+def test_build_image_mux_cmd_viz_no_legacy_filters():
+    """No old showwaves / avectorscope must appear in any mux command."""
+    from app.services.mux_service import _build_image_mux_cmd
+
+    for style in ("bars", "terrain", "waveform", "blob", "circular"):
+        cmd = _build_image_mux_cmd(
+            Path("/tmp/c.jpg"), [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"),
+            300.0, viz_style=style, viz_theme="teal",
+        )
+        cmd_str = " ".join(cmd)
+        assert "showwaves" not in cmd_str, f"showwaves found for style={style!r}"
+        assert "avectorscope" not in cmd_str, f"avectorscope found for style={style!r}"
+
+
+def test_build_video_mux_cmd_viz_theme_honored():
+    """viz_theme must influence the filter_complex content."""
+    from app.services.mux_service import _build_video_mux_cmd
+
+    cmd_violet = _build_video_mux_cmd(
+        Path("/tmp/seg.mp4"), 5, [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"),
+        300.0, viz_style="bars", viz_theme="violet",
+    )
+    cmd_ember = _build_video_mux_cmd(
+        Path("/tmp/seg.mp4"), 5, [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"),
+        300.0, viz_style="bars", viz_theme="ember",
+    )
+    fc_violet = cmd_violet[cmd_violet.index("-filter_complex") + 1]
+    fc_ember  = cmd_ember[cmd_ember.index("-filter_complex") + 1]
+    assert fc_violet != fc_ember
+    assert "0xa78bfa" in fc_violet
+    assert "0xfb923c" in fc_ember

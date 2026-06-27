@@ -363,15 +363,6 @@ export default function HomePage() {
             Your sound: <span className="text-wave-300/70">{tasteReflection}</span>
           </p>
         )}
-        {history.last_channel && (
-          <Link
-            href={`/channels/${history.last_channel}?autoplay=1`}
-            className="mt-5 inline-flex items-center gap-2 rounded-full bg-wave-500/20 px-5 py-2.5 text-sm font-semibold text-wave-300 transition hover:bg-wave-500/30"
-          >
-            <Play className="h-4 w-4" fill="currentColor" />
-            Resume listening
-          </Link>
-        )}
       </section>
 
       <div className="grid gap-8 lg:grid-cols-2">

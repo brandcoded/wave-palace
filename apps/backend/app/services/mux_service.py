@@ -151,24 +151,65 @@ def _drawtext_overlay(
 
 
 # ---------------------------------------------------------------------------
-# Visualizer filter constants (VRChat mux only — always white at 70% opacity)
+# Visualizer filter helpers (VRChat mux — audioMotion-style log-freq spectrum)
 # ---------------------------------------------------------------------------
 
-_VIZ_FILTER: dict[str, str] = {
-    "waveform": "showwaves=s=1280x120:mode=line:colors=White@0.7",
-    "bars":     "showfreqs=s=1280x120:mode=bar:colors=White@0.7",
-    "blob":     "showwaves=s=1280x120:mode=p2p:colors=White@0.7",
-    "terrain":  "showwaves=s=1280x120:mode=cline:colors=White@0.7",
-    "circular": "avectorscope=s=300x300:zoom=1.5:rc=200:gc=200:bc=200",
+# All visualizer styles composite into a uniform full-width 1280×120 strip
+# placed at the bottom of the 720p canvas (y = 720 - 120 = 600).
+_VIZ_POSITION = "0:600"
+
+# Theme name → hex RGB color used by the FFmpeg filter.
+_THEME_COLOR: dict[str, str] = {
+    "violet":    "0xa78bfa",
+    "teal":      "0x2dd4bf",
+    "ember":     "0xfb923c",
+    "rose":      "0xfb7185",
+    "ice":       "0xbae6fd",
+    # "frequency" is a per-bin gradient in the browser; mux uses a neutral green.
+    "frequency": "0x22c55e",
 }
 
-_VIZ_OVERLAY_POS: dict[str, str] = {
-    "waveform": "0:600",
-    "bars":     "0:600",
-    "blob":     "0:600",
-    "terrain":  "0:600",
-    "circular": "490:210",
-}
+
+def _hex_to_rgb_normalized(hex_str: str) -> tuple[float, float, float]:
+    """Convert '0xrrggbb' to normalized (r, g, b) floats in [0, 1]."""
+    h = hex_str.replace("0x", "").replace("#", "")
+    return int(h[0:2], 16) / 255, int(h[2:4], 16) / 255, int(h[4:6], 16) / 255
+
+
+def _viz_filter(style: str, theme: str) -> str | None:
+    """Return an FFmpeg lavfi filter string for *style* + *theme*.
+
+    All returned filters produce a 1280×120 output, intended to be composited
+    at _VIZ_POSITION.  Returns None for style "none" or unknown values so
+    callers can skip the overlay entirely without branching on string values.
+
+    Styles map to log-frequency spectrum filters (showfreqs / showcqt) that
+    closely match the web audioMotion-analyzer aesthetic.  The *theme* color
+    is applied via filter parameters so the admin's theme picker is reflected
+    in the VRChat video.
+    """
+    if not style or style == "none":
+        return None
+    color = _THEME_COLOR.get(theme, _THEME_COLOR["violet"])
+    if style == "bars":
+        # Vertical log-freq bars — matches audioMotion bar mode.
+        return f"showfreqs=s=1280x120:mode=bar:fscale=log:ascale=log:colors={color}@0.85"
+    if style == "terrain":
+        # Center-filled bars — terrain / mirror-bar variant.
+        return f"showfreqs=s=1280x120:mode=bar2:fscale=log:ascale=log:colors={color}@0.70"
+    if style == "waveform":
+        # Log-frequency line spectrum — audioMotion line mode.
+        return f"showfreqs=s=1280x120:mode=line:fscale=log:ascale=log:colors={color}@0.80"
+    if style in ("blob", "circular"):
+        # CQT spectrum tinted to the theme color via colorchannelmixer.  Both
+        # blob and circular map to a bottom strip since FFmpeg has no native
+        # circular spectrum mode; showcqt gives smooth log-bin bars.
+        r, g, b = _hex_to_rgb_normalized(color)
+        return (
+            f"showcqt=s=1280x120:bar_g=2:count=1:tc=0.33,"
+            f"colorchannelmixer=rr={r:.3f}:gg={g:.3f}:bb={b:.3f}"
+        )
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -193,12 +234,14 @@ def _build_image_mux_cmd(
     total_duration: float,
     overlay: str = "",
     viz_style: str = "none",
+    viz_theme: str = "violet",
 ) -> list[str]:
     """Loop a still image at 1 fps over the concatenated playlist audio.
 
     *overlay* is a comma-joined drawtext filter chain (static + time-windowed)
     appended after the scale/pad chain so text is burned into every frame.
-    *viz_style* adds an audio-reactive FFmpeg filter overlaid at the bottom.
+    *viz_style* + *viz_theme* add an audio-reactive FFmpeg filter overlaid at
+    the bottom of the frame.
     """
     cmd: list[str] = ["ffmpeg", "-y", "-loop", "1", "-framerate", "1", "-i", str(cover)]
     for a in audios:
@@ -207,15 +250,14 @@ def _build_image_mux_cmd(
     vf_chain = f"{_VIDEO_FILTER},{overlay}" if overlay else _VIDEO_FILTER
     audio_part = _audio_concat_filter(len(audios))
 
-    if viz_style and viz_style != "none" and viz_style in _VIZ_FILTER:
-        viz_f = _VIZ_FILTER[viz_style]
-        pos = _VIZ_OVERLAY_POS[viz_style]
+    viz_f = _viz_filter(viz_style, viz_theme)
+    if viz_f is not None:
         filter_complex = (
             f"[0:v]{vf_chain}[vout];"
             f"{audio_part};"
             f"[aout]asplit=2[aout_play][aout_viz];"
             f"[aout_viz]{viz_f}[vizout];"
-            f"[vout][vizout]overlay={pos}[final_v]"
+            f"[vout][vizout]overlay={_VIZ_POSITION}[final_v]"
         )
         vid_map, aud_map = "[final_v]", "[aout_play]"
     else:
@@ -269,30 +311,30 @@ def _build_video_mux_cmd(
     total_duration: float,
     overlay: str = "",
     viz_style: str = "none",
+    viz_theme: str = "violet",
 ) -> list[str]:
     """Stream-loop the pre-encoded *segment* and mux with concatenated audio.
 
     When *overlay* is provided the video is re-encoded (libx264 ultrafast) so
     the drawtext filter chain — including time-windowed per-track now-playing
     entries — is burned in.  Without overlay the video is stream-copied (zero
-    re-encode cost).  *viz_style* adds an audio-reactive FFmpeg filter overlay.
+    re-encode cost).  *viz_style* + *viz_theme* add an audio-reactive FFmpeg
+    filter overlay at the bottom of the frame.
     """
     cmd: list[str] = ["ffmpeg", "-y", "-stream_loop", str(repeats), "-i", str(segment)]
     for a in audios:
         cmd += ["-i", str(a)]
 
-    use_viz = viz_style and viz_style != "none" and viz_style in _VIZ_FILTER
+    viz_f = _viz_filter(viz_style, viz_theme)
     audio_part = _audio_concat_filter(len(audios))
 
-    if overlay and use_viz:
-        viz_f = _VIZ_FILTER[viz_style]
-        pos = _VIZ_OVERLAY_POS[viz_style]
+    if overlay and viz_f is not None:
         filter_complex = (
             f"[0:v]{overlay}[vout];"
             f"{audio_part};"
             f"[aout]asplit=2[aout_play][aout_viz];"
             f"[aout_viz]{viz_f}[vizout];"
-            f"[vout][vizout]overlay={pos}[final_v]"
+            f"[vout][vizout]overlay={_VIZ_POSITION}[final_v]"
         )
         cmd += [
             "-filter_complex", filter_complex,
@@ -318,14 +360,12 @@ def _build_video_mux_cmd(
             "-movflags", "+faststart",
             str(output),
         ]
-    elif use_viz:
-        viz_f = _VIZ_FILTER[viz_style]
-        pos = _VIZ_OVERLAY_POS[viz_style]
+    elif viz_f is not None:
         filter_complex = (
             f"{audio_part};"
             f"[aout]asplit=2[aout_play][aout_viz];"
             f"[aout_viz]{viz_f}[vizout];"
-            f"[0:v][vizout]overlay={pos}[final_v]"
+            f"[0:v][vizout]overlay={_VIZ_POSITION}[final_v]"
         )
         cmd += [
             "-filter_complex", filter_complex,
@@ -478,6 +518,7 @@ class MuxService:
             )
 
             viz_style: str = channel.get("visualizer_style") or "none"
+            viz_theme: str = channel.get("visualizer_theme") or "violet"
 
             if cover_path.suffix.lower() in _VIDEO_EXTS:
                 # Encode raw normalized segment (no overlay — overlay goes in
@@ -490,12 +531,12 @@ class MuxService:
                 repeats = math.ceil(total_duration / seg_duration) + 1
                 cmd = _build_video_mux_cmd(
                     seg_path, repeats, audio_paths, output_path, total_duration,
-                    overlay=overlay, viz_style=viz_style,
+                    overlay=overlay, viz_style=viz_style, viz_theme=viz_theme,
                 )
             else:
                 cmd = _build_image_mux_cmd(
                     cover_path, audio_paths, output_path, total_duration,
-                    overlay=overlay, viz_style=viz_style,
+                    overlay=overlay, viz_style=viz_style, viz_theme=viz_theme,
                 )
 
             logger.info("Running: %s", " ".join(cmd))
