@@ -162,6 +162,48 @@ systemctl status ffmpeg-channel@late-night-house
 
 ---
 
+## CORS config for audio visualizer (Slice 1C)
+
+The web audio visualizer (Slice 1C) uses the Web Audio API to tap the live stream for
+real-time frequency data. The browser requires CORS headers on the `.ts` stream responses
+or it silently blocks `createMediaElementSource()`.
+
+Add the following to the nginx config that fronts SRS (or directly in the SRS HTTP server
+config if nginx is not used):
+
+```nginx
+location /live/ {
+    add_header Access-Control-Allow-Origin "https://wavepalace.live";
+    add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS";
+    add_header Access-Control-Allow-Headers "*";
+    proxy_pass http://127.0.0.1:8080;
+}
+```
+
+Or if running SRS directly on port 8080 without nginx, add to `/etc/srs/srs.conf`:
+
+```
+http_server {
+    enabled on;
+    listen 8080;
+    dir ./objs/nginx/html;
+    cross_domains *;
+}
+```
+
+The `<audio>` element in the web player already has `crossOrigin="anonymous"` (added in
+Slice 1C). Without the server-side CORS header, the visualizer canvas goes dark but audio
+still plays — graceful degradation is built in.
+
+**Smoke test for visualizer CORS:**
+```bash
+curl -I -H "Origin: https://wavepalace.live" \
+  https://stream.wavepalace.live/live/<slug>.ts | grep -i access-control
+```
+Should return `Access-Control-Allow-Origin: https://wavepalace.live`.
+
+---
+
 ## Smoke test checklist
 
 Run all checks after provisioning. Slice 4 code can begin once these pass.
@@ -172,6 +214,7 @@ Run all checks after provisioning. Slice 4 code can begin once these pass.
 - [ ] HTTP-TS stream reachable from VPS: `curl -I https://stream.wavepalace.live/live/<slug>.ts` → 200
 - [ ] Stream plays in VLC: `vlc https://stream.wavepalace.live/live/<slug>.ts`
 - [ ] Stream plays in VRChat test world — video visible, audio audible, no disconnect
+- [ ] CORS headers present on `.ts` responses (visualizer requirement — see section above)
 
 ---
 

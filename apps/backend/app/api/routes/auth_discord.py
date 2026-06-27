@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 
 from app.api.dependencies import get_auth_service, get_follow_service
+from app.core.config import get_settings
 from app.schemas.follow import FollowSubmitRequest
 from app.services.auth_service import AuthService
 from app.services.follow_service import FollowService
@@ -77,10 +78,48 @@ async def discord_initiate(
         "client_id": client_id,
         "redirect_uri": redirect_uri,
         "response_type": "code",
-        "scope": "identify",
+        "scope": "identify guilds.join",
         "state": state,
     })
     return RedirectResponse(url=f"https://discord.com/oauth2/authorize?{params}")
+
+
+async def _add_user_to_guild(
+    http_client: httpx.AsyncClient,
+    guild_id: str,
+    discord_user_id: str,
+    bot_token: str,
+    user_access_token: str,
+) -> None:
+    """PUT the user into the WavePalace Discord server so bot DMs work.
+
+    201 = newly added, 204 = already a member — both are success.
+    All failures are logged as warnings and swallowed so the follow
+    never breaks due to a guild-join error.
+    """
+    url = f"https://discord.com/api/v10/guilds/{guild_id}/members/{discord_user_id}"
+    try:
+        res = await http_client.put(
+            url,
+            json={"access_token": user_access_token},
+            headers={
+                "Authorization": f"Bot {bot_token}",
+                "Content-Type": "application/json",
+            },
+        )
+        if res.status_code not in (201, 204):
+            logger.warning(
+                "Discord guild-join failed for user %s: HTTP %s — %s",
+                discord_user_id,
+                res.status_code,
+                res.text[:200],
+            )
+    except Exception:
+        logger.warning(
+            "Discord guild-join request raised an exception for user %s",
+            discord_user_id,
+            exc_info=True,
+        )
 
 
 @router.get("/callback")
@@ -129,6 +168,24 @@ async def discord_callback(
         f"https://cdn.discordapp.com/avatars/{discord_user_id}/{avatar_hash}.png"
         if avatar_hash else None
     )
+
+    # Auto-add the user to the WavePalace server so bot DMs always work.
+    # Requires DISCORD_GUILD_ID + the bot already being a member of that server.
+    settings = get_settings()
+    if settings.discord_guild_id and settings.discord_bot_token:
+        async with httpx.AsyncClient() as guild_client:
+            await _add_user_to_guild(
+                guild_client,
+                guild_id=settings.discord_guild_id,
+                discord_user_id=discord_user_id,
+                bot_token=settings.discord_bot_token,
+                user_access_token=access_token,
+            )
+    else:
+        logger.debug(
+            "DISCORD_GUILD_ID or DISCORD_BOT_TOKEN not set — skipping guild auto-join for user %s",
+            discord_user_id,
+        )
 
     frontend_origin = (
         os.getenv("FRONTEND_ORIGIN", "http://localhost:3000").split(",")[0].strip()

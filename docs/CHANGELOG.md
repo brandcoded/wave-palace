@@ -2,6 +2,33 @@
 
 All notable changes to this project are documented here.
 
+## [0.17.2] — Discord guild-join on OAuth callback
+
+### Added
+- **Auto-join guild on Discord OAuth** — `/api/auth/discord/callback` now PUTs the user into the WavePalace Discord server immediately after token exchange using the `guilds.join` scope + Discord Add Guild Member API; fixes `50278 "Cannot send messages to this user due to having no mutual guilds"` DM errors
+- **New env var `DISCORD_GUILD_ID`** — Discord server snowflake ID; when set alongside `DISCORD_BOT_TOKEN`, the bot adds followers automatically; silently skipped when either is absent
+- **Graceful degradation** — all guild-join failures (HTTP non-2×× or network error) are logged as warnings and never propagate to the user; the follow flow completes regardless
+- **OAuth scope update** — `/initiate` now requests `"identify guilds.join"` (was `"identify"`)
+- **9 backend tests** (`test_discord_guild_join.py`); 339 total passing
+
+### Deployment
+- Add `DISCORD_GUILD_ID=<server_snowflake>` to the backend env on Render
+- The bot (`DISCORD_BOT_TOKEN`) must already be a member of that server with **Create Instant Invite** permission
+
+## [0.17.1] — Slice 13 add-on: Public Metrics Display
+
+### Added
+- **Channel schema** — `follower_count`, `listener_count`, `worlds_count` (stub 0), `trending` (stub false) fields on `Channel` Pydantic model and TypeScript type
+- **`active_listener_count(slug)`** — counts unique IPs in `_PLAY_CACHE` within a 15-minute window; module-level function in `channel_service.py`
+- **Directory enrichment** — `GET /api/channels` uses `asyncio.gather` to fetch parallel follower counts and injects `listener_count` / `follower_count` into all returned channels; `GET /api/channels/{slug}` does the same for single-channel detail
+- **`metrics.ts`** — threshold-based display utilities (`displayFollowerCount`, `displayPlayCount`, `displayListenerCount`, `displayWorldsCount`); returns `null` below credibility threshold so components never show zeros
+- **ChannelCard metric row** — live green dot + listener count · play count · follower count; Trending badge in chip row (rendered when `trending: true`)
+- **ChannelPlayer overlay metrics** — listener count, follower count, worlds count below host name line
+- **ChannelGrid 60s polling** — `setInterval` updates `listener_count` and `follower_count` only while tab is visible; silent on error
+- **Taste reflection on `/home`** — "Your sound: X · Y · Z" computed from listen history × channel genre/mood tags; requires ≥2 distinct tags
+- **"Early listener" badge on `/follows`** — amber chip shown when the user followed within 90 days of the channel's creation (`channel_created_at` on `FollowPublicView`)
+- **9 backend tests** (`test_public_metrics.py`); 330 total passing
+
 ## [0.17.0] — Slice 13: Notification System
 
 ### Added

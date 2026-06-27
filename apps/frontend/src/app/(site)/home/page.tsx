@@ -8,12 +8,14 @@ import {
   BookmarkCheck,
   ChevronRight,
   Heart,
+  Pause,
   Play,
   Radio,
   Sparkles,
   User,
 } from "lucide-react";
 import { relativeTime } from "@/lib/relativeTime";
+import { useAudioPlayer } from "@/features/player/context/AudioPlayerContext";
 import {
   getHistory,
   getMe,
@@ -40,6 +42,30 @@ const tagClass =
   "rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/60";
 
 function MiniChannelCard({ channel, reason }: { channel: Channel; reason?: string | null }) {
+  const player = useAudioPlayer();
+  const isActive = player.channelSlug === channel.slug;
+  const isPlaying = isActive && player.isPlaying;
+
+  function handlePlay(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isPlaying) {
+      player.pause();
+    } else {
+      const tracks = channel.playlist?.length
+        ? channel.playlist.map((t) => ({ url: t.url, title: t.title, artist: t.artist }))
+        : [{ url: channel.audioUrl, title: null, artist: null }];
+      player.playChannel({
+        channelSlug: channel.slug,
+        channelName: channel.title,
+        channelUrl: `/channels/${channel.slug}`,
+        coverImageUrl: channel.coverImageUrl,
+        tracks,
+        startIndex: 0,
+      });
+    }
+  }
+
   return (
     <Link
       href={`/channels/${channel.slug}`}
@@ -58,7 +84,17 @@ function MiniChannelCard({ channel, reason }: { channel: Channel; reason?: strin
           {reason ? <span className="ml-1 text-wave-400"> · {reason}</span> : null}
         </p>
       </div>
-      <Play className="h-4 w-4 shrink-0 text-white/30 transition group-hover:text-wave-400" />
+      <button
+        onClick={handlePlay}
+        aria-label={isPlaying ? `Pause ${channel.title}` : `Play ${channel.title}`}
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition text-white/30 group-hover:text-wave-400 hover:bg-white/10 active:scale-95"
+      >
+        {isPlaying ? (
+          <Pause className="h-4 w-4 fill-current" />
+        ) : (
+          <Play className="h-4 w-4 fill-current" />
+        )}
+      </button>
     </Link>
   );
 }
@@ -147,6 +183,7 @@ export default function HomePage() {
   const [savedChannels, setSavedChannels] = useState<Channel[]>([]);
   const [ownedChannels, setOwnedChannels] = useState<Channel[]>([]);
   const [followerCounts, setFollowerCounts] = useState<Record<string, number>>({});
+  const [allChannels, setAllChannels] = useState<Channel[]>([]);
   const [loadError, setLoadError] = useState(false);
   const mergedRef = useRef(false);
 
@@ -202,6 +239,7 @@ export default function HomePage() {
 
         const bySlug = new Map(channels.map((c) => [c.slug, c]));
 
+        setAllChannels(channels);
         setFollowedChannels(
           followedSlugs.flatMap((s) => { const c = bySlug.get(s); return c ? [c] : []; }),
         );
@@ -285,6 +323,23 @@ export default function HomePage() {
   const recentEvents = history.recent.slice(0, 8);
   const unreadNotifs = notifs.notifications.filter((n) => !n.read);
 
+  // Taste reflection: top 3 tags from the user's most-listened channels.
+  const tasteReflection = (() => {
+    if (history.recent.length === 0 || allChannels.length === 0) return null;
+    const bySlug = new Map(allChannels.map((c) => [c.slug, c]));
+    const tagCounts = new Map<string, number>();
+    for (const event of history.recent) {
+      const ch = bySlug.get(event.channel_slug);
+      if (!ch) continue;
+      for (const tag of [...(ch.genre ?? []), ...(ch.mood ?? [])]) {
+        tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+      }
+    }
+    const sorted = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t);
+    if (sorted.length < 2) return null;
+    return sorted.slice(0, 3).join(" · ");
+  })();
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-12">
       {loadError && (
@@ -303,9 +358,14 @@ export default function HomePage() {
           {greeting(user!.display_name.split(" ")[0])}
         </h1>
         <p className="text-white/45">Your personal radio dashboard.</p>
+        {tasteReflection && (
+          <p className="mt-1 text-sm text-white/35">
+            Your sound: <span className="text-wave-300/70">{tasteReflection}</span>
+          </p>
+        )}
         {history.last_channel && (
           <Link
-            href={`/channels/${history.last_channel}`}
+            href={`/channels/${history.last_channel}?autoplay=1`}
             className="mt-5 inline-flex items-center gap-2 rounded-full bg-wave-500/20 px-5 py-2.5 text-sm font-semibold text-wave-300 transition hover:bg-wave-500/30"
           >
             <Play className="h-4 w-4" fill="currentColor" />

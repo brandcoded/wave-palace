@@ -6,11 +6,13 @@ the ChannelService.
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.api.dependencies import get_channel_service, get_follow_service
 from app.schemas.channel import Channel
-from app.services.channel_service import ChannelService
+from app.services.channel_service import ChannelService, active_listener_count
 from app.services.follow_service import FollowService
 
 router = APIRouter(prefix="/api/channels", tags=["channels"])
@@ -26,21 +28,39 @@ async def list_channels(
     energy: str | None = Query(default=None),
     theme: str | None = Query(default=None),
     service: ChannelService = Depends(get_channel_service),
+    follow_svc: FollowService = Depends(get_follow_service),
 ) -> list[Channel]:
-    return await service.list_published(
+    channels = await service.list_published(
         genre=genre, mood=mood, energy=energy, theme=theme
     )
+    if channels:
+        follower_counts = await asyncio.gather(
+            *[follow_svc.get_follower_count(c.slug) for c in channels]
+        )
+        channels = [
+            c.model_copy(update={
+                "follower_count": fc,
+                "listener_count": active_listener_count(c.slug),
+            })
+            for c, fc in zip(channels, follower_counts)
+        ]
+    return channels
 
 
 @router.get("/{slug}", response_model=Channel, response_model_exclude=_PUBLIC_EXCLUDE)
 async def get_channel(
     slug: str,
     service: ChannelService = Depends(get_channel_service),
+    follow_svc: FollowService = Depends(get_follow_service),
 ) -> Channel:
     channel = await service.get_published_by_slug(slug)
     if channel is None:
         raise HTTPException(status_code=404, detail="Channel not found")
-    return channel
+    fc = await follow_svc.get_follower_count(slug)
+    return channel.model_copy(update={
+        "follower_count": fc,
+        "listener_count": active_listener_count(slug),
+    })
 
 
 @router.post("/{slug}/sponsor/impression")

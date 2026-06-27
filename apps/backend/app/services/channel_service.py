@@ -16,6 +16,22 @@ _PLAY_TTL = 1800  # 30 minutes
 # In-memory TTL cache for sponsor impression rate limiting: {slug:ip -> timestamp}
 _IMPRESSION_CACHE: dict[str, float] = {}
 
+# 15-minute window for "listening now" approximation (shorter than the 30-min
+# play rate-limit window so the count decays faster when listeners leave).
+_LISTENER_WINDOW = 900
+
+
+def active_listener_count(slug: str) -> int:
+    """Approximate number of unique listeners in the last 15 minutes for a channel.
+
+    Uses the same _PLAY_CACHE as the rate limiter. Each entry represents a
+    unique IP that has triggered a play event; we count how many are still
+    within the shorter listener window.
+    """
+    prefix = f"{slug}:"
+    cutoff = time.time() - _LISTENER_WINDOW
+    return sum(1 for k, v in _PLAY_CACHE.items() if k.startswith(prefix) and v >= cutoff)
+
 
 class ChannelService:
     def __init__(self, repository: ChannelRepository) -> None:

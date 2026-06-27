@@ -61,6 +61,11 @@ class Channel(BaseModel):
     visualizer_style: Literal["none", "waveform", "bars", "circular", "blob", "terrain"] = "none"
     visualizer_theme: Literal["violet", "teal", "ember", "rose", "ice", "frequency"] = "violet"
     visualizer_backdrop: Literal["overlay_video", "overlay_image", "replace"] = "overlay_video"
+    # Public engagement metrics (populated at read time, not stored)
+    follower_count: int = 0
+    listener_count: int = 0
+    worlds_count: int = 0   # TODO: Slice 4 — populate from VRChat stream session tracking
+    trending: bool = False  # TODO: Slice 8 — compute from play_count_7d_ago
 
     model_config = {"populate_by_name": True}
 

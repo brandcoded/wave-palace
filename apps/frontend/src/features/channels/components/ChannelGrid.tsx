@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, SearchX } from "lucide-react";
 import { getChannels } from "@/features/channels/lib/channelApi";
 import type { Channel } from "@/features/channels/types/channel";
@@ -45,6 +45,29 @@ export function ChannelGrid() {
       });
     return () => controller.abort();
   }, [filters]);
+
+  // Poll every 60 s when the tab is visible to refresh listener counts.
+  const filtersRef = useRef(filters);
+  filtersRef.current = filters;
+  useEffect(() => {
+    async function refresh() {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const data = await getChannels(filtersRef.current);
+        setChannels((prev) =>
+          prev.map((ch) => {
+            const fresh = data.find((d) => d.slug === ch.slug);
+            if (!fresh) return ch;
+            return { ...ch, listener_count: fresh.listener_count, follower_count: fresh.follower_count };
+          })
+        );
+      } catch {
+        // silent — polling failure doesn't degrade the page
+      }
+    }
+    const id = setInterval(refresh, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   function handleChange(key: string, value: string | undefined) {
     setActive((prev) => ({ ...prev, [key]: value }));

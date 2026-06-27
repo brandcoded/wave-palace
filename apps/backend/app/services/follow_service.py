@@ -145,6 +145,7 @@ class FollowService:
         for f in follows:
             channel = await self._channel_repo.get_by_slug(f.channel_slug)
             display_name = channel.get("title", f.channel_slug) if channel else f.channel_slug
+            ch_created_at = channel.get("created_at") if channel else None
             result.append(
                 FollowPublicView(
                     id=f.id,
@@ -157,6 +158,7 @@ class FollowService:
                     notify_new_tracks=f.notify_new_tracks,
                     notify_channel_live=f.notify_channel_live,
                     notify_digest=f.notify_digest,
+                    channel_created_at=ch_created_at,
                 )
             )
         return result

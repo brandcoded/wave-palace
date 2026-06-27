@@ -38,6 +38,8 @@ Full status: `docs/STATUS.md` (canonical) — this file carries a compact copy.
 | **11** | **Host Onboarding & Ownership** (`Channel.owner_ids` + `auto_publish`, single-use invite links, `require_channel_owner`, `/host/join`) | ✅ COMPLETE |
 | **12** | **Logged-In Dashboard** (`/home`, listen history, saves, notifications, recommendations, `UserMenuIsland`, `ChannelCard` heart, `ChannelPlayer` listen event) | **✅ COMPLETE** |
 | **13** | **Notification System** (Resend email + Discord bot DM, per-follow notify_ prefs, throttle, new-track hook, admin trigger + digest cron endpoint, `/follows` prefs panel + unsubscribe deep link) | **✅ COMPLETE** |
+| **13 add-on** | **Discord guild-join** (auto-PUT follower into WavePalace server on OAuth callback via `guilds.join` scope; fixes `50278` DM errors; graceful degradation; `DISCORD_GUILD_ID` env var; 9 backend tests) | **✅ COMPLETE** |
+| **13 add-on** | **Public Metrics Display** (`follower_count`, `listener_count`, `worlds_count`, `trending` on Channel schema + API; `active_listener_count` 15-min window; `metrics.ts` threshold display utilities; ChannelCard metric row + Trending badge; ChannelPlayer overlay metrics; 60s ChannelGrid polling; `/home` taste reflection; `/follows` Early listener badge; 9 backend tests) | **✅ COMPLETE** |
 | Legal | DMCA Takedown Form (`/legal/takedown` + admin queue) | ✅ COMPLETE |
 
 **Always update this table and `docs/STATUS.md` when a slice ships.**

@@ -69,3 +69,4 @@ class FollowPublicView(BaseModel):
     notify_new_tracks: bool = True
     notify_channel_live: bool = True
     notify_digest: bool = False
+    channel_created_at: datetime | None = None  # for "founding listener" badge on /follows

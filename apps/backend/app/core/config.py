@@ -33,6 +33,9 @@ class Settings:
     discord_client_id: Optional[str] = os.getenv("DISCORD_CLIENT_ID") or None
     discord_client_secret: Optional[str] = os.getenv("DISCORD_CLIENT_SECRET") or None
     discord_redirect_uri: Optional[str] = os.getenv("DISCORD_REDIRECT_URI") or None
+    # ID of the WavePalace Discord server. When set the bot auto-adds followers
+    # so DMs always succeed (requires the bot to have Create Instant Invite in that server).
+    discord_guild_id: Optional[str] = os.getenv("DISCORD_GUILD_ID") or None
     vapid_public_key: Optional[str] = os.getenv("VAPID_PUBLIC_KEY") or None
     vapid_private_key: Optional[str] = os.getenv("VAPID_PRIVATE_KEY") or None
     resend_api_key: Optional[str] = os.getenv("RESEND_API_KEY") or None

@@ -2,9 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Heart, Play, User } from "lucide-react";
+import { Heart, Pause, Play, User } from "lucide-react";
 import type { Channel } from "@/features/channels/types/channel";
 import { unsaveChannel } from "@/features/me/lib/meApi";
+import { displayFollowerCount, displayListenerCount, displayPlayCount } from "@/features/channels/lib/metrics";
+import { useAudioPlayer } from "@/features/player/context/AudioPlayerContext";
 
 const tagClass =
   "rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[11px] font-medium text-white/70";
@@ -29,9 +31,30 @@ const API_BASE =
     : "http://localhost:8000";
 
 export function ChannelCard({ channel, initialSaved = false }: ChannelCardProps) {
+  const player = useAudioPlayer();
   const [saved, setSaved] = useState(initialSaved);
   const [savePending, setSavePending] = useState(false);
   const featured = isFeaturedSponsor(channel);
+  const isPlaying = player.isPlaying && player.channelSlug === channel.slug;
+
+  function handlePlay(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isPlaying) {
+      player.pause();
+    } else {
+      const tracks = (channel.playlist?.length ? channel.playlist : [{ url: channel.audioUrl, title: null, artist: null }])
+        .map((t) => ({ url: t.url, title: t.title ?? null, artist: t.artist ?? null }));
+      player.playChannel({
+        channelSlug: channel.slug,
+        channelName: channel.title,
+        channelUrl: `/channels/${channel.slug}`,
+        coverImageUrl: channel.coverImageUrl,
+        tracks,
+        startIndex: 0,
+      });
+    }
+  }
 
   async function handleSaveToggle(e: React.MouseEvent) {
     e.preventDefault();
@@ -79,6 +102,11 @@ export function ChannelCard({ channel, initialSaved = false }: ChannelCardProps)
         <div className="absolute bottom-3 left-3 flex flex-wrap gap-1.5">
           {channel.genre.map((g) => <span key={g} className={tagClass}>{g}</span>)}
           {channel.mood.map((m) => <span key={m} className={tagClass}>{m}</span>)}
+          {channel.trending && (
+            <span className="rounded-full border border-wave-400/30 bg-wave-500/20 px-2.5 py-0.5 text-[11px] font-semibold text-wave-300">
+              Trending
+            </span>
+          )}
         </div>
         <div className="absolute right-3 top-3 flex items-center gap-2">
           {featured && (
@@ -97,9 +125,18 @@ export function ChannelCard({ channel, initialSaved = false }: ChannelCardProps)
           >
             <Heart className="h-3.5 w-3.5" fill={saved ? "currentColor" : "none"} />
           </button>
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-wave-500/90 text-white opacity-0 shadow-lg transition duration-300 group-hover:opacity-100">
-            <Play className="h-4 w-4 translate-x-[1px]" fill="currentColor" />
-          </div>
+          <button
+            type="button"
+            onClick={handlePlay}
+            aria-label={isPlaying ? `Pause ${channel.title}` : `Play ${channel.title}`}
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-wave-500/90 text-white opacity-0 shadow-lg transition duration-300 group-hover:opacity-100"
+          >
+            {isPlaying ? (
+              <Pause className="h-4 w-4" fill="currentColor" />
+            ) : (
+              <Play className="h-4 w-4 translate-x-[1px]" fill="currentColor" />
+            )}
+          </button>
         </div>
       </div>
 
@@ -118,6 +155,26 @@ export function ChannelCard({ channel, initialSaved = false }: ChannelCardProps)
             {channel.theme.map((t) => <span key={t} className={tagClass}>{t}</span>)}
           </div>
         </div>
+
+        {/* Live + engagement metrics row */}
+        {(() => {
+          const listener = displayListenerCount(channel.listener_count);
+          const plays = displayPlayCount(channel.playCount);
+          const followers = displayFollowerCount(channel.follower_count);
+          if (!listener && !plays && !followers) return null;
+          return (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-white/5 pt-3 text-[11px] text-white/35">
+              {listener && (
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                  {listener}
+                </span>
+              )}
+              {plays && <span>{plays}</span>}
+              {followers && <span>{followers}</span>}
+            </div>
+          );
+        })()}
       </div>
     </Link>
   );

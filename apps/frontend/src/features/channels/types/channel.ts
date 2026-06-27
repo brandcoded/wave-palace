@@ -50,6 +50,11 @@ export interface Channel {
   visualizer_style?: "none" | "waveform" | "bars" | "circular" | "blob" | "terrain";
   visualizer_theme?: "violet" | "teal" | "ember" | "rose" | "ice" | "frequency";
   visualizer_backdrop?: "overlay_video" | "overlay_image" | "replace";
+  // Public engagement metrics (populated by API at read time)
+  follower_count?: number;
+  listener_count?: number;
+  worlds_count?: number;
+  trending?: boolean;
 }
 
 export interface ChannelFilters {

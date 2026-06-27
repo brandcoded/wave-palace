@@ -85,6 +85,15 @@ export function UserMenuIsland() {
                 </span>
               )}
             </Link>
+            {user.roles.includes("admin") && (
+              <Link
+                href="/admin"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-white/80 transition hover:bg-white/8 hover:text-white"
+              >
+                Admin
+              </Link>
+            )}
             <div className="my-1 border-t border-white/8" />
             <button
               onClick={handleLogout}

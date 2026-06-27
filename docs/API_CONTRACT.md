@@ -69,11 +69,19 @@ Returns a single published channel by slug.
   "rightsStatus": "owned_or_cleared",
   "isPublished": true,
   "streamingActive": false,
-  "vrchatFallbackUrl": null
+  "vrchatFallbackUrl": null,
+  "follower_count": 42,
+  "listener_count": 3,
+  "worlds_count": 0,
+  "trending": false
 }
 ```
 
 **Field notes:**
+- `follower_count` — confirmed follow count; populated at read time via `asyncio.gather` on the list endpoint; never persisted in the channel document
+- `listener_count` — unique IPs that fired a play event in the last 15 minutes; approximate; 0 when nobody is actively listening
+- `worlds_count` — stub 0 (Slice 4: will reflect VRChat stream sessions)
+- `trending` — stub false (Slice 8: will be set when 7-day play growth > threshold)
 - `playlist` — ordered list of track objects (`url`, `title`, `artist`); the web player cycles through these automatically, looping back to index 0 after the last track
 - `audioUrl` — always equals `playlist[0].url`; retained for backwards compatibility
 - `coverImageUrl` — static channel art displayed as the web player background

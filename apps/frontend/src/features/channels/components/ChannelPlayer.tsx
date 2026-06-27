@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Play, Pause, Volume2, VolumeX, AlertTriangle, User, X } from "lucide-react";
 import type { Sponsor, TrackItem } from "@/features/channels/types/channel";
 import { recordPlay, recordSponsorImpression, recordSponsorClick } from "@/features/channels/lib/channelApi";
+import { displayFollowerCount, displayListenerCount, displayWorldsCount } from "@/features/channels/lib/metrics";
 import { makeFollowCode } from "@/features/channels/lib/followCode";
 import { recordListenEvent, getOrCreateSessionKey } from "@/features/me/lib/meApi";
 import { useAudioVisualizer } from "@/features/channels/hooks/useAudioVisualizer";
@@ -25,9 +27,13 @@ interface ChannelPlayerProps {
   visualizerStyle?: VisualizerStyle;
   visualizerTheme?: VisualizerTheme;
   visualizerBackdrop?: "overlay_video" | "overlay_image" | "replace";
+  followerCount?: number;
+  listenerCount?: number;
+  worldsCount?: number;
 }
 
-export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, hostName, genre, mood, sponsor, visualizerStyle, visualizerTheme, visualizerBackdrop }: ChannelPlayerProps) {
+export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, hostName, genre, mood, sponsor, visualizerStyle, visualizerTheme, visualizerBackdrop, followerCount, listenerCount, worldsCount }: ChannelPlayerProps) {
+  const searchParams = useSearchParams();
   const player = useAudioPlayer();
   const followState = useChannelFollowState(slug);
   const videoRef  = useRef<HTMLVideoElement>(null);
@@ -35,10 +41,6 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
   const vizStyle  = visualizerStyle  ?? "none";
   const vizTheme  = visualizerTheme  ?? "violet";
   const vizBackdrop = visualizerBackdrop ?? "overlay_video";
-  const [currentIndex, setCurrentIndex] = useState(0);
-  // playingRef tracks user intent — used in the track-advance effect to avoid
-  // stale closure issues with context state during React re-renders.
-  const playingRef = useRef(false);
   const [muted, setMuted] = useState(false);
   const [errored, setErrored] = useState(false);
   const [sponsorDismissed, setSponsorDismissed] = useState(false);
@@ -47,58 +49,51 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
   // Derived: true only when this channel is the active one and audio is playing.
   const playing = player.isPlaying && player.channelSlug === slug;
 
+  // Track index comes from the context when this channel is active; 0 otherwise.
+  const currentIndex = player.channelSlug === slug ? player.currentTrackIndex : 0;
+
   useAudioVisualizer(player.analyserNode, canvasRef, vizStyle, vizTheme, playing);
 
-  // On mount: if this channel is already playing (user returned to this page),
-  // sync local state so the UI reflects the in-progress playback.
+  // Autoplay on mount when navigated here with ?autoplay=1.
+  // Guard with a ref so it fires at most once per mount even in StrictMode.
+  const autoplayFiredRef = useRef(false);
   useEffect(() => {
-    if (player.channelSlug === slug && player.isPlaying) {
-      playingRef.current = true;
-      if (player.currentAudioUrl) {
-        const idx = tracks.findIndex((t) => t.url === player.currentAudioUrl);
-        if (idx !== -1) setCurrentIndex(idx);
+    if (searchParams.get("autoplay") !== "1") return;
+    if (autoplayFiredRef.current) return;
+    autoplayFiredRef.current = true;
+    player.playChannel({
+      channelSlug: slug,
+      channelName: title,
+      channelUrl: `/channels/${slug}`,
+      coverImageUrl: coverImage,
+      tracks: tracks.map((t) => ({ url: t.url, title: t.title, artist: t.artist })),
+      startIndex: 0,
+    });
+    if (typeof window !== "undefined") {
+      const key = `wp_played_${slug}`;
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "1");
+        recordPlay(slug);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Attach ended / error listeners to the shared audio element.
+  // Attach error listener to the shared audio element for this channel's tracks.
   useEffect(() => {
     const audio = player.audioRef.current;
     if (!audio) return;
-    function handleEnded() {
-      setCurrentIndex((i) => (i + 1) % tracks.length);
-    }
-    function handleError() {
-      setErrored(true);
-    }
-    audio.addEventListener("ended", handleEnded);
+    function handleError() { setErrored(true); }
     audio.addEventListener("error", handleError);
-    return () => {
-      audio.removeEventListener("ended", handleEnded);
-      audio.removeEventListener("error", handleError);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [player.audioRef, tracks.length]);
+    return () => audio.removeEventListener("error", handleError);
+  }, [player.audioRef]);
 
-  // Advance to next track when currentIndex changes (after ended or manual skip).
+  // Reset error state when navigating to a different channel.
   useEffect(() => {
-    const track = tracks[currentIndex];
-    if (!track) return;
-    player.updateTrack(track.title || null, track.artist || null);
-    if (playingRef.current) {
-      player.play({
-        channelSlug: slug,
-        channelName: title,
-        audioUrl: track.url,
-        channelUrl: `/channels/${slug}`,
-        coverImageUrl: coverImage,
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex]);
+    setErrored(false);
+  }, [tracks]);
 
-  // Fire listen history when a new track starts playing.
+  // Fire listen history when a new track starts playing on this channel.
   useEffect(() => {
     if (!playing) return;
     const track = tracks[currentIndex];
@@ -130,20 +125,9 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
     }
   }, [slug, sponsorActive]);
 
-  // When the track list changes (channel swap), reset to track 0.
-  useEffect(() => {
-    setCurrentIndex(0);
-    setErrored(false);
-  }, [tracks]);
-
   // Keep video in lockstep with audio playing state.
   useEffect(() => {
     playing ? videoRef.current?.play() : videoRef.current?.pause();
-  }, [playing]);
-
-  // Keep playingRef in sync when paused from outside (e.g. MiniPlayerBar).
-  useEffect(() => {
-    if (!playing) playingRef.current = false;
   }, [playing]);
 
   function togglePlay() {
@@ -151,17 +135,14 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
       player.pause();
       videoRef.current?.pause();
     } else {
-      const track = tracks[currentIndex];
-      if (!track) return;
-      playingRef.current = true;
-      player.play({
+      player.playChannel({
         channelSlug: slug,
         channelName: title,
-        audioUrl: track.url,
         channelUrl: `/channels/${slug}`,
         coverImageUrl: coverImage,
+        tracks: tracks.map((t) => ({ url: t.url, title: t.title, artist: t.artist })),
+        startIndex: currentIndex,
       });
-      player.updateTrack(track.title || null, track.artist || null);
       if (typeof window !== "undefined") {
         const key = `wp_played_${slug}`;
         if (!sessionStorage.getItem(key)) {
@@ -311,12 +292,30 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
 
       {/* Overlay — channel info + now-playing + controls */}
       <div className="absolute inset-x-0 bottom-0 flex flex-col gap-2 bg-gradient-to-t from-black/80 to-transparent px-4 pt-8 pb-4">
-        {/* Row 1: title + host */}
+        {/* Row 1: title + host + metrics */}
         <div>
           <p className="truncate text-sm font-semibold leading-tight text-white">{title}</p>
           <p className="flex items-center gap-1 text-xs text-white/60">
             <User className="h-3 w-3 shrink-0" /> Hosted by {hostName}
           </p>
+          {(() => {
+            const listener = displayListenerCount(listenerCount);
+            const followers = displayFollowerCount(followerCount);
+            const worlds = displayWorldsCount(worldsCount);
+            if (!listener && !followers && !worlds) return null;
+            return (
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10px] text-white/40">
+                {listener && (
+                  <span className="flex items-center gap-1">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    {listener}
+                  </span>
+                )}
+                {followers && <span>{followers}</span>}
+                {worlds && <span>{worlds}</span>}
+              </p>
+            );
+          })()}
         </div>
 
         {/* Row 2: now-playing */}

@@ -32,6 +32,7 @@ export interface FollowView {
   notify_new_tracks: boolean;
   notify_channel_live: boolean;
   notify_digest: boolean;
+  channel_created_at: string | null;
 }
 
 export async function resolveCode(code: string): Promise<CodeInfo | null> {

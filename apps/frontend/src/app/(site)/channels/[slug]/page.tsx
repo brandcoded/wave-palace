@@ -75,6 +75,9 @@ export default async function ChannelDetailPage({
             visualizerStyle={channel.visualizer_style}
             visualizerTheme={channel.visualizer_theme}
             visualizerBackdrop={channel.visualizer_backdrop}
+            followerCount={channel.follower_count}
+            listenerCount={channel.listener_count}
+            worldsCount={channel.worlds_count}
           />
 
           <p className="max-w-2xl leading-relaxed text-white/70">
