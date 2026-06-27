@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
+// analyserNode is passed from AudioPlayerContext — no AudioContext ownership here.
 
 export type VisualizerStyle = "none" | "waveform" | "bars" | "circular" | "blob" | "terrain";
 export type VisualizerTheme = "violet" | "teal" | "ember" | "rose" | "ice" | "frequency";
@@ -42,49 +43,20 @@ function logX(i: number, n: number, W: number): number {
 }
 
 export function useAudioVisualizer(
-  audioRef: RefObject<HTMLAudioElement>,
+  analyserNode: AnalyserNode | null,
   canvasRef: RefObject<HTMLCanvasElement>,
   style: VisualizerStyle,
   theme: VisualizerTheme,
   _playing: boolean,
 ) {
-  const acRef  = useRef<AudioContext | null>(null);
+  // Store in a ref so the animation loop closure always sees the latest value
+  // without needing to restart the loop when the node becomes available.
   const anRef  = useRef<AnalyserNode | null>(null);
-  const srcRef = useRef<MediaElementAudioSourceNode | null>(null);
   const rafRef = useRef<number>(0);
   const peakRef    = useRef<Float32Array | null>(null);
   const peakVelRef = useRef<Float32Array | null>(null);
 
-  // Wire AudioContext on first play (user-gesture gated by browser).
-  useEffect(() => {
-    if (style === "none") return;
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    function setup() {
-      if (acRef.current) {
-        if (acRef.current.state === "suspended") acRef.current.resume().catch(() => {});
-        return;
-      }
-      try {
-        const ac = new AudioContext();
-        const an = ac.createAnalyser();
-        an.fftSize = 2048;
-        an.smoothingTimeConstant = 0.88;
-        const src = ac.createMediaElementSource(audio!);
-        src.connect(an);
-        an.connect(ac.destination);
-        acRef.current  = ac;
-        anRef.current  = an;
-        srcRef.current = src;
-      } catch {
-        // Silently fail — never interrupt playback
-      }
-    }
-
-    audio.addEventListener("play", setup);
-    return () => audio.removeEventListener("play", setup);
-  }, [audioRef, style]);
+  useEffect(() => { anRef.current = analyserNode; }, [analyserNode]);
 
   // Animation loop — runs whenever style !== "none".
   useEffect(() => {

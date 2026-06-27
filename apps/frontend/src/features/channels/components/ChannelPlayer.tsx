@@ -9,6 +9,7 @@ import { makeFollowCode } from "@/features/channels/lib/followCode";
 import { recordListenEvent, getOrCreateSessionKey } from "@/features/me/lib/meApi";
 import { useAudioVisualizer } from "@/features/channels/hooks/useAudioVisualizer";
 import type { VisualizerStyle, VisualizerTheme } from "@/features/channels/hooks/useAudioVisualizer";
+import { useAudioPlayer } from "@/features/player/context/AudioPlayerContext";
 
 interface ChannelPlayerProps {
   tracks: TrackItem[];
@@ -26,22 +27,74 @@ interface ChannelPlayerProps {
 }
 
 export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, hostName, genre, mood, sponsor, visualizerStyle, visualizerTheme, visualizerBackdrop }: ChannelPlayerProps) {
-  const audioRef  = useRef<HTMLAudioElement>(null);
+  const player = useAudioPlayer();
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const vizStyle  = visualizerStyle  ?? "none";
   const vizTheme  = visualizerTheme  ?? "violet";
   const vizBackdrop = visualizerBackdrop ?? "overlay_video";
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [playing, setPlaying] = useState(false);
+  // playingRef tracks user intent — used in the track-advance effect to avoid
+  // stale closure issues with context state during React re-renders.
   const playingRef = useRef(false);
   const [muted, setMuted] = useState(false);
-  const [volume, setVolume] = useState(0.8);
   const [errored, setErrored] = useState(false);
   const [sponsorDismissed, setSponsorDismissed] = useState(false);
   const lastListenKeyRef = useRef<string | null>(null);
 
-  useAudioVisualizer(audioRef, canvasRef, vizStyle, vizTheme, playing);
+  // Derived: true only when this channel is the active one and audio is playing.
+  const playing = player.isPlaying && player.channelSlug === slug;
+
+  useAudioVisualizer(player.analyserNode, canvasRef, vizStyle, vizTheme, playing);
+
+  // On mount: if this channel is already playing (user returned to this page),
+  // sync local state so the UI reflects the in-progress playback.
+  useEffect(() => {
+    if (player.channelSlug === slug && player.isPlaying) {
+      playingRef.current = true;
+      if (player.currentAudioUrl) {
+        const idx = tracks.findIndex((t) => t.url === player.currentAudioUrl);
+        if (idx !== -1) setCurrentIndex(idx);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Attach ended / error listeners to the shared audio element.
+  useEffect(() => {
+    const audio = player.audioRef.current;
+    if (!audio) return;
+    function handleEnded() {
+      setCurrentIndex((i) => (i + 1) % tracks.length);
+    }
+    function handleError() {
+      setErrored(true);
+    }
+    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("error", handleError);
+    return () => {
+      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("error", handleError);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player.audioRef, tracks.length]);
+
+  // Advance to next track when currentIndex changes (after ended or manual skip).
+  useEffect(() => {
+    const track = tracks[currentIndex];
+    if (!track) return;
+    player.updateTrack(track.title || null, track.artist || null);
+    if (playingRef.current) {
+      player.play({
+        channelSlug: slug,
+        channelName: title,
+        audioUrl: track.url,
+        channelUrl: `/channels/${slug}`,
+        coverImageUrl: coverImage,
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex]);
 
   // Fire listen history when a new track starts playing.
   useEffect(() => {
@@ -81,30 +134,32 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
     setErrored(false);
   }, [tracks]);
 
-  // Primary sync: keep video in lockstep with audio playing state.
+  // Keep video in lockstep with audio playing state.
   useEffect(() => {
     playing ? videoRef.current?.play() : videoRef.current?.pause();
   }, [playing]);
 
-  // Called when the browser has buffered enough to play the current src.
-  // Uses playingRef (not state) to avoid stale closure when advancing tracks.
-  function handleCanPlay() {
-    const a = audioRef.current;
-    if (!a || !playingRef.current) return;
-    a.play().catch(() => { setPlaying(false); playingRef.current = false; });
-  }
-
-  function handleEnded() {
-    setCurrentIndex((i) => (i + 1) % tracks.length);
-  }
+  // Keep playingRef in sync when paused from outside (e.g. MiniPlayerBar).
+  useEffect(() => {
+    if (!playing) playingRef.current = false;
+  }, [playing]);
 
   function togglePlay() {
-    const a = audioRef.current;
-    if (!a) return;
-    if (a.paused) {
+    if (playing) {
+      player.pause();
+      videoRef.current?.pause();
+    } else {
+      const track = tracks[currentIndex];
+      if (!track) return;
       playingRef.current = true;
-      setPlaying(true);
-      a.play().catch(() => { setPlaying(false); playingRef.current = false; });
+      player.play({
+        channelSlug: slug,
+        channelName: title,
+        audioUrl: track.url,
+        channelUrl: `/channels/${slug}`,
+        coverImageUrl: coverImage,
+      });
+      player.updateTrack(track.title || null, track.artist || null);
       if (typeof window !== "undefined") {
         const key = `wp_played_${slug}`;
         if (!sessionStorage.getItem(key)) {
@@ -112,31 +167,23 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
           recordPlay(slug);
         }
       }
-    } else {
-      playingRef.current = false;
-      a.pause();
-      videoRef.current?.pause();
-      setPlaying(false);
     }
   }
 
   function handleVolumeChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const a = audioRef.current;
     const val = parseFloat(e.target.value);
-    setVolume(val);
-    if (a) {
-      a.volume = val;
-      a.muted = val === 0;
-    }
+    player.setVolume(val);
+    const audio = player.audioRef.current;
+    if (audio) audio.muted = val === 0;
     setMuted(val === 0);
   }
 
   function toggleMute() {
-    const a = audioRef.current;
-    if (!a) return;
+    const audio = player.audioRef.current;
+    if (!audio) return;
     const next = !muted;
-    a.muted = next;
-    if (!next) a.volume = volume || 0.8;
+    audio.muted = next;
+    if (!next && audio.volume === 0) audio.volume = 0.8;
     setMuted(next);
   }
 
@@ -162,7 +209,6 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
   }
 
   const currentTrack = tracks[currentIndex];
-  const trackSrc = currentTrack?.url ?? "";
   const followCode = currentTrack?.title
     ? makeFollowCode(slug, currentTrack.title, currentIndex)
     : null;
@@ -209,19 +255,6 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
           style={{ zIndex: 2 }}
         />
       )}
-
-      {/* Hidden audio element */}
-      <audio
-        ref={audioRef}
-        src={trackSrc}
-        preload="auto"
-        crossOrigin="anonymous"
-        onCanPlay={handleCanPlay}
-        onError={() => setErrored(true)}
-        onPlay={() => { videoRef.current?.play(); setPlaying(true); }}
-        onPause={() => { videoRef.current?.pause(); setPlaying(false); }}
-        onEnded={handleEnded}
-      />
 
       {/* Sponsor bug — corner logo (top-right) for placement="bug" */}
       {showBug && (
@@ -344,7 +377,7 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
             min={0}
             max={1}
             step={0.01}
-            value={muted ? 0 : volume}
+            value={muted ? 0 : player.volume}
             onChange={handleVolumeChange}
             aria-label="Volume"
             className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-white/20 accent-white"
