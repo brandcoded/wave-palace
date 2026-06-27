@@ -25,7 +25,30 @@ from app.services.channel_service import ChannelService
 from app.services.notification_delivery_service import NotificationDeliveryService
 from app.services.url_validator import URLCheckResult, validate_urls
 
+import logging
+
+logger = logging.getLogger("wavepalace.admin_channels")
+
 router = APIRouter(prefix="/api/admin/channels", tags=["admin-channels"])
+
+# Hold references to fire-and-forget notification tasks so the event loop
+# doesn't garbage-collect them mid-flight (a known asyncio.create_task footgun).
+_notify_tasks: set[asyncio.Task] = set()
+
+
+async def _notify_new_tracks_safe(
+    delivery_svc: "NotificationDeliveryService", **kwargs
+) -> None:
+    """Run new-track delivery, logging the outcome and any error.
+
+    Previously this ran as a bare create_task whose exceptions and skip reasons
+    were silently swallowed — so a follower getting no DM produced no signal.
+    """
+    try:
+        result = await delivery_svc.notify_new_tracks(**kwargs)
+        logger.info("notify_new_tracks(%s) result: %s", kwargs.get("channel_slug"), result)
+    except Exception:
+        logger.exception("notify_new_tracks failed for %s", kwargs.get("channel_slug"))
 
 # Fields whose changes require a mux update (VRChat video re-encode).
 _OVERLAY_FIELDS = {
@@ -164,8 +187,9 @@ async def update_channel(
         if added:
             channel_name = updated.get("title", slug)
             origin = settings.frontend_origin.split(",")[0].strip()
-            asyncio.create_task(
-                delivery_svc.notify_new_tracks(
+            task = asyncio.create_task(
+                _notify_new_tracks_safe(
+                    delivery_svc,
                     channel_slug=slug,
                     channel_name=channel_name,
                     new_tracks=added,
@@ -173,6 +197,8 @@ async def update_channel(
                     vrchat_url=updated.get("vrchatFallbackUrl"),
                 )
             )
+            _notify_tasks.add(task)
+            task.add_done_callback(_notify_tasks.discard)
 
     return updated
 
