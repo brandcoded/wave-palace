@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Music2, Users, Settings, LogOut, Menu, X, AlertTriangle, Flag, BarChart2, ShieldCheck } from "lucide-react";
+import { Music2, Users, Settings, LogOut, Menu, X, AlertTriangle, Flag, BarChart2, ShieldCheck, ExternalLink, Hash, Home } from "lucide-react";
 import { AdminAuthProvider, useAdminAuth } from "@/features/admin/lib/adminAuth";
 
 const NAV_ALL = [
   { href: "/admin/submissions", label: "Submissions", icon: Users,       roles: null },
   { href: "/admin/channels",    label: "Channels",    icon: Music2,      roles: null },
+  { href: "/admin/codes",       label: "Codes",       icon: Hash,        roles: null },
   { href: "/admin/analytics",   label: "Analytics",   icon: BarChart2,   roles: null },
   { href: "/admin/takedowns",   label: "Takedowns",   icon: Flag,        roles: null },
   { href: "/admin/options",     label: "Options",     icon: Settings,    roles: null },
@@ -75,6 +76,14 @@ function AdminShell({ children }: { children: React.ReactNode }) {
           {displayName && (
             <p className="text-xs text-white/30 truncate">{displayName}</p>
           )}
+          <Link
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 py-2 text-xs text-white/30 hover:text-white/60 transition"
+          >
+            <ExternalLink className="h-3.5 w-3.5" /> Back to site
+          </Link>
           <button
             onClick={logout}
             className="flex items-center gap-2 py-2 text-xs text-white/30 hover:text-white/60 transition"
@@ -89,13 +98,24 @@ function AdminShell({ children }: { children: React.ReactNode }) {
         <p className="text-xs font-bold uppercase tracking-widest text-white/40">
           WavePalace Admin
         </p>
-        <button
-          onClick={() => setDrawerOpen(true)}
-          aria-label="Open navigation"
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition"
-        >
-          <Menu className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-1">
+          <Link
+            href="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Back to site"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-white/40 hover:bg-white/10 hover:text-white transition"
+          >
+            <Home className="h-4 w-4" />
+          </Link>
+          <button
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open navigation"
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-white/60 hover:bg-white/10 hover:text-white transition"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       {/* Mobile drawer overlay */}
@@ -124,6 +144,13 @@ function AdminShell({ children }: { children: React.ReactNode }) {
               {displayName && (
                 <p className="text-xs text-white/30 truncate">{displayName}</p>
               )}
+              <Link
+                href="/"
+                onClick={() => setDrawerOpen(false)}
+                className="flex items-center gap-2 py-2 text-xs text-white/30 hover:text-white/60 transition"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> Back to site
+              </Link>
               <button
                 onClick={() => { setDrawerOpen(false); logout(); }}
                 className="flex items-center gap-2 py-2 text-xs text-white/30 hover:text-white/60 transition"
