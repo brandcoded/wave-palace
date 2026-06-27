@@ -14,7 +14,9 @@ from app.api.dependencies import (
     get_notification_repository,
     get_recommendation_service,
     get_follow_repository,
+    get_follow_service,
 )
+from app.services.follow_service import FollowService
 from app.core.auth import get_current_user, get_optional_user
 from app.repositories.channel_save_repository import ChannelSaveRepository
 from app.repositories.notification_repository import NotificationRepository
@@ -185,6 +187,19 @@ async def get_my_follows(
     )
     confirmed = [f for f in follows if f.confirmed]
     return {"slugs": [f.channel_slug for f in confirmed]}
+
+
+@router.get("/follows/{channel_slug}")
+async def get_follow_status(
+    channel_slug: str,
+    user: UserDocument = Depends(get_current_user),
+    follow_svc: FollowService = Depends(get_follow_service),
+) -> dict:
+    """Check whether the authenticated user follows a specific channel.
+
+    Always returns 200 — never 404. Returns following: false when not following.
+    """
+    return await follow_svc.get_follow_status(user, channel_slug)
 
 
 # ---------------------------------------------------------------------------

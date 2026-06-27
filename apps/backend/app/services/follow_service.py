@@ -246,6 +246,19 @@ class FollowService:
         await self._follow_repo.create(doc)
         return FollowResponse(follow_id=follow_id, channel=nc, confirmed=True)
 
+    async def get_follow_status(self, user: "UserDocument", channel_slug: str) -> dict:
+        follow = await self._follow_repo.get_by_user_and_channel(
+            discord_user_id=user.discord_user_id,
+            email=user.email,
+            channel_slug=channel_slug,
+        )
+        if follow and follow.confirmed:
+            return {"following": True, "follow_id": str(follow.id)}
+        return {"following": False, "follow_id": None}
+
+    async def get_follower_count(self, channel_slug: str) -> int:
+        return await self._follow_repo.count_confirmed_by_channel(channel_slug)
+
     async def delete_follow(
         self,
         follow_id: str,

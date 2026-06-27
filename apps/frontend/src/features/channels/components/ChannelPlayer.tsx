@@ -10,6 +10,7 @@ import { recordListenEvent, getOrCreateSessionKey } from "@/features/me/lib/meAp
 import { useAudioVisualizer } from "@/features/channels/hooks/useAudioVisualizer";
 import type { VisualizerStyle, VisualizerTheme } from "@/features/channels/hooks/useAudioVisualizer";
 import { useAudioPlayer } from "@/features/player/context/AudioPlayerContext";
+import { useChannelFollowState } from "@/features/follow/hooks/useChannelFollowState";
 
 interface ChannelPlayerProps {
   tracks: TrackItem[];
@@ -28,6 +29,7 @@ interface ChannelPlayerProps {
 
 export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, hostName, genre, mood, sponsor, visualizerStyle, visualizerTheme, visualizerBackdrop }: ChannelPlayerProps) {
   const player = useAudioPlayer();
+  const followState = useChannelFollowState(slug);
   const videoRef  = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const vizStyle  = visualizerStyle  ?? "none";
@@ -388,14 +390,27 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
               {genre.map((g) => <span key={g} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">{g}</span>)}
               {mood.map((m) => <span key={m} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-xs text-white/70">{m}</span>)}
             </div>
-            {followCode && (
-              <Link
-                href={`/follow/${followCode}`}
-                className="rounded-full border border-wave-400/40 bg-wave-400/10 px-2.5 py-0.5 font-mono text-xs font-semibold text-wave-300 transition hover:bg-wave-400/20"
-                title="Follow this channel"
-              >
-                follow
-              </Link>
+            {!followState.isLoading && (
+              followState.isFollowing ? (
+                <button
+                  onClick={followState.unfollow}
+                  className={`rounded-full border px-2.5 py-0.5 font-mono text-xs font-semibold transition ${
+                    followState.confirmingUnfollow
+                      ? "border-red-400/40 text-red-300 hover:border-red-400/60"
+                      : "border-white/20 text-white/50 hover:border-white/30 hover:text-white/70"
+                  }`}
+                >
+                  {followState.confirmingUnfollow ? "Tap to confirm" : "Unfollow"}
+                </button>
+              ) : followCode ? (
+                <Link
+                  href={`/follow/${followCode}`}
+                  className="rounded-full border border-wave-400/40 bg-wave-400/10 px-2.5 py-0.5 font-mono text-xs font-semibold text-wave-300 transition hover:bg-wave-400/20"
+                  title="Follow this channel"
+                >
+                  follow
+                </Link>
+              ) : null
             )}
             {tracks.length > 1 && (
               <span className="text-xs font-medium text-white/50">

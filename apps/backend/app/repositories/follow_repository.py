@@ -43,6 +43,17 @@ class FollowRepository(ABC):
     @abstractmethod
     async def get_all_follows(self) -> list[FollowDocument]: ...
 
+    @abstractmethod
+    async def get_by_user_and_channel(
+        self,
+        discord_user_id: str | None,
+        email: str | None,
+        channel_slug: str,
+    ) -> FollowDocument | None: ...
+
+    @abstractmethod
+    async def count_confirmed_by_channel(self, channel_slug: str) -> int: ...
+
 
 class SeedFollowRepository(FollowRepository):
     def __init__(self) -> None:
@@ -101,6 +112,24 @@ class SeedFollowRepository(FollowRepository):
 
     async def get_all_follows(self) -> list[FollowDocument]:
         return [f for f in self._follows if f.confirmed]
+
+    async def get_by_user_and_channel(
+        self,
+        discord_user_id: str | None,
+        email: str | None,
+        channel_slug: str,
+    ) -> FollowDocument | None:
+        for f in self._follows:
+            if f.channel_slug != channel_slug:
+                continue
+            if discord_user_id and f.discord_user_id == discord_user_id:
+                return f
+            if email and f.email == email:
+                return f
+        return None
+
+    async def count_confirmed_by_channel(self, channel_slug: str) -> int:
+        return sum(1 for f in self._follows if f.channel_slug == channel_slug and f.confirmed)
 
 
 class MongoFollowRepository(FollowRepository):
@@ -165,6 +194,27 @@ class MongoFollowRepository(FollowRepository):
     async def get_all_follows(self) -> list[FollowDocument]:
         cursor = self._col.find({"confirmed": True}, {"_id": 0})
         return [FollowDocument(**d) async for d in cursor]
+
+    async def get_by_user_and_channel(
+        self,
+        discord_user_id: str | None,
+        email: str | None,
+        channel_slug: str,
+    ) -> FollowDocument | None:
+        conditions = []
+        if discord_user_id:
+            conditions.append({"discord_user_id": discord_user_id})
+        if email:
+            conditions.append({"email": email})
+        if not conditions:
+            return None
+        doc = await self._col.find_one(
+            {"$or": conditions, "channel_slug": channel_slug}, {"_id": 0}
+        )
+        return FollowDocument(**doc) if doc else None
+
+    async def count_confirmed_by_channel(self, channel_slug: str) -> int:
+        return await self._col.count_documents({"channel_slug": channel_slug, "confirmed": True})
 
 
 def build_follow_repository(settings) -> FollowRepository:

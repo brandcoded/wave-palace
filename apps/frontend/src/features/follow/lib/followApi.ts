@@ -101,6 +101,30 @@ export async function followAsMe(code: string): Promise<FollowMeResult> {
   return res.json();
 }
 
+export interface FollowStatus {
+  following: boolean;
+  follow_id: string | null;
+}
+
+export async function getFollowStatus(channelSlug: string): Promise<FollowStatus> {
+  const res = await fetch(`${API_BASE_URL}/api/me/follows/${channelSlug}`, {
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (res.status === 401) return { following: false, follow_id: null };
+  if (!res.ok) throw new Error("Failed to check follow status");
+  return res.json();
+}
+
+export async function getFollowerCount(channelSlug: string): Promise<number> {
+  const res = await fetch(`${API_BASE_URL}/api/channels/${channelSlug}/followers/count`, {
+    cache: "no-store",
+  });
+  if (!res.ok) return 0;
+  const data = await res.json();
+  return data.count;
+}
+
 export async function updateFollowPrefs(
   followId: string,
   prefs: {

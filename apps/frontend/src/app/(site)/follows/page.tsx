@@ -27,6 +27,19 @@ function FollowRow({
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function handleUnfollowClick() {
+    if (!confirming) {
+      setConfirming(true);
+      confirmTimerRef.current = setTimeout(() => setConfirming(false), 2000);
+      return;
+    }
+    clearTimeout(confirmTimerRef.current!);
+    setConfirming(false);
+    onUnfollow(follow.id);
+  }
 
   async function toggle(
     field: "notify_new_tracks" | "notify_channel_live" | "notify_digest"
@@ -68,10 +81,14 @@ function FollowRow({
             {open ? "Close" : "Preferences"}
           </button>
           <button
-            onClick={() => onUnfollow(follow.id)}
-            className="text-xs text-white/30 hover:text-red-400"
+            onClick={handleUnfollowClick}
+            className={`text-xs transition ${
+              confirming
+                ? "text-red-400 hover:text-red-300"
+                : "text-white/30 hover:text-red-400"
+            }`}
           >
-            Unfollow
+            {confirming ? "Confirm?" : "Unfollow"}
           </button>
         </div>
       </div>

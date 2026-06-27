@@ -30,6 +30,7 @@ import {
   type NotificationsResponse,
 } from "@/features/me/lib/meApi";
 import { getChannels } from "@/features/channels/lib/channelApi";
+import { getFollowerCount } from "@/features/follow/lib/followApi";
 import type { Channel } from "@/features/channels/types/channel";
 import type { CurrentUser } from "@/features/admin/types/admin";
 
@@ -145,6 +146,7 @@ export default function HomePage() {
   const [followedChannels, setFollowedChannels] = useState<Channel[]>([]);
   const [savedChannels, setSavedChannels] = useState<Channel[]>([]);
   const [ownedChannels, setOwnedChannels] = useState<Channel[]>([]);
+  const [followerCounts, setFollowerCounts] = useState<Record<string, number>>({});
   const [loadError, setLoadError] = useState(false);
   const mergedRef = useRef(false);
 
@@ -220,6 +222,14 @@ export default function HomePage() {
           return c ? [c] : [];
         });
         setOwnedChannels(ownedMapped);
+
+        // Fetch follower counts for owned channels in parallel.
+        if (ownedMapped.length > 0) {
+          const counts = await Promise.all(
+            ownedMapped.map((c) => getFollowerCount(c.slug).then((n) => [c.slug, n] as const))
+          );
+          setFollowerCounts(Object.fromEntries(counts));
+        }
       } catch {
         // getMe() or an unexpected error — render a recoverable state rather
         // than hanging forever on the loading screen.
@@ -420,6 +430,10 @@ export default function HomePage() {
                     <p className="truncate text-sm font-semibold text-white">{c.title}</p>
                     <p className="text-xs text-white/40">
                       {c.isPublished ? "Published" : "Unpublished"}
+                      {" · "}
+                      {(followerCounts[c.slug] ?? 0) > 0
+                        ? `${followerCounts[c.slug].toLocaleString()} followers`
+                        : "No followers yet"}
                     </p>
                   </div>
                   <ChevronRight className="h-4 w-4 shrink-0 text-white/30 group-hover:text-wave-400" />

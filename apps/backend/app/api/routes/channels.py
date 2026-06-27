@@ -8,9 +8,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from app.api.dependencies import get_channel_service
+from app.api.dependencies import get_channel_service, get_follow_service
 from app.schemas.channel import Channel
 from app.services.channel_service import ChannelService
+from app.services.follow_service import FollowService
 
 router = APIRouter(prefix="/api/channels", tags=["channels"])
 
@@ -60,6 +61,16 @@ async def record_sponsor_click(
 ) -> dict:
     await service.record_sponsor_click(slug)
     return {"ok": True}
+
+
+@router.get("/{slug}/followers/count")
+async def get_follower_count(
+    slug: str,
+    follow_svc: FollowService = Depends(get_follow_service),
+) -> dict:
+    """Public endpoint — returns the confirmed follower count for a channel."""
+    count = await follow_svc.get_follower_count(slug)
+    return {"count": count}
 
 
 @router.post("/{slug}/play")
