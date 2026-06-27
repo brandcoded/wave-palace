@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from app.repositories.listen_event_repository import ListenEventRepository
 from app.schemas.me import ListenEventCreate, ListenEventDocument
+
+logger = logging.getLogger("wavepalace.listen_history")
 
 
 class ListenHistoryService:
@@ -33,10 +36,25 @@ class ListenHistoryService:
         return await self._repo.merge_session(session_key, user_id)
 
     async def get_history(self, user_id: str) -> dict:
-        recent = await self._repo.get_by_user(user_id, limit=50)
+        # Each sub-query is isolated so one failure (e.g. a malformed legacy
+        # document or an aggregation hiccup) degrades that field instead of
+        # 500-ing the whole dashboard.
         since = datetime.now(timezone.utc) - timedelta(days=30)
-        top_channel = await self._repo.get_top_channel(user_id, since)
-        last_channel = await self._repo.get_last_channel(user_id)
+        try:
+            recent = await self._repo.get_by_user(user_id, limit=50)
+        except Exception:
+            logger.exception("get_by_user failed for %s", user_id)
+            recent = []
+        try:
+            top_channel = await self._repo.get_top_channel(user_id, since)
+        except Exception:
+            logger.exception("get_top_channel failed for %s", user_id)
+            top_channel = None
+        try:
+            last_channel = await self._repo.get_last_channel(user_id)
+        except Exception:
+            logger.exception("get_last_channel failed for %s", user_id)
+            last_channel = None
         return {
             "recent": [e.model_dump() for e in recent],
             "top_channel": top_channel,

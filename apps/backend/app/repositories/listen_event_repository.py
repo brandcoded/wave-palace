@@ -86,7 +86,15 @@ class MongoListenEventRepository(ListenEventRepository):
 
     async def get_by_user(self, user_id: str, limit: int = 50) -> list[ListenEventDocument]:
         cursor = self._col.find({"user_id": user_id}, {"_id": 0}).sort("started_at", -1).limit(limit)
-        return [ListenEventDocument(**d) async for d in cursor]
+        events: list[ListenEventDocument] = []
+        async for d in cursor:
+            # Skip (don't crash on) any legacy/partial document that no longer
+            # matches the schema — one bad row shouldn't 500 the whole history.
+            try:
+                events.append(ListenEventDocument(**d))
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Skipping malformed listen_event for user %s: %s", user_id, exc)
+        return events
 
     async def merge_session(self, session_key: str, user_id: str) -> int:
         result = await self._col.update_many(
