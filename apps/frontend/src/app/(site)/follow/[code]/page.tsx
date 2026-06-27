@@ -1,7 +1,5 @@
-import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import { resolveCode } from "@/features/follow/lib/followApi";
-import type { CurrentUser } from "@/features/admin/types/admin";
 import { FollowForm } from "./FollowForm";
 
 interface Props {
@@ -17,24 +15,6 @@ export default async function FollowCodePage({ params }: Props) {
     "http://localhost:8000";
 
   const discordInitiateUrl = `${API_BASE_URL}/api/auth/discord/initiate?code=${info.code}`;
-
-  // Resolve the current user server-side so FollowForm renders the right UI
-  // on first paint with no loading flash — works for all browsers including
-  // VRChat's in-world browser and mobile QR scans.
-  let currentUser: CurrentUser | null = null;
-  try {
-    const cookieStore = cookies();
-    const sessionCookie = cookieStore.get("wp_session");
-    if (sessionCookie?.value) {
-      const res = await fetch(`${API_BASE_URL}/api/auth/me`, {
-        headers: { Cookie: `wp_session=${sessionCookie.value}` },
-        cache: "no-store",
-      });
-      if (res.ok) currentUser = await res.json();
-    }
-  } catch {
-    // Non-fatal — fall through to logged-out form
-  }
 
   return (
     <div className="mx-auto max-w-lg px-6 py-20">
@@ -77,7 +57,7 @@ export default async function FollowCodePage({ params }: Props) {
             : "Follow this channel to get notified about events, guest DJs, and new music."}
         </p>
 
-        <FollowForm code={info.code} discordInitiateUrl={discordInitiateUrl} currentUser={currentUser} />
+        <FollowForm code={info.code} discordInitiateUrl={discordInitiateUrl} />
       </div>
     </div>
   );

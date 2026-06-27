@@ -1,22 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { followAsMe, submitFollow } from "@/features/follow/lib/followApi";
+import { getMe } from "@/features/me/lib/meApi";
 
 import type { CurrentUser } from "@/features/admin/types/admin";
 
 interface Props {
   code: string;
   discordInitiateUrl: string;
-  currentUser: CurrentUser | null;
 }
 
 type Method = "discord" | "email";
 
-export function FollowForm({ code, discordInitiateUrl, currentUser }: Props) {
-  const user = currentUser;
+export function FollowForm({ code, discordInitiateUrl }: Props) {
+  const [user, setUser] = useState<CurrentUser | null | "loading">("loading");
   const [method, setMethod] = useState<Method | null>(null);
+
+  useEffect(() => {
+    getMe().then((u) => setUser(u));
+  }, []);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "busy" | "done" | "already" | "error">("idle");
   const [message, setMessage] = useState("");
@@ -46,14 +50,16 @@ export function FollowForm({ code, discordInitiateUrl, currentUser }: Props) {
     }
   }
 
+  const resolvedUser = user === "loading" ? null : user;
+
   // Success states
   if (status === "done") {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center">
         <p className="mb-3 text-sm text-white/80">
-          {user ? "You're now following this channel!" : message}
+          {resolvedUser ? "You're now following this channel!" : message}
         </p>
-        {user && (
+        {resolvedUser && (
           <Link
             href="/follows"
             className="text-xs text-wave-400 hover:underline"
@@ -76,8 +82,13 @@ export function FollowForm({ code, discordInitiateUrl, currentUser }: Props) {
     );
   }
 
+  // Still checking session — show nothing to avoid flash of logged-out UI
+  if (user === "loading") {
+    return <div className="h-24" />;
+  }
+
   // Logged-in: one-click path
-  if (user !== null) {
+  if (resolvedUser !== null) {
     return (
       <div className="flex flex-col gap-3">
         <button
@@ -85,7 +96,7 @@ export function FollowForm({ code, discordInitiateUrl, currentUser }: Props) {
           disabled={status === "busy"}
           className="rounded-2xl bg-wave-500 px-6 py-4 text-sm font-semibold text-white transition hover:bg-wave-400 disabled:opacity-50"
         >
-          {status === "busy" ? "Following…" : `Follow as ${user.display_name}`}
+          {status === "busy" ? "Following…" : `Follow as ${resolvedUser!.display_name}`}
         </button>
         {status === "error" && (
           <p className="text-xs text-red-400">{message}</p>
