@@ -233,7 +233,7 @@ export function ChannelPlayer({ tracks, coverImage, title, slug, visualLoopUrl, 
           className={
             vizBackdrop === "replace"
               ? "absolute inset-0 h-full w-full pointer-events-none"
-              : "absolute inset-x-0 bottom-0 h-[120px] pointer-events-none"
+              : "absolute inset-x-0 top-1/2 h-[120px] -translate-y-1/2 pointer-events-none"
           }
           style={{ zIndex: 2 }}
         />

@@ -155,8 +155,8 @@ def _drawtext_overlay(
 # ---------------------------------------------------------------------------
 
 # All visualizer styles composite into a uniform full-width 1280×120 strip
-# placed at the bottom of the 720p canvas (y = 720 - 120 = 600).
-_VIZ_POSITION = "0:600"
+# centered vertically in the 720p canvas (y = (720 - 120) / 2 = 300).
+_VIZ_POSITION = "0:300"
 
 # Theme name → hex RGB color used by the FFmpeg filter.
 _THEME_COLOR: dict[str, str] = {
@@ -195,8 +195,9 @@ def _viz_filter(style: str, theme: str) -> str | None:
         # Vertical log-freq bars — matches audioMotion bar mode.
         return f"showfreqs=s=1280x120:mode=bar:fscale=log:ascale=log:colors={color}@0.85"
     if style == "terrain":
-        # Center-filled bars — terrain / mirror-bar variant.
-        return f"showfreqs=s=1280x120:mode=bar2:fscale=log:ascale=log:colors={color}@0.70"
+        # Dotted log-freq spectrum — terrain variant. (showfreqs supports only
+        # line/bar/dot; "bar2" is not a valid mode and fails filter init.)
+        return f"showfreqs=s=1280x120:mode=dot:fscale=log:ascale=log:colors={color}@0.70"
     if style == "waveform":
         # Log-frequency line spectrum — audioMotion line mode.
         return f"showfreqs=s=1280x120:mode=line:fscale=log:ascale=log:colors={color}@0.80"
