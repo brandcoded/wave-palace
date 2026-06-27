@@ -97,7 +97,12 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   function initAudioContext(audio: HTMLAudioElement) {
     if (audioCtxRef.current) return;
     try {
-      const ctx = new AudioContext();
+      // latencyHint "playback" → larger, more stable buffers. The default
+      // ("interactive") uses tiny buffers tuned for low latency, which are more
+      // prone to underruns; an underrun→catch-up is heard as a brief pitch/speed
+      // bump (especially over Bluetooth/AirPods, which add latency). A music
+      // player doesn't need low latency, so prefer playback-optimized buffering.
+      const ctx = new AudioContext({ latencyHint: "playback" });
       const an = ctx.createAnalyser();
       an.fftSize = 2048;
       an.smoothingTimeConstant = 0.88;
