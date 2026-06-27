@@ -160,7 +160,12 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
     if (!audioCtxRef.current) {
       initAudioContext(audio);
-    } else if (audioCtxRef.current.state === "suspended") {
+    }
+    // Always resume if suspended — a freshly-created AudioContext on desktop
+    // Chrome starts suspended, and since audio is routed through the
+    // MediaElementSource, a suspended context means total silence. This runs
+    // inside the play gesture, so resume() is permitted.
+    if (audioCtxRef.current?.state === "suspended") {
       audioCtxRef.current.resume().catch(() => {});
     }
 
@@ -213,7 +218,10 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     }
     if (!audioCtxRef.current) {
       initAudioContext(audio);
-    } else if (audioCtxRef.current.state === "suspended") {
+    }
+    // Always resume if suspended (a new desktop-Chrome AudioContext starts
+    // suspended → MediaElementSource routing yields silence otherwise).
+    if (audioCtxRef.current?.state === "suspended") {
       audioCtxRef.current.resume().catch(() => {});
     }
     audio.play().catch((err) => {
