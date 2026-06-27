@@ -174,7 +174,7 @@ export default function HomePage() {
             getRecommendations(),
             getFollowedSlugs(),
             getOwnedChannels(),
-            getChannels(),
+            getChannels().catch(() => [] as Channel[]),
           ]);
 
         const anyFailed = [rHist, rSaved, rNotif, rRec, rFollowed, rOwned, rChannels].some(
