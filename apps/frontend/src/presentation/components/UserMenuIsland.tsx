@@ -73,15 +73,15 @@ export function UserMenuIsland() {
               Dashboard
             </Link>
             <Link
-              href="/home"
+              href="/home#notifications"
               onClick={() => setOpen(false)}
               className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-white/80 transition hover:bg-white/8 hover:text-white"
             >
               <Bell className="h-3.5 w-3.5" />
               Notifications
               {unread > 0 && (
-                <span className="ml-auto flex h-4 w-4 items-center justify-center rounded-full bg-wave-500 text-[9px] font-bold text-white">
-                  {unread > 9 ? "9+" : unread}
+                <span className="ml-auto flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-wave-500 px-1 text-[9px] font-bold text-white">
+                  {unread > 99 ? "99+" : unread}
                 </span>
               )}
             </Link>

@@ -306,7 +306,7 @@ export default function HomePage() {
       <div className="grid gap-8 lg:grid-cols-2">
         {/* Notifications */}
         {notifs.notifications.length > 0 && (
-          <section className="lg:col-span-2">
+          <section id="notifications" className="lg:col-span-2">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-base font-semibold text-white">
                 <Bell className="h-4 w-4 text-wave-400" />
