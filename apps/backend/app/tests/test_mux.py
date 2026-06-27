@@ -378,13 +378,13 @@ def test_viz_filter_bars_uses_showfreqs_log():
     assert "avectorscope" not in f
 
 
-def test_viz_filter_terrain_uses_showfreqs_bar2():
+def test_viz_filter_terrain_uses_showfreqs_dot():
     from app.services.mux_service import _viz_filter
 
     f = _viz_filter("terrain", "teal")
     assert f is not None
     assert "showfreqs" in f
-    assert "mode=bar2" in f
+    assert "mode=dot" in f
     assert "showwaves" not in f
 
 

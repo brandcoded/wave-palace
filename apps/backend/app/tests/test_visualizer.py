@@ -251,6 +251,6 @@ def test_build_video_mux_cmd_terrain_bottom_overlay():
     )
     fc = cmd[cmd.index("-filter_complex") + 1]
     assert "showfreqs" in fc
-    assert "mode=bar2" in fc
+    assert "mode=dot" in fc
     assert f"overlay={_VIZ_POSITION}" in fc
     assert "showwaves" not in fc
