@@ -13,6 +13,7 @@ import {
   Sparkles,
   User,
 } from "lucide-react";
+import { relativeTime } from "@/lib/relativeTime";
 import {
   getHistory,
   getMe,
@@ -62,7 +63,6 @@ function MiniChannelCard({ channel, reason }: { channel: Channel; reason?: strin
 }
 
 function EventRow({ event }: { event: HistoryResponse["recent"][0] }) {
-  const time = new Date(event.started_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   return (
     <Link
       href={`/channels/${event.channel_slug}`}
@@ -77,7 +77,7 @@ function EventRow({ event }: { event: HistoryResponse["recent"][0] }) {
           <p className="truncate text-xs text-white/40">{event.track_artist}</p>
         )}
       </div>
-      <span className="shrink-0 text-xs text-white/30">{time}</span>
+      <span className="shrink-0 text-xs text-white/30">{relativeTime(event.started_at)}</span>
     </Link>
   );
 }
@@ -93,6 +93,7 @@ function NotifRow({ notif, onRead }: { notif: Notification; onRead: (id: string)
       <div className="min-w-0 flex-1">
         <p className="text-sm text-white/80">{notif.title}</p>
         {notif.body && <p className="text-xs text-white/40">{notif.body}</p>}
+        <p className="text-xs text-white/30">{relativeTime(notif.created_at)}</p>
         {notif.link && (
           <Link href={notif.link} className="mt-0.5 block text-xs text-wave-400 hover:underline">
             View →
