@@ -2,12 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bell, LayoutDashboard, LogOut, User } from "lucide-react";
 import { getMe, getUnreadCount } from "@/features/me/lib/meApi";
 import { logout } from "@/features/admin/lib/adminApi";
 import type { CurrentUser } from "@/features/admin/types/admin";
 
 export function UserMenuIsland() {
+  const router = useRouter();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
@@ -24,7 +26,12 @@ export function UserMenuIsland() {
     setUser(null);
     setUnread(0);
     setOpen(false);
-    window.location.href = "/";
+    // Soft navigation + refresh instead of window.location.href so the
+    // layout-level AudioPlayerProvider (and the persistent <audio>) is not torn
+    // down — music keeps playing through sign-out. router.refresh() re-fetches
+    // server components so logged-out state is reflected everywhere.
+    router.push("/");
+    router.refresh();
   }
 
   if (!user) {

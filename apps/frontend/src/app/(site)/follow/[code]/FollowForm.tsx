@@ -114,6 +114,8 @@ export function FollowForm({ code, discordInitiateUrl }: Props) {
       <div className="flex flex-col gap-3">
         <a
           href={discordInitiateUrl}
+          target="_blank"
+          rel="noopener noreferrer"
           className="flex items-center justify-center gap-3 rounded-2xl border border-[#5865F2]/40 bg-[#5865F2]/10 px-6 py-4 text-sm font-semibold text-white transition hover:bg-[#5865F2]/20"
         >
           <svg className="h-5 w-5" viewBox="0 0 71 55" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -131,7 +133,8 @@ export function FollowForm({ code, discordInitiateUrl }: Props) {
           Follow with Email
         </button>
         <p className="mt-2 text-xs text-white/30">
-          No account required. Discord follows are confirmed instantly.
+          No account required. Discord follows are confirmed instantly. A new tab
+          will open for Discord — your music keeps playing here.
         </p>
       </div>
     );
