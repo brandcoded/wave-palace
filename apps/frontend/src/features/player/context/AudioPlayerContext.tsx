@@ -124,6 +124,16 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     channelName: null,
     coverImageUrl: null,
   });
+  // Whether the user intends playback to continue. Gates auto-advance so a
+  // stray "ended"/"error" event fired around a pause (common on mobile) can
+  // never restart playback — the core mobile pause-loop fix. Set true by every
+  // play path, false by every pause path.
+  const intendedPlayingRef = useRef(false);
+  // Runaway-advance guard: timestamp + streak of rapid ended/error events. Real
+  // tracks never end within ~1.5s of each other repeatedly, so a streak means a
+  // failed/zero-length source is hot-looping play→ended→play; we stop instead.
+  const lastEndedAtRef = useRef(0);
+  const endedStreakRef = useRef(0);
 
   const [channelSlug, setChannelSlug] = useState<string | null>(null);
   const [channelName, setChannelName] = useState<string | null>(null);
@@ -185,12 +195,26 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const advanceTrack = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    // Pause-intent gate: if the user paused (or we stopped on a runaway), a
+    // stray ended/error must NOT restart playback. This is the central fix.
+    if (!intendedPlayingRef.current) return;
     const len = playlistRef.current.length;
     if (len === 0) return;
+    const gen = ++playGenRef.current;
+    if (len === 1) {
+      // Single track: restart in place. Native `loop` normally handles end-of-
+      // track for single-track playlists; this path only runs for an explicit
+      // "nexttrack" action and never reloads the src (no chance to interact
+      // with the pause race).
+      audio.currentTime = 0;
+      audio.play().catch((err) => {
+        if (playGenRef.current === gen && err.name !== "AbortError") setIsPlaying(false);
+      });
+      return;
+    }
     const nextIdx = (currentTrackIndexRef.current + 1) % len;
     const track = playlistRef.current[nextIdx];
     if (!track) return;
-    const gen = ++playGenRef.current;
     currentTrackIndexRef.current = nextIdx;
     currentAudioUrlRef.current = track.url;
     setCurrentTrackIndex(nextIdx);
@@ -211,9 +235,37 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    const handleEnded = () => advanceTrack();
-    audio.addEventListener("ended", handleEnded);
-    return () => audio.removeEventListener("ended", handleEnded);
+    const handleEndedOrError = () => {
+      // Paused → a stray ended/error must keep playback stopped.
+      if (!intendedPlayingRef.current) return;
+      const now = Date.now();
+      if (now - lastEndedAtRef.current < 1500) {
+        endedStreakRef.current += 1;
+      } else {
+        endedStreakRef.current = 0;
+      }
+      lastEndedAtRef.current = now;
+      // Runaway guard: repeated rapid ended/error events mean a failing or
+      // zero-length source is hot-looping. Stop rather than cycle forever.
+      if (endedStreakRef.current >= 2) {
+        intendedPlayingRef.current = false;
+        audio.pause();
+        setIsPlaying(false);
+        return;
+      }
+      advanceTrack();
+    };
+    // A track that actually starts playing clears the failure streak, so a
+    // recovered playlist isn't permanently held by an earlier hiccup.
+    const handlePlaying = () => { endedStreakRef.current = 0; };
+    audio.addEventListener("ended", handleEndedOrError);
+    audio.addEventListener("error", handleEndedOrError);
+    audio.addEventListener("playing", handlePlaying);
+    return () => {
+      audio.removeEventListener("ended", handleEndedOrError);
+      audio.removeEventListener("error", handleEndedOrError);
+      audio.removeEventListener("playing", handlePlaying);
+    };
   }, [advanceTrack]);
 
   // Register lock-screen / OS media controls once. resume, pause and
@@ -252,6 +304,13 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     if (!track) return;
 
     const gen = ++playGenRef.current;
+
+    // User intends playback; reset the runaway-failure streak for the new start.
+    intendedPlayingRef.current = true;
+    endedStreakRef.current = 0;
+    // Single-track playlists loop natively (no advanceTrack restart that could
+    // race with a pause); multi-track advance via the "ended" handler.
+    audio.loop = request.tracks.length === 1;
 
     // Only swap src when the track actually changes; avoids seek-to-start when
     // resuming the same track that is already loaded.
@@ -307,12 +366,14 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) {
+      intendedPlayingRef.current = true;
       if (audioCtxRef.current?.state === "suspended") {
         audioCtxRef.current.resume().catch(() => {});
       }
       audio.play().catch(() => setIsPlaying(false));
       setIsPlaying(true);
     } else {
+      intendedPlayingRef.current = false;
       audio.pause();
       setIsPlaying(false);
     }
@@ -322,6 +383,10 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     const audio = audioRef.current;
     if (!audio) return;
     const gen = ++playGenRef.current;
+    // Legacy single-URL path: intend playback, loop natively, clear streak.
+    intendedPlayingRef.current = true;
+    endedStreakRef.current = 0;
+    audio.loop = true;
     if (currentAudioUrlRef.current !== request.audioUrl) {
       audio.pause();
       audio.src = request.audioUrl;
@@ -353,6 +418,9 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   }, [syncMediaMetadata]);
 
   const pause = useCallback(() => {
+    // Clear intent BEFORE pausing so any ended/error the pause itself emits
+    // (mobile can) is gated out of advanceTrack and can't restart playback.
+    intendedPlayingRef.current = false;
     audioRef.current?.pause();
     setIsPlaying(false);
   }, []);
@@ -360,6 +428,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const resume = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    intendedPlayingRef.current = true;
+    endedStreakRef.current = 0;
     if (audioCtxRef.current?.state === "suspended") {
       audioCtxRef.current.resume().catch(() => {});
     }
