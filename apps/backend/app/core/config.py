@@ -39,6 +39,8 @@ class Settings:
     vapid_public_key: Optional[str] = os.getenv("VAPID_PUBLIC_KEY") or None
     vapid_private_key: Optional[str] = os.getenv("VAPID_PRIVATE_KEY") or None
     resend_api_key: Optional[str] = os.getenv("RESEND_API_KEY") or None
+    # Sender address for all outbound email — must be on a Resend-verified domain.
+    resend_from_email: str = os.getenv("RESEND_FROM_EMAIL", "noreply@wavepalace.live")
 
     # DMCA takedown email notification — all optional; email skips silently if absent.
     admin_email: Optional[str] = os.getenv("ADMIN_EMAIL") or None

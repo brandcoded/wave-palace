@@ -12,6 +12,7 @@ from fastapi import HTTPException
 
 from app.repositories.channel_repository import ChannelRepository
 from app.repositories.code_repository import CodeRepository
+from app.services.email import send_email
 from app.repositories.follow_repository import FollowRepository
 from app.schemas.code import CodeDocument
 from app.schemas.follow import (
@@ -278,30 +279,21 @@ class FollowService:
         await self._follow_repo.delete(follow_id)
 
 
-async def _send_confirm_email(email: str, confirm_url: str) -> None:
-    """Send Resend double opt-in email. No-op if RESEND_API_KEY not set."""
-    api_key = os.getenv("RESEND_API_KEY")
-    if not api_key:
-        logger.warning("RESEND_API_KEY not set — skipping confirmation email to %s", email)
-        return
-    try:
-        import httpx
-        async with httpx.AsyncClient() as client:
-            await client.post(
-                "https://api.resend.com/emails",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "from": "noreply@wavepalace.live",
-                    "to": [email],
-                    "subject": "Confirm your WavePalace follow",
-                    "html": (
-                        f"<p>Click to confirm your WavePalace follow: "
-                        f'<a href="{confirm_url}">{confirm_url}</a></p>'
-                    ),
-                },
-            )
-    except Exception:
-        logger.exception("Failed to send confirmation email to %s", email)
+async def _send_confirm_email(email: str, confirm_url: str) -> bool:
+    """Send the Resend double opt-in email. Returns True on success.
+
+    Delegates to the shared send_email() helper, which checks the Resend
+    response and logs status + body on failure (so an unverified domain /
+    sandbox / missing key no longer fails silently).
+    """
+    ok = await send_email(
+        to=email,
+        subject="Confirm your WavePalace follow",
+        html=(
+            f"<p>Click to confirm your WavePalace follow: "
+            f'<a href="{confirm_url}">{confirm_url}</a></p>'
+        ),
+    )
+    if not ok:
+        logger.warning("Confirmation email to %s was not sent (see Resend error above)", email)
+    return ok

@@ -184,33 +184,22 @@ class AuthService:
         return await self._users.get(user.id) or user
 
     async def _send_magic_link_email(self, email: str, verify_url: str) -> None:
-        api_key = (self._settings and getattr(self._settings, "resend_api_key", None)) or os.getenv("RESEND_API_KEY")
-        if not api_key:
+        from app.services.email import send_email
+
+        # No key configured → surface the link in logs for local dev instead.
+        if not ((self._settings and getattr(self._settings, "resend_api_key", None)) or os.getenv("RESEND_API_KEY")):
             logger.warning("RESEND_API_KEY not set — magic link for %s: %s", email, verify_url)
             return
-        try:
-            import httpx
-            async with httpx.AsyncClient() as client:
-                await client.post(
-                    "https://api.resend.com/emails",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "from": "noreply@wavepalace.live",
-                        "to": [email],
-                        "subject": "Sign in to WavePalace",
-                        "html": (
-                            f"<p>Click the link below to sign in to WavePalace. "
-                            f"This link expires in {_EMAIL_TOKEN_TTL_MINUTES} minutes.</p>"
-                            f"<p><a href='{verify_url}'>Sign in to WavePalace</a></p>"
-                            f"<p>If you didn't request this, you can ignore this email.</p>"
-                        ),
-                    },
-                )
-        except Exception:
-            logger.exception("Failed to send magic link email to %s", email)
+        await send_email(
+            to=email,
+            subject="Sign in to WavePalace",
+            html=(
+                f"<p>Click the link below to sign in to WavePalace. "
+                f"This link expires in {_EMAIL_TOKEN_TTL_MINUTES} minutes.</p>"
+                f"<p><a href='{verify_url}'>Sign in to WavePalace</a></p>"
+                f"<p>If you didn't request this, you can ignore this email.</p>"
+            ),
+        )
 
     # ------------------------------------------------------------------
     # Password auth

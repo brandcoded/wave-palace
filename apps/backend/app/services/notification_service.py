@@ -106,28 +106,9 @@ class NotificationService:
             logger.exception("Web push failed — subscription may be stale")
 
     async def _send_email(self, email: str, subject: str, body_html: str) -> None:
-        api_key = os.getenv("RESEND_API_KEY")
-        if not api_key:
-            logger.warning("RESEND_API_KEY not set — skipping email to %s", email)
-            return
-        try:
-            import httpx
-            async with httpx.AsyncClient() as client:
-                await client.post(
-                    "https://api.resend.com/emails",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
-                        "from": "noreply@wavepalace.live",
-                        "to": [email],
-                        "subject": subject,
-                        "html": body_html,
-                    },
-                )
-        except Exception:
-            logger.exception("Failed to send email to %s", email)
+        from app.services.email import send_email
+
+        await send_email(to=email, subject=subject, html=body_html)
 
     async def _send_sms(self, phone: str, message: str) -> None:
         # SMS delivery is not enabled in this build.
