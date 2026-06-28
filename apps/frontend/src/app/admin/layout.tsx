@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Music2, Users, Settings, LogOut, Menu, X, AlertTriangle, Flag, BarChart2, ShieldCheck, ExternalLink, Hash, Home } from "lucide-react";
 import { AdminAuthProvider, useAdminAuth } from "@/features/admin/lib/adminAuth";
 
@@ -47,9 +47,24 @@ function NavLinks({ pathname, userRoles, onClick }: { pathname: string; userRole
 function AdminShell({ children }: { children: React.ReactNode }) {
   const { checked, authed, seedMode, roles, displayName, logout } = useAdminAuth();
   const pathname = usePathname();
+  const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
+  // Staff = admin or music director. Listeners (and channel owners with no staff
+  // role) must not see the admin area — send them to their dashboard.
+  const isStaff = roles.includes("admin") || roles.includes("music_director");
+  const onLogin = pathname === "/admin/login";
+
   useEffect(() => { setDrawerOpen(false); }, [pathname]);
+
+  // Redirect authed-but-non-staff users to their dashboard. The backend already
+  // 403s every /api/admin/* call for them; this stops the admin UI from
+  // rendering at all (no empty/broken shell via a direct link).
+  useEffect(() => {
+    if (checked && authed && !isStaff && !onLogin) {
+      router.replace("/home");
+    }
+  }, [checked, authed, isStaff, onLogin, router]);
 
   if (!checked) {
     return (
@@ -59,8 +74,11 @@ function AdminShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!authed && pathname !== "/admin/login") return null;
+  if (!authed && !onLogin) return null;
   if (!authed) return <>{children}</>;
+
+  // Authed but not staff → render nothing while the redirect to /home runs.
+  if (!isStaff && !onLogin) return null;
 
   return (
     <div className="flex min-h-screen">
