@@ -91,10 +91,31 @@ interface MediaMeta {
   coverImageUrl: string | null;
 }
 
+// Infer the artwork MIME type from the URL — iOS silently rejects artwork whose
+// declared type doesn't match the actual image (a common "art won't show" cause).
+function artworkType(url: string): string {
+  const u = url.split("?")[0].toLowerCase();
+  if (u.endsWith(".png")) return "image/png";
+  if (u.endsWith(".webp")) return "image/webp";
+  if (u.endsWith(".gif")) return "image/gif";
+  return "image/jpeg";
+}
+
+// Resolve to an absolute URL — iOS cannot fetch lock-screen artwork from a
+// relative path.
+function absoluteUrl(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  if (typeof window !== "undefined") {
+    try { return new URL(url, window.location.origin).href; } catch { /* ignore */ }
+  }
+  return url;
+}
+
 function setMediaMetadata(meta: MediaMeta): void {
   if (!mediaSessionSupported() || typeof MediaMetadata === "undefined") return;
   // Local const so TS narrows the truthy check into the map closure below.
-  const cover = meta.coverImageUrl;
+  const cover = meta.coverImageUrl ? absoluteUrl(meta.coverImageUrl) : null;
+  const type = cover ? artworkType(cover) : "image/jpeg";
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: meta.title ?? meta.channelName ?? "WavePalace",
@@ -103,7 +124,7 @@ function setMediaMetadata(meta: MediaMeta): void {
       // Multiple sizes so the OS picks the right one for its lock-screen widget.
       artwork: cover
         ? ["96x96", "128x128", "192x192", "256x256", "384x384", "512x512"].map(
-            (sizes) => ({ src: cover, sizes, type: "image/jpeg" }),
+            (sizes) => ({ src: cover, sizes, type }),
           )
         : [],
     });
@@ -276,8 +297,16 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       advanceTrack();
     };
     // A track that actually starts playing clears the failure streak, so a
-    // recovered playlist isn't permanently held by an earlier hiccup.
-    const handlePlaying = () => { endedStreakRef.current = 0; };
+    // recovered playlist isn't permanently held by an earlier hiccup. Also
+    // re-assert the now-playing metadata + state HERE: iOS reads lock-screen
+    // info when the audio session goes active, so metadata set earlier (during
+    // playChannel, before audio.play() resolved) is often dropped — re-applying
+    // it on "playing" is what makes the art + title appear on the lock screen.
+    const handlePlaying = () => {
+      endedStreakRef.current = 0;
+      setMediaMetadata(mediaMetaRef.current);
+      setMediaPlaybackState(true);
+    };
     audio.addEventListener("ended", handleEndedOrError);
     audio.addEventListener("error", handleEndedOrError);
     audio.addEventListener("playing", handlePlaying);
