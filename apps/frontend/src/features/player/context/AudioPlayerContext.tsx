@@ -59,6 +59,52 @@ export function useAudioPlayer(): AudioPlayerState {
   return ctx;
 }
 
+// ---------------------------------------------------------------------------
+// Media Session helpers — module-level so they never close over React state.
+// They take explicit values, so there is no stale-closure risk on the OS/lock-
+// screen surface (a classic source of "lock-screen buttons stop working after
+// the first track change" bugs). Each is a silent no-op when unsupported.
+// ---------------------------------------------------------------------------
+
+function mediaSessionSupported(): boolean {
+  return typeof navigator !== "undefined" && "mediaSession" in navigator;
+}
+
+interface MediaMeta {
+  title: string | null;
+  artist: string | null;
+  channelName: string | null;
+  coverImageUrl: string | null;
+}
+
+function setMediaMetadata(meta: MediaMeta): void {
+  if (!mediaSessionSupported() || typeof MediaMetadata === "undefined") return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: meta.title ?? meta.channelName ?? "WavePalace",
+      artist: meta.artist ?? "",
+      album: meta.channelName ?? "WavePalace",
+      artwork: meta.coverImageUrl
+        ? [
+            { src: meta.coverImageUrl, sizes: "512x512", type: "image/jpeg" },
+            { src: meta.coverImageUrl, sizes: "256x256", type: "image/jpeg" },
+          ]
+        : [],
+    });
+  } catch {
+    // MediaMetadata construction can throw on malformed artwork URLs — ignore.
+  }
+}
+
+function setMediaPlaybackState(playing: boolean): void {
+  if (!mediaSessionSupported()) return;
+  try {
+    navigator.mediaSession.playbackState = playing ? "playing" : "paused";
+  } catch {
+    // ignore
+  }
+}
+
 export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -69,6 +115,15 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const playlistRef = useRef<PlayerTrack[]>([]);
   const currentTrackIndexRef = useRef(0);
   const currentAudioUrlRef = useRef<string | null>(null);
+  // Latest media-session metadata. advanceTrack only changes the track-level
+  // fields, so it reads channel-level fields (name, cover) back from here
+  // rather than from React state (which would be stale in an empty-dep cb).
+  const mediaMetaRef = useRef<MediaMeta>({
+    title: null,
+    artist: null,
+    channelName: null,
+    coverImageUrl: null,
+  });
 
   const [channelSlug, setChannelSlug] = useState<string | null>(null);
   const [channelName, setChannelName] = useState<string | null>(null);
@@ -116,34 +171,78 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     }
   }
 
+  // Merge metadata into the ref and push it to the OS in one step.
+  const syncMediaMetadata = useCallback((partial: Partial<MediaMeta>) => {
+    mediaMetaRef.current = { ...mediaMetaRef.current, ...partial };
+    setMediaMetadata(mediaMetaRef.current);
+  }, []);
+
+  // Advance to the next track in the playlist. Shared by the audio "ended"
+  // event and the lock-screen "nexttrack" handler, so cycling behaves
+  // identically whether triggered by playback or the OS. Empty-dep useCallback:
+  // reads only refs (never stale) so the lock-screen handler registered once on
+  // mount stays correct across every track change.
+  const advanceTrack = useCallback(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    const len = playlistRef.current.length;
+    if (len === 0) return;
+    const nextIdx = (currentTrackIndexRef.current + 1) % len;
+    const track = playlistRef.current[nextIdx];
+    if (!track) return;
+    const gen = ++playGenRef.current;
+    currentTrackIndexRef.current = nextIdx;
+    currentAudioUrlRef.current = track.url;
+    setCurrentTrackIndex(nextIdx);
+    setCurrentAudioUrl(track.url);
+    setTrackTitle(track.title ?? null);
+    setTrackArtist(track.artist ?? null);
+    syncMediaMetadata({ title: track.title ?? null, artist: track.artist ?? null });
+    audio.src = track.url;
+    audio.play().catch((err) => {
+      if (playGenRef.current === gen && err.name !== "AbortError") {
+        setIsPlaying(false);
+      }
+    });
+  }, [syncMediaMetadata]);
+
   // Track cycling lives here so it works even when ChannelPlayer is unmounted
   // (e.g. MiniPlayerBar keeps audio going while the user browses the directory).
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    const handleEnded = () => {
-      const len = playlistRef.current.length;
-      if (len === 0) return;
-      const nextIdx = (currentTrackIndexRef.current + 1) % len;
-      const track = playlistRef.current[nextIdx];
-      if (!track) return;
-      const gen = ++playGenRef.current;
-      currentTrackIndexRef.current = nextIdx;
-      currentAudioUrlRef.current = track.url;
-      setCurrentTrackIndex(nextIdx);
-      setCurrentAudioUrl(track.url);
-      setTrackTitle(track.title ?? null);
-      setTrackArtist(track.artist ?? null);
-      audio.src = track.url;
-      audio.play().catch((err) => {
-        if (playGenRef.current === gen && err.name !== "AbortError") {
-          setIsPlaying(false);
-        }
-      });
-    };
+    const handleEnded = () => advanceTrack();
     audio.addEventListener("ended", handleEnded);
     return () => audio.removeEventListener("ended", handleEnded);
-  }, []);
+  }, [advanceTrack]);
+
+  // Register lock-screen / OS media controls once. resume, pause and
+  // advanceTrack are all stable empty-dep callbacks, so this effect runs once
+  // and never re-binds — no duplicate handlers, no stale closures.
+  useEffect(() => {
+    if (!mediaSessionSupported()) return;
+    const ms = navigator.mediaSession;
+    try {
+      ms.setActionHandler("play", () => resume());
+      ms.setActionHandler("pause", () => pause());
+      ms.setActionHandler("nexttrack", () => advanceTrack());
+      ms.setActionHandler("previoustrack", null); // single-direction playlist
+      ms.setActionHandler("stop", () => pause());
+    } catch {
+      // Some browsers reject specific actions — ignore unsupported ones.
+    }
+    return () => {
+      try {
+        ms.setActionHandler("play", null);
+        ms.setActionHandler("pause", null);
+        ms.setActionHandler("nexttrack", null);
+        ms.setActionHandler("stop", null);
+      } catch {
+        // ignore
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advanceTrack]);
 
   const playChannel = useCallback((request: PlayChannelRequest) => {
     const audio = audioRef.current;
@@ -189,12 +288,19 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     setTrackArtist(track.artist ?? null);
     setIsPlaying(true);
 
+    syncMediaMetadata({
+      title: track.title ?? null,
+      artist: track.artist ?? null,
+      channelName: request.channelName,
+      coverImageUrl: request.coverImageUrl ?? null,
+    });
+
     audio.play().catch((err) => {
       if (playGenRef.current === gen && err.name !== "AbortError") {
         setIsPlaying(false);
       }
     });
-  }, []);
+  }, [syncMediaMetadata]);
 
   // Context-level togglePlay: smart toggle on whatever is currently loaded.
   const togglePlay = useCallback(() => {
@@ -240,7 +346,11 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     setCoverImageUrl(request.coverImageUrl ?? null);
     setCurrentAudioUrl(request.audioUrl);
     setIsPlaying(true);
-  }, []);
+    syncMediaMetadata({
+      channelName: request.channelName,
+      coverImageUrl: request.coverImageUrl ?? null,
+    });
+  }, [syncMediaMetadata]);
 
   const pause = useCallback(() => {
     audioRef.current?.pause();
@@ -265,7 +375,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const updateTrack = useCallback((title: string | null, artist: string | null) => {
     setTrackTitle(title);
     setTrackArtist(artist);
-  }, []);
+    syncMediaMetadata({ title, artist });
+  }, [syncMediaMetadata]);
 
   const value: AudioPlayerState = {
     channelSlug,
@@ -297,8 +408,14 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         ref={audioRef}
         crossOrigin="anonymous"
         preload="none"
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
+        onPlay={() => {
+          setIsPlaying(true);
+          setMediaPlaybackState(true);
+        }}
+        onPause={() => {
+          setIsPlaying(false);
+          setMediaPlaybackState(false);
+        }}
       />
       {children}
     </AudioPlayerContext.Provider>

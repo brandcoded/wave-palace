@@ -2,6 +2,20 @@
 
 All notable changes to this project are documented here.
 
+## [0.18.0] — Media Session API for the persistent player
+
+### Added
+- **Media Session API integration** in `AudioPlayerContext` — registers WavePalace with the OS as an active media player so iOS Control Center / lock screen and Android notification-shade controls work
+- **Lock-screen metadata** — track title, artist (as artist), channel name (as album), and 512/256 cover artwork pushed to the OS on play and on every track change
+- **OS action handlers** — `play` → `resume()`, `pause`/`stop` → `pause()`, `nexttrack` → shared `advanceTrack()`; `previoustrack` disabled (single-direction playlist). Registered once on mount; never re-bound (no duplicate handlers)
+- **`advanceTrack()`** — extracted from the `ended` handler so the lock-screen "next" button and natural track-end use the identical advance path; reads channel-level metadata from a ref so album/cover stay correct across unlimited track changes (no stale closures)
+- **`playbackState` sync** — driven from the persistent `<audio>` element's `onPlay`/`onPause`, so the OS state always matches actual playback even when toggled from hardware/lock-screen controls
+- All Media Session calls are feature-detected and `try/catch`-guarded — silent no-op on unsupported browsers
+
+### Notes
+- No backend changes; no new user-facing UI beyond the existing MiniPlayerBar
+- Verified end-to-end in-browser: single persistent `<audio>` across navigation, metadata set on play, title advances "Come Thru" → "Day Trips" while album stays "Late Night House", `playbackState` tracks pause/resume, zero console errors
+
 ## [0.17.2] — Discord guild-join on OAuth callback
 
 ### Added
