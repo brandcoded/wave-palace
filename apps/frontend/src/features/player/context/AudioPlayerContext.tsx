@@ -70,6 +70,20 @@ function mediaSessionSupported(): boolean {
   return typeof navigator !== "undefined" && "mediaSession" in navigator;
 }
 
+// iOS/Android keep a *bare* <audio> element playing when the screen locks, but
+// an element captured by Web Audio via createMediaElementSource is routed
+// through the AudioContext — which iOS suspends on lock, killing all audio. So
+// on mobile we must NOT capture the element in Web Audio. The reactive
+// visualizer (which needs the AnalyserNode) is therefore desktop-only; the
+// cinematic cover-art / video backdrop still fills the player on mobile.
+function isMobileClient(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent;
+  if (/Android|iPhone|iPad|iPod/i.test(ua)) return true;
+  // iPadOS 13+ reports as "Macintosh" but is touch-capable.
+  return navigator.maxTouchPoints > 1 && /Macintosh/i.test(ua);
+}
+
 interface MediaMeta {
   title: string | null;
   artist: string | null;
@@ -79,16 +93,18 @@ interface MediaMeta {
 
 function setMediaMetadata(meta: MediaMeta): void {
   if (!mediaSessionSupported() || typeof MediaMetadata === "undefined") return;
+  // Local const so TS narrows the truthy check into the map closure below.
+  const cover = meta.coverImageUrl;
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: meta.title ?? meta.channelName ?? "WavePalace",
       artist: meta.artist ?? "",
       album: meta.channelName ?? "WavePalace",
-      artwork: meta.coverImageUrl
-        ? [
-            { src: meta.coverImageUrl, sizes: "512x512", type: "image/jpeg" },
-            { src: meta.coverImageUrl, sizes: "256x256", type: "image/jpeg" },
-          ]
+      // Multiple sizes so the OS picks the right one for its lock-screen widget.
+      artwork: cover
+        ? ["96x96", "128x128", "192x192", "256x256", "384x384", "512x512"].map(
+            (sizes) => ({ src: cover, sizes, type: "image/jpeg" }),
+          )
         : [],
     });
   } catch {
@@ -161,6 +177,10 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
   function initAudioContext(audio: HTMLAudioElement) {
     if (audioCtxRef.current) return;
+    // Mobile: leave the <audio> as a bare media element (survives screen lock)
+    // and skip the Web Audio graph. analyserNode stays null → the visualizer
+    // hook draws nothing, and the backdrop fills the player. Desktop only below.
+    if (isMobileClient()) return;
     try {
       // latencyHint "playback" → larger, more stable buffers. The default
       // ("interactive") uses tiny buffers tuned for low latency, which are more
@@ -278,7 +298,12 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       ms.setActionHandler("play", () => resume());
       ms.setActionHandler("pause", () => pause());
       ms.setActionHandler("nexttrack", () => advanceTrack());
-      ms.setActionHandler("previoustrack", null); // single-direction playlist
+      // Seek-to-start (like Spotify). Must be non-null: some iOS versions hide
+      // the entire lock-screen widget if previoustrack has no handler.
+      ms.setActionHandler("previoustrack", () => {
+        const audio = audioRef.current;
+        if (audio) audio.currentTime = 0;
+      });
       ms.setActionHandler("stop", () => pause());
     } catch {
       // Some browsers reject specific actions — ignore unsupported ones.
@@ -288,6 +313,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         ms.setActionHandler("play", null);
         ms.setActionHandler("pause", null);
         ms.setActionHandler("nexttrack", null);
+        ms.setActionHandler("previoustrack", null);
         ms.setActionHandler("stop", null);
       } catch {
         // ignore
@@ -478,6 +504,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         ref={audioRef}
         crossOrigin="anonymous"
         preload="none"
+        playsInline
         onPlay={() => {
           setIsPlaying(true);
           setMediaPlaybackState(true);
