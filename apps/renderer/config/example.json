@@ -1,0 +1,14 @@
+{
+  "channelName": "Late Night Lofi",
+  "hostName": "Ty Skyy The DJ",
+  "songTitle": "Midnight Keys",
+  "artistName": "Henny Tha Bizness",
+  "followCode": "WVP6F2",
+  "siteUrl": "wavepalace.live",
+  "socialHandle": "@wavepalace",
+  "tags": ["LOFI", "CHILL", "SOULFUL", "AFTERHOURS", "GOOD PEOPLE"],
+  "templateId": "split-screen",
+  "fallbackImagePath": "channel-image.jpg",
+  "audioPath": "audio.mp3",
+  "outputPath": "dist/channel-template.mp4"
+}

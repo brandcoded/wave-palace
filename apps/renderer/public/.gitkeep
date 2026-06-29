@@ -1,0 +1,4 @@
+# Drop media files here:
+#   audio.mp3          — audio track for waveform visualization
+#   channel-image.jpg  — channel cover art (fallback when no loop video)
+#   channel-loop.mp4   — looping background video (optional, overrides image)

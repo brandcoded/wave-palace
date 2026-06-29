@@ -103,6 +103,64 @@ def test_visualizer_fields_in_overlay_fields():
 
 
 # ---------------------------------------------------------------------------
+# Renderer template field
+# ---------------------------------------------------------------------------
+
+
+def test_channel_schema_renderer_template_default():
+    from app.schemas.channel import Channel
+
+    ch = Channel(
+        id="x", slug="test", title="Test", description="",
+        hostName="Host",
+        coverImageUrl="https://cdn.test/cover.jpg",
+        audioUrl="https://cdn.test/audio.mp3",
+        vrchatPlaybackUrl="https://cdn.test/out.mp4",
+    )
+    assert ch.renderer_template == "split-screen"
+
+
+def test_channel_schema_accepts_custom_renderer_template():
+    from app.schemas.channel import Channel
+
+    ch = Channel(
+        id="x", slug="test", title="Test", description="",
+        hostName="Host",
+        coverImageUrl="https://cdn.test/cover.jpg",
+        audioUrl="https://cdn.test/audio.mp3",
+        vrchatPlaybackUrl="https://cdn.test/out.mp4",
+        renderer_template="some-future-template",
+    )
+    assert ch.renderer_template == "some-future-template"
+
+
+def test_channel_patch_request_accepts_renderer_template():
+    from app.api.routes.admin_channels import ChannelPatchRequest
+
+    req = ChannelPatchRequest(renderer_template="split-screen")
+    assert req.renderer_template == "split-screen"
+
+
+def test_renderer_template_not_in_overlay_fields():
+    # Changing the renderer template does not require a VRChat mux re-encode.
+    from app.api.routes.admin_channels import _OVERLAY_FIELDS
+
+    assert "renderer_template" not in _OVERLAY_FIELDS
+
+
+def test_normalize_taxonomy_defaults_renderer_template():
+    doc = {"slug": "test", "genre": ["House"], "owner_ids": [], "auto_publish": True}
+    normalized = _normalize_taxonomy(doc)
+    assert normalized["renderer_template"] == "split-screen"
+
+
+def test_normalize_taxonomy_preserves_existing_renderer_template():
+    doc = {"slug": "test", "genre": ["House"], "renderer_template": "split-screen"}
+    normalized = _normalize_taxonomy(doc)
+    assert normalized["renderer_template"] == "split-screen"
+
+
+# ---------------------------------------------------------------------------
 # _normalize_taxonomy
 # ---------------------------------------------------------------------------
 

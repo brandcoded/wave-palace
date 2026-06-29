@@ -61,6 +61,10 @@ class Channel(BaseModel):
     visualizer_style: Literal["none", "waveform", "bars", "circular", "blob", "terrain"] = "none"
     visualizer_theme: Literal["violet", "teal", "ember", "rose", "ice", "frequency"] = "violet"
     visualizer_backdrop: Literal["overlay_video", "overlay_image", "replace"] = "overlay_video"
+    # Video Renderer Template — which Remotion template renders this channel's
+    # video. Plain str (not Literal) so new templates can be added to the
+    # renderer registry without a schema migration.
+    renderer_template: str = Field(default="split-screen")
     # Public engagement metrics (populated at read time, not stored)
     follower_count: int = 0
     listener_count: int = 0

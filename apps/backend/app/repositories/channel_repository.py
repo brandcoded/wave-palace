@@ -41,6 +41,8 @@ def _normalize_taxonomy(doc: dict) -> dict:
         doc = {**doc, "visualizer_theme": "violet"}
     if "visualizer_backdrop" not in doc:
         doc = {**doc, "visualizer_backdrop": "overlay_video"}
+    if "renderer_template" not in doc:
+        doc = {**doc, "renderer_template": "split-screen"}
     return doc
 
 

@@ -101,6 +101,7 @@ class ChannelPatchRequest(BaseModel):
     visualizer_style: str | None = None
     visualizer_theme: str | None = None
     visualizer_backdrop: str | None = None
+    renderer_template: str | None = None
 
 
 class StreamingBulkRequest(BaseModel):

@@ -232,6 +232,20 @@ function Field({
 }
 
 // ---------------------------------------------------------------------------
+// Video renderer templates — keep in sync with the renderer registry in
+// apps/renderer/src/templates/index.ts. Adding a template = one entry here.
+// ---------------------------------------------------------------------------
+
+const TEMPLATE_OPTIONS: { id: string; label: string; description: string }[] = [
+  {
+    id: "split-screen",
+    label: "Split Screen",
+    description: "Square art panel + right-side now-playing info panel.",
+  },
+  // add new templates here to match the renderer registry
+];
+
+// ---------------------------------------------------------------------------
 // Visualizer admin helpers
 // ---------------------------------------------------------------------------
 
@@ -842,6 +856,34 @@ export default function ChannelEditPage() {
               </div>
             </>
           )}
+        </section>
+
+        {/* Video Renderer Template */}
+        <section className="flex flex-col gap-3">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-white/30">Video Renderer Template</h2>
+          <p className="text-xs text-white/40">Applied when rendering this channel&apos;s video stream overlay.</p>
+          <div className="flex flex-col gap-2">
+            {TEMPLATE_OPTIONS.map((opt) => {
+              const selected = ((form.renderer_template as string) ?? "split-screen") === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setForm((prev) => ({ ...prev, renderer_template: opt.id }))}
+                  className={`flex flex-col gap-0.5 rounded-lg border px-4 py-3 text-left transition ${
+                    selected
+                      ? "border-cyan-400/60 bg-cyan-400/10"
+                      : "border-white/10 bg-white/5 hover:border-white/20"
+                  }`}
+                >
+                  <span className={`text-sm font-medium ${selected ? "text-cyan-300" : "text-white/80"}`}>
+                    {opt.label}
+                  </span>
+                  <span className="text-[11px] text-white/40">{opt.description}</span>
+                </button>
+              );
+            })}
+          </div>
         </section>
 
         {/* Sponsor */}
