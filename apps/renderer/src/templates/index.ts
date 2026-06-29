@@ -1,6 +1,7 @@
 import React from "react";
 import { ChannelData } from "../types";
 import { SplitScreenTemplate } from "./SplitScreen";
+import { FullBleedTemplate } from "./FullBleed";
 
 export interface TemplateDefinition {
   id: string;
@@ -21,6 +22,11 @@ export const TEMPLATES: TemplateDefinition[] = [
     id: "split-screen",
     label: "Split Screen",
     component: SplitScreenTemplate,
+  },
+  {
+    id: "full-bleed",
+    label: "Full Bleed Overlay",
+    component: FullBleedTemplate,
   },
   // add future templates here
 ];

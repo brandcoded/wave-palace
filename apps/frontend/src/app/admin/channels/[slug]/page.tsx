@@ -242,6 +242,11 @@ const TEMPLATE_OPTIONS: { id: string; label: string; description: string }[] = [
     label: "Split Screen",
     description: "Square art panel + right-side now-playing info panel.",
   },
+  {
+    id: "full-bleed",
+    label: "Full Bleed Overlay",
+    description: "Full-frame backdrop with centered visualizer + bottom info band (matches the current VRChat video).",
+  },
   // add new templates here to match the renderer registry
 ];
 
