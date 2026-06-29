@@ -111,22 +111,26 @@ function absoluteUrl(url: string): string {
   return url;
 }
 
-function setMediaMetadata(meta: MediaMeta): void {
+// Build artwork entries from a direct cover URL (used as the immediate value
+// before the downscaled data-URL artwork is ready).
+function urlArtwork(cover: string): MediaImage[] {
+  const type = artworkType(cover);
+  return ["96x96", "128x128", "192x192", "256x256", "384x384", "512x512"].map(
+    (sizes) => ({ src: cover, sizes, type }),
+  );
+}
+
+function setMediaMetadata(meta: MediaMeta, artwork?: MediaImage[]): void {
   if (!mediaSessionSupported() || typeof MediaMetadata === "undefined") return;
-  // Local const so TS narrows the truthy check into the map closure below.
   const cover = meta.coverImageUrl ? absoluteUrl(meta.coverImageUrl) : null;
-  const type = cover ? artworkType(cover) : "image/jpeg";
   try {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: meta.title ?? meta.channelName ?? "WavePalace",
       artist: meta.artist ?? "",
       album: meta.channelName ?? "WavePalace",
-      // Multiple sizes so the OS picks the right one for its lock-screen widget.
-      artwork: cover
-        ? ["96x96", "128x128", "192x192", "256x256", "384x384", "512x512"].map(
-            (sizes) => ({ src: cover, sizes, type }),
-          )
-        : [],
+      // Prefer explicit (downscaled, self-contained data-URL) artwork when
+      // provided; otherwise fall back to the direct cover URL.
+      artwork: artwork ?? (cover ? urlArtwork(cover) : []),
     });
   } catch {
     // MediaMetadata construction can throw on malformed artwork URLs — ignore.
@@ -171,6 +175,10 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   // failed/zero-length source is hot-looping play→ended→play; we stop instead.
   const lastEndedAtRef = useRef(0);
   const endedStreakRef = useRef(0);
+  // Cache of downscaled data-URL artwork keyed by absolute cover URL. iOS fails
+  // to render large remote artwork and then shows a blank now-playing card
+  // (title included), so we hand it small self-contained data URLs instead.
+  const artworkCacheRef = useRef<Map<string, MediaImage[]>>(new Map());
 
   const [channelSlug, setChannelSlug] = useState<string | null>(null);
   const [channelName, setChannelName] = useState<string | null>(null);
@@ -222,11 +230,65 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     }
   }
 
-  // Merge metadata into the ref and push it to the OS in one step.
+  // Downscale a cover image to small square data-URL artwork in-canvas. iOS
+  // rejects large remote artwork (and then blanks the whole now-playing card),
+  // but reliably renders small self-contained data URLs. Cached per cover URL.
+  // Returns null on failure (e.g. canvas tainted), leaving the direct-URL
+  // fallback in place. Requires the cover to be CORS-readable (R2 sends
+  // Access-Control-Allow-Origin: * on GET, so the crossOrigin load isn't tainted).
+  const buildArtwork = useCallback(async (cover: string): Promise<MediaImage[] | null> => {
+    const cached = artworkCacheRef.current.get(cover);
+    if (cached) return cached;
+    if (typeof document === "undefined" || typeof Image === "undefined") return null;
+    try {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("artwork load failed"));
+        img.src = cover;
+      });
+      const render = (size: number): MediaImage | null => {
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return null;
+        // Cover-fit crop to a centered square.
+        const scale = Math.max(size / img.width, size / img.height);
+        const w = img.width * scale;
+        const h = img.height * scale;
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        return { src: canvas.toDataURL("image/jpeg", 0.9), sizes: `${size}x${size}`, type: "image/jpeg" };
+      };
+      const imgs = [render(512), render(256), render(128)].filter(Boolean) as MediaImage[];
+      if (imgs.length === 0) return null;
+      artworkCacheRef.current.set(cover, imgs);
+      return imgs;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  // Merge metadata into the ref and push it to the OS. Title/artist bind
+  // immediately (no artwork dependency); the downscaled artwork is applied
+  // asynchronously once ready so a slow/failed image can't delay the title.
   const syncMediaMetadata = useCallback((partial: Partial<MediaMeta>) => {
     mediaMetaRef.current = { ...mediaMetaRef.current, ...partial };
-    setMediaMetadata(mediaMetaRef.current);
-  }, []);
+    const cover = mediaMetaRef.current.coverImageUrl
+      ? absoluteUrl(mediaMetaRef.current.coverImageUrl)
+      : null;
+    // Immediate: title/artist + cached artwork if we already have it.
+    setMediaMetadata(mediaMetaRef.current, cover ? artworkCacheRef.current.get(cover) : undefined);
+    // Async: build/lookup downscaled artwork, then re-apply if cover unchanged.
+    if (cover) {
+      buildArtwork(cover).then((art) => {
+        if (art && mediaMetaRef.current.coverImageUrl && absoluteUrl(mediaMetaRef.current.coverImageUrl) === cover) {
+          setMediaMetadata(mediaMetaRef.current, art);
+        }
+      });
+    }
+  }, [buildArtwork]);
 
   // Advance to the next track in the playlist. Shared by the audio "ended"
   // event and the lock-screen "nexttrack" handler, so cycling behaves
@@ -304,7 +366,10 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     // it on "playing" is what makes the art + title appear on the lock screen.
     const handlePlaying = () => {
       endedStreakRef.current = 0;
-      setMediaMetadata(mediaMetaRef.current);
+      const cover = mediaMetaRef.current.coverImageUrl
+        ? absoluteUrl(mediaMetaRef.current.coverImageUrl)
+        : null;
+      setMediaMetadata(mediaMetaRef.current, cover ? artworkCacheRef.current.get(cover) : undefined);
       setMediaPlaybackState(true);
     };
     audio.addEventListener("ended", handleEndedOrError);
