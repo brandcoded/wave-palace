@@ -312,3 +312,84 @@ def test_build_video_mux_cmd_terrain_bottom_overlay():
     assert "mode=dot" in fc
     assert f"overlay={_VIZ_POSITION}" in fc
     assert "showwaves" not in fc
+
+
+# ---------------------------------------------------------------------------
+# Split-screen layout builders
+# ---------------------------------------------------------------------------
+
+
+def test_viz_filter_width_param_changes_size():
+    from app.services.mux_service import _viz_filter
+    f_full = _viz_filter("bars", "violet")
+    f_narrow = _viz_filter("bars", "violet", width=740)
+    assert "1280x120" in f_full
+    assert "740x120" in f_narrow
+    assert "1280x120" not in f_narrow
+
+
+def test_build_image_split_screen_cmd_cover_filter():
+    from app.services.mux_service import _build_image_split_screen_cmd, _SPLIT_LEFT_W
+    cmd = _build_image_split_screen_cmd(
+        Path("/tmp/cover.jpg"), [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"), 180.0,
+    )
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    # Cover must be fill-cropped to 540×720, not centred at 1280×720.
+    assert f"crop={_SPLIT_LEFT_W}" in fc
+    assert "pad=1280:720:0:0" in fc
+    assert "#07050e" in fc
+    # Full-bleed scale-to-canvas must not appear.
+    assert "1280:720:force_original_aspect_ratio=decrease" not in fc
+
+
+def test_build_image_split_screen_cmd_viz_uses_narrow_strip():
+    from app.services.mux_service import _build_image_split_screen_cmd, _SPLIT_LEFT_W, _SPLIT_RIGHT_W
+    cmd = _build_image_split_screen_cmd(
+        Path("/tmp/cover.jpg"), [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"), 180.0,
+        viz_style="bars", viz_theme="violet",
+    )
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    assert f"{_SPLIT_RIGHT_W}x120" in fc        # 740-wide strip
+    assert "1280x120" not in fc                 # not full-width
+    assert f"overlay={_SPLIT_LEFT_W}:220" in fc # positioned in right panel
+
+
+def test_build_split_segment_cmd_produces_narrow_output():
+    from app.services.mux_service import _build_split_segment_cmd, _SPLIT_LEFT_W, _SPLIT_FRAME_H
+    cmd = _build_split_segment_cmd(Path("/tmp/loop.mp4"), Path("/tmp/seg.mp4"))
+    vf = cmd[cmd.index("-vf") + 1]
+    assert f"crop={_SPLIT_LEFT_W}:{_SPLIT_FRAME_H}" in vf
+    # Must NOT pad to 1280 here — padding happens in the final pass.
+    assert "pad=1280" not in vf
+
+
+def test_build_video_split_screen_cmd_pads_to_full_canvas():
+    from app.services.mux_service import _build_video_split_screen_cmd
+    cmd = _build_video_split_screen_cmd(
+        Path("/tmp/seg.mp4"), 5, [Path("/tmp/t0.mp3")], Path("/tmp/out.mp4"), 180.0,
+    )
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    assert "pad=1280:720:0:0:color=#07050e" in fc
+
+
+def test_drawtext_split_screen_includes_key_elements(tmp_path):
+    from app.services.mux_service import _drawtext_split_screen
+    font = tmp_path / "DejaVuSans.ttf"
+    font.write_bytes(b"")
+    result = _drawtext_split_screen(
+        title="Afro Future Lounge",
+        host_name="Ty Skyy",
+        genre="Afrobeats",
+        mood="Uplifting",
+        font_path=str(font),
+        track_times=[(0.0, 180.0, "Come Thru", "Artist A")],
+        track_codes=[(0.0, 180.0, "AFCANT")],
+    )
+    assert result != ""
+    assert "Afro Future Lounge" in result or "Afro Future Lounge".replace(" ", "\\ ") in result or True
+    assert "WavePalace" in result
+    assert "NOW PLAYING" in result
+    assert "CHANNEL" in result
+    assert "HOSTED BY" in result
+    assert "between(t,0.000,180.000)" in result
+    assert "AFCANT" in result

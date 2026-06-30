@@ -150,6 +150,116 @@ def _drawtext_overlay(
     return ",".join(parts)
 
 
+def _drawtext_split_screen(
+    title: str,
+    host_name: str,
+    genre: str,
+    mood: str,
+    font_path: str,
+    track_times: list[tuple[float, float, str, str]] = (),
+    sponsor_text: str = "",
+    track_codes: list[tuple[float, float, str]] = (),
+) -> str:
+    """Drawtext + drawbox filter chain for the split-screen layout (1280×720).
+
+    Left panel (x 0–540): cover art with bottom scrim, channel title, host.
+    Right panel (x 540–1280): dark #07050e, WavePalace logo, now-playing info,
+    visualizer slot at y=220–340, genre/follow code at bottom.
+
+    Returns "" when the font file is absent so the mux still completes.
+    """
+    regular = Path(font_path)
+    if not regular.exists():
+        logger.warning("Drawtext font not found at %s — overlay skipped", font_path)
+        return ""
+
+    bold_candidate = regular.parent / "DejaVuSans-Bold.ttf"
+    bold = str(bold_candidate) if bold_candidate.exists() else str(regular)
+    fp = str(regular)
+
+    t  = _escape_drawtext(title)
+    h  = _escape_drawtext(host_name)
+    gm = _escape_drawtext(
+        f"{genre} · {mood}" if (genre and mood) else (genre or mood)
+    )
+
+    shadow = "shadowx=1:shadowy=1:shadowcolor=black@0.80"
+    LX = 18    # left panel text left-margin
+    RX = 558   # right panel text left-margin
+    RR = 1260  # right panel right-align anchor (x = RR - tw)
+
+    parts = [
+        # Left panel: bottom scrim (200px tall)
+        f"drawbox=x=0:y=520:w={_SPLIT_LEFT_W}:h=200:color=black@0.72:t=fill",
+        # Panel separator line
+        f"drawbox=x={_SPLIT_LEFT_W - 2}:y=0:w=2:h={_SPLIT_FRAME_H}:color=white@0.10:t=fill",
+
+        # Left: "CHANNEL" label
+        f"drawtext=fontfile={bold}:text=CHANNEL:x={LX}:y=530:fontsize=13:fontcolor=#38e8ff:{shadow}",
+        # Left: channel title
+        f"drawtext=fontfile={bold}:text={t}:x={LX}:y=548:fontsize=32:fontcolor=white:{shadow}",
+        # Left: "HOSTED BY" label
+        f"drawtext=fontfile={fp}:text=HOSTED BY:x={LX}:y=592:fontsize=12:fontcolor=#ff5cc8:{shadow}",
+        # Left: host name
+        f"drawtext=fontfile={bold}:text={h}:x={LX}:y=608:fontsize=34:fontcolor=white:{shadow}",
+        # Left: tagline
+        f"drawtext=fontfile={fp}:text=Curated Vibes · Real Music · Always On"
+        f":x={LX}:y=668:fontsize=11:fontcolor=white@0.40:{shadow}",
+
+        # Right: WavePalace logo (top-right)
+        f"drawtext=fontfile={bold}:text=WavePalace:x={RR}-tw:y=34:fontsize=22:fontcolor=#ece9ff:{shadow}",
+        # Right: "NOW PLAYING" badge — 1px border box + label
+        f"drawbox=x={RX - 2}:y=80:w=152:h=26:color=white@0.18:t=1",
+        f"drawtext=fontfile={bold}:text=NOW PLAYING:x={RX + 6}:y=87:fontsize=12:fontcolor=#a78bfa:{shadow}",
+    ]
+
+    # Right: genre/mood (bottom-left of right panel)
+    if gm:
+        parts.append(
+            f"drawtext=fontfile={fp}:text={gm}:x={RX}:y=670:fontsize=13:fontcolor=white@0.50:{shadow}"
+        )
+
+    # Right: wavepalace.live (bottom-right)
+    parts.append(
+        f"drawtext=fontfile={fp}:text=wavepalace.live:x={RR}-tw:y=670:fontsize=13:fontcolor=white@0.35:{shadow}"
+    )
+
+    # Right: sponsor credit (optional, small, below artist area)
+    if sponsor_text:
+        s = _escape_drawtext(sponsor_text)
+        parts.append(
+            f"drawtext=fontfile={fp}:text={s}:x={RX}:y=213:fontsize=12:fontcolor=white@0.50:{shadow}"
+        )
+
+    # Right: per-track title + artist (time-windowed)
+    for start, end, track_title, track_artist in track_times:
+        if track_title:
+            tt = _escape_drawtext(track_title)
+            parts.append(
+                f"drawtext=fontfile={bold}:text={tt}"
+                f":enable='between(t,{start:.3f},{end:.3f})'"
+                f":x={RX}:y=124:fontsize=46:fontcolor=#ece9ff:{shadow}"
+            )
+        if track_artist:
+            ta = _escape_drawtext(track_artist)
+            parts.append(
+                f"drawtext=fontfile={fp}:text={ta}"
+                f":enable='between(t,{start:.3f},{end:.3f})'"
+                f":x={RX}:y=180:fontsize=20:fontcolor=#a78bfa:{shadow}"
+            )
+
+    # Right: per-track follow code (time-windowed, bottom-right)
+    for start, end, code in track_codes:
+        label = _escape_drawtext(f"{code}  ·  follow code")
+        parts.append(
+            f"drawtext=fontfile={bold}:text={label}"
+            f":enable='between(t,{start:.3f},{end:.3f})'"
+            f":x={RR}-tw:y=648:fontsize=14:fontcolor=white@0.80:{shadow}"
+        )
+
+    return ",".join(parts)
+
+
 # ---------------------------------------------------------------------------
 # Visualizer filter helpers (VRChat mux — audioMotion-style log-freq spectrum)
 # ---------------------------------------------------------------------------
@@ -176,41 +286,51 @@ def _hex_to_rgb_normalized(hex_str: str) -> tuple[float, float, float]:
     return int(h[0:2], 16) / 255, int(h[2:4], 16) / 255, int(h[4:6], 16) / 255
 
 
-def _viz_filter(style: str, theme: str) -> str | None:
+def _viz_filter(style: str, theme: str, width: int = 1280) -> str | None:
     """Return an FFmpeg lavfi filter string for *style* + *theme*.
 
-    All returned filters produce a 1280×120 output, intended to be composited
-    at _VIZ_POSITION.  Returns None for style "none" or unknown values so
-    callers can skip the overlay entirely without branching on string values.
-
-    Styles map to log-frequency spectrum filters (showfreqs / showcqt) that
-    closely match the web audioMotion-analyzer aesthetic.  The *theme* color
-    is applied via filter parameters so the admin's theme picker is reflected
-    in the VRChat video.
+    Produces a {width}×120 output intended to be composited via overlay.
+    Default width 1280 covers the full-bleed layout; pass a narrower value
+    (e.g. 740) to confine the strip to the right panel in split-screen.
+    Returns None for style "none" or unknown values.
     """
     if not style or style == "none":
         return None
     color = _THEME_COLOR.get(theme, _THEME_COLOR["violet"])
+    size = f"{width}x120"
     if style == "bars":
-        # Vertical log-freq bars — matches audioMotion bar mode.
-        return f"showfreqs=s=1280x120:mode=bar:fscale=log:ascale=log:colors={color}@0.85"
+        return f"showfreqs=s={size}:mode=bar:fscale=log:ascale=log:colors={color}@0.85"
     if style == "terrain":
-        # Dotted log-freq spectrum — terrain variant. (showfreqs supports only
-        # line/bar/dot; "bar2" is not a valid mode and fails filter init.)
-        return f"showfreqs=s=1280x120:mode=dot:fscale=log:ascale=log:colors={color}@0.70"
+        # showfreqs supports only line/bar/dot; "bar2" is not valid.
+        return f"showfreqs=s={size}:mode=dot:fscale=log:ascale=log:colors={color}@0.70"
     if style == "waveform":
-        # Log-frequency line spectrum — audioMotion line mode.
-        return f"showfreqs=s=1280x120:mode=line:fscale=log:ascale=log:colors={color}@0.80"
+        return f"showfreqs=s={size}:mode=line:fscale=log:ascale=log:colors={color}@0.80"
     if style in ("blob", "circular"):
-        # CQT spectrum tinted to the theme color via colorchannelmixer.  Both
-        # blob and circular map to a bottom strip since FFmpeg has no native
-        # circular spectrum mode; showcqt gives smooth log-bin bars.
         r, g, b = _hex_to_rgb_normalized(color)
         return (
-            f"showcqt=s=1280x120:bar_g=2:count=1:tc=0.33,"
+            f"showcqt=s={size}:bar_g=2:count=1:tc=0.33,"
             f"colorchannelmixer=rr={r:.3f}:gg={g:.3f}:bb={b:.3f}"
         )
     return None
+
+
+# ---------------------------------------------------------------------------
+# Split-screen layout constants
+# ---------------------------------------------------------------------------
+
+# 1280×720 canvas: left 540px = cover art, right 740px = dark info panel.
+_SPLIT_LEFT_W = 540
+_SPLIT_RIGHT_W = 740   # 1280 - 540
+_SPLIT_FRAME_W = 1280
+_SPLIT_FRAME_H = 720
+
+# Left panel filter: fill-crop cover to 540×720, pad right with dark bg.
+_SPLIT_COVER_FILTER = (
+    f"scale={_SPLIT_LEFT_W}:{_SPLIT_FRAME_H}:force_original_aspect_ratio=increase,"
+    f"crop={_SPLIT_LEFT_W}:{_SPLIT_FRAME_H},"
+    f"pad={_SPLIT_FRAME_W}:{_SPLIT_FRAME_H}:0:0:color=#07050e,"
+    "setsar=1,format=yuv420p"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -394,6 +514,133 @@ def _build_video_mux_cmd(
 
 
 # ---------------------------------------------------------------------------
+# Split-screen command builders
+# ---------------------------------------------------------------------------
+
+def _build_split_segment_cmd(cover_video: Path, seg_out: Path) -> list[str]:
+    """Re-encode the loop clip for split-screen: 540×720 fill-crop segment."""
+    return [
+        "ffmpeg", "-y",
+        "-i", str(cover_video),
+        "-an",
+        "-vf", (
+            f"scale={_SPLIT_LEFT_W}:{_SPLIT_FRAME_H}:force_original_aspect_ratio=increase,"
+            f"crop={_SPLIT_LEFT_W}:{_SPLIT_FRAME_H},"
+            "setsar=1,format=yuv420p"
+        ),
+        "-r", str(_LOOP_FPS),
+        "-c:v", "libx264",
+        "-preset", "veryfast",
+        "-crf", "28",
+        "-g", str(_LOOP_FPS * 2),
+        "-threads", "1",
+        str(seg_out),
+    ]
+
+
+def _build_image_split_screen_cmd(
+    cover: Path,
+    audios: list[Path],
+    output: Path,
+    total_duration: float,
+    overlay: str = "",
+    viz_style: str = "none",
+    viz_theme: str = "violet",
+) -> list[str]:
+    """Still-image split-screen mux: cover fills left 540px, dark right panel.
+
+    Visualizer strip (if any) is 740px wide, positioned in the right panel
+    at y=220 (below the artist line, above the bottom tags).
+    """
+    cmd: list[str] = ["ffmpeg", "-y", "-loop", "1", "-framerate", "1", "-i", str(cover)]
+    for a in audios:
+        cmd += ["-i", str(a)]
+
+    base_vf = f"{_SPLIT_COVER_FILTER},{overlay}" if overlay else _SPLIT_COVER_FILTER
+    audio_part = _audio_concat_filter(len(audios))
+    viz_f = _viz_filter(viz_style, viz_theme, width=_SPLIT_RIGHT_W)
+    viz_pos = f"{_SPLIT_LEFT_W}:220"
+
+    if viz_f is not None:
+        filter_complex = (
+            f"[0:v]{base_vf}[vout];"
+            f"{audio_part};"
+            f"[aout]asplit=2[aout_play][aout_viz];"
+            f"[aout_viz]{viz_f}[vizout];"
+            f"[vout][vizout]overlay={viz_pos}[final_v]"
+        )
+        vid_map, aud_map = "[final_v]", "[aout_play]"
+    else:
+        filter_complex = f"[0:v]{base_vf}[vout];{audio_part}"
+        vid_map, aud_map = "[vout]", "[aout]"
+
+    cmd += [
+        "-filter_complex", filter_complex,
+        "-map", vid_map,
+        "-map", aud_map,
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-tune", "stillimage",
+        "-r", "1",
+        "-threads", "1",
+        "-c:a", "aac",
+        "-b:a", "256k",
+        "-t", f"{total_duration:.3f}",
+        "-movflags", "+faststart",
+        str(output),
+    ]
+    return cmd
+
+
+def _build_video_split_screen_cmd(
+    segment: Path,
+    repeats: int,
+    audios: list[Path],
+    output: Path,
+    total_duration: float,
+    overlay: str = "",
+    viz_style: str = "none",
+    viz_theme: str = "violet",
+) -> list[str]:
+    """Stream-loop a 540×720 segment, pad to 1280×720, apply split-screen overlay."""
+    cmd: list[str] = ["ffmpeg", "-y", "-stream_loop", str(repeats), "-i", str(segment)]
+    for a in audios:
+        cmd += ["-i", str(a)]
+
+    pad_vf = (
+        f"pad={_SPLIT_FRAME_W}:{_SPLIT_FRAME_H}:0:0:color=#07050e,"
+        "setsar=1,format=yuv420p"
+    )
+    base_vf = f"{pad_vf},{overlay}" if overlay else pad_vf
+    audio_part = _audio_concat_filter(len(audios))
+    viz_f = _viz_filter(viz_style, viz_theme, width=_SPLIT_RIGHT_W)
+    viz_pos = f"{_SPLIT_LEFT_W}:220"
+
+    if viz_f is not None:
+        filter_complex = (
+            f"[0:v]{base_vf}[vout];"
+            f"{audio_part};"
+            f"[aout]asplit=2[aout_play][aout_viz];"
+            f"[aout_viz]{viz_f}[vizout];"
+            f"[vout][vizout]overlay={viz_pos}[final_v]"
+        )
+        cmd += ["-filter_complex", filter_complex, "-map", "[final_v]", "-map", "[aout_play]"]
+    else:
+        filter_complex = f"[0:v]{base_vf}[vout];{audio_part}"
+        cmd += ["-filter_complex", filter_complex, "-map", "[vout]", "-map", "[aout]"]
+
+    cmd += [
+        "-c:v", "libx264", "-preset", "ultrafast",
+        "-threads", "1",
+        "-c:a", "aac", "-b:a", "256k",
+        "-t", f"{total_duration:.3f}",
+        "-movflags", "+faststart",
+        str(output),
+    ]
+    return cmd
+
+
+# ---------------------------------------------------------------------------
 # Service
 # ---------------------------------------------------------------------------
 
@@ -507,7 +754,12 @@ class MuxService:
             def _join(val: object) -> str:
                 return ", ".join(str(v) for v in val) if isinstance(val, list) else str(val or "")
 
-            overlay = _drawtext_overlay(
+            renderer_template: str = channel.get("renderer_template") or "split-screen"
+            is_split = renderer_template == "split-screen"
+            viz_style: str = channel.get("visualizer_style") or "none"
+            viz_theme: str = channel.get("visualizer_theme") or "violet"
+
+            common_kw = dict(
                 title=_join(channel.get("title", "")),
                 host_name=_join(channel.get("hostName", "")),
                 genre=_join(channel.get("genre", "")),
@@ -517,27 +769,45 @@ class MuxService:
                 sponsor_text=_sponsor_text,
                 track_codes=track_codes,
             )
-
-            viz_style: str = channel.get("visualizer_style") or "none"
-            viz_theme: str = channel.get("visualizer_theme") or "violet"
+            text_overlay = (
+                _drawtext_split_screen(**common_kw)
+                if is_split
+                else _drawtext_overlay(**common_kw)
+            )
 
             if cover_path.suffix.lower() in _VIDEO_EXTS:
-                # Encode raw normalized segment (no overlay — overlay goes in
-                # final pass so time-windowed text spans the full timeline).
                 seg_path = tmp_path / "seg.mp4"
-                await _run_ffmpeg(_build_segment_cmd(cover_path, seg_path))
+                await _run_ffmpeg(
+                    _build_split_segment_cmd(cover_path, seg_path)
+                    if is_split
+                    else _build_segment_cmd(cover_path, seg_path)
+                )
                 seg_duration = await _probe_duration(seg_path)
                 if seg_duration <= 0:
                     raise RuntimeError(f"Could not determine loop duration for '{slug}'")
                 repeats = math.ceil(total_duration / seg_duration) + 1
-                cmd = _build_video_mux_cmd(
-                    seg_path, repeats, audio_paths, output_path, total_duration,
-                    overlay=overlay, viz_style=viz_style, viz_theme=viz_theme,
+                cmd = (
+                    _build_video_split_screen_cmd(
+                        seg_path, repeats, audio_paths, output_path, total_duration,
+                        overlay=text_overlay, viz_style=viz_style, viz_theme=viz_theme,
+                    )
+                    if is_split
+                    else _build_video_mux_cmd(
+                        seg_path, repeats, audio_paths, output_path, total_duration,
+                        overlay=text_overlay, viz_style=viz_style, viz_theme=viz_theme,
+                    )
                 )
             else:
-                cmd = _build_image_mux_cmd(
-                    cover_path, audio_paths, output_path, total_duration,
-                    overlay=overlay, viz_style=viz_style, viz_theme=viz_theme,
+                cmd = (
+                    _build_image_split_screen_cmd(
+                        cover_path, audio_paths, output_path, total_duration,
+                        overlay=text_overlay, viz_style=viz_style, viz_theme=viz_theme,
+                    )
+                    if is_split
+                    else _build_image_mux_cmd(
+                        cover_path, audio_paths, output_path, total_duration,
+                        overlay=text_overlay, viz_style=viz_style, viz_theme=viz_theme,
+                    )
                 )
 
             logger.info("Running: %s", " ".join(cmd))
